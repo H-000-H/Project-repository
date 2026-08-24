@@ -1,0 +1,37 @@
+// SPDX-License-Identifier: Apache-2.0
+/*
+ * STM32F407 GPIO 板级片段 — 板载 LED（GPIOC.13）
+ *
+ * 用法: board/dts/board.dts 中 #include "gpio.dtsi"
+ * label=led 供 App_Led::device_find_by_label 查找
+ *
+ * 厂商宏经 VENDOR_INC_DIRS / dtc-lite -I 解析（见根 CMakeLists.txt）
+ */
+#include <stm32f4xx_ll_gpio.h>
+#include <stm32f4xx_ll_bus.h>
+#include <dt-bindings/gpio/gpio-parameter.h>
+
+&soc {
+	/*
+	 * GPIO 输出脚模板；板级用 &led { } 继承覆盖 port/pin/clk
+	 */
+	led: gpios-pin@13 {
+		compatible = "heterogeneous,gpios";
+		reg = <13>;
+		gpio-mode = <LL_GPIO_MODE_OUTPUT>;
+		gpio-pull = <LL_GPIO_PULL_NO>;
+		gpio-speed = <LL_GPIO_SPEED_FREQ_LOW>;
+		gpio-otype = <LL_GPIO_OUTPUT_PUSHPULL>;
+		gpio-intr = <DTS_GPIO_DEFAULT_INTR>;
+		default-level = <1>; /* 常见 PC13 LED 低电平亮，默认灭 */
+		status = "disabled";
+	};
+};
+
+/* 继承 &led 模板 → GPIOC.13 板载 LED */
+&led {
+	gpio-port = <GPIOC_BASE>;
+	gpio-pin = <LL_GPIO_PIN_13>;
+	gpio-clk = <LL_AHB1_GRP1_PERIPH_GPIOC>;
+	status = "okay";
+};

@@ -1,0 +1,15 @@
+--target=arm-none-eabi
+-mcpu=cortex-m4
+-D__ARM_ARCH_7EM__=1
+-DSTM32F407xx
+-DUSE_HAL_DRIVER
+-DUSE_FULL_LL_DRIVER
+# clang 不预定义 __WCHAR_MIN__（GCC 预定义）；newlib 头引用它，补上与 GCC 一致（wchar=unsigned int → 0）
+-D__WCHAR_MIN__=0U
+-I.
+-I../../main
+-I../../app/stm-unique
+-I../../Drivers/STM32F4xx_HAL_Driver/Inc
+-I../../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy
+-I../../Drivers/CMSIS/Device/ST/STM32F4xx/Include
+-I../../Drivers/CMSIS/Include

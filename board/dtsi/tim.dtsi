@@ -1,0 +1,36 @@
+// SPDX-License-Identifier: Apache-2.0
+/*
+ * STM32F407 TIM 板级片段 — 调度 tick 用 TIM7
+ *
+ * 用法: board/dts/board.dts 中 #include "tim.dtsi"
+ * TIMCLK=48MHz (APB1=24MHz×2): PSC=47 ARR=999 → 1kHz 更新中断
+ *
+ * 厂商宏经 VENDOR_INC_DIRS / dtc-lite -I 解析（见根 CMakeLists.txt）
+ */
+#include <stm32f4xx_ll_tim.h>
+#include <stm32f4xx_ll_bus.h>
+#include <dt-bindings/tim/tim-parameter.h>
+
+/chosen {
+	scheduler-tim = <&tim7>;
+};
+
+&soc {
+	/* 裸机时间片调度器 tick */
+	tim7: tim@7 {
+		compatible = "tim";
+		reg = <7>;
+		tim-mode = <HAL_TIM_MODE_BASE>;
+		prescaler = <47>;
+		counter-mode = <LL_TIM_COUNTERMODE_UP>;
+		autoreload = <999>;
+		clock-division = <LL_TIM_CLOCKDIVISION_DIV1>;
+		repetition-counter = <0>;
+		hw-instance = <TIM7_BASE>;
+		clk-periph = <LL_APB1_GRP1_PERIPH_TIM7>;
+		irqn = <TIM7_IRQn>;
+		interrupt-mask = <LL_TIM_DIER_UIE>;
+		nvic-priority = <5>;
+		status = "okay";
+	};
+};

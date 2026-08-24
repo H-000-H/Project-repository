@@ -1,0 +1,49 @@
+// SPDX-License-Identifier: Apache-2.0
+/*
+ * STM32F407ZGT6 最小板级骨架 DTS — 业务节点后续在此补充。
+ *
+ * 仅提供 dtc-lite 生成板级宏所需的最小结构:
+ *   /chosen        → CHOSEN_SCHEDULER_TIM / DTC_GEN_TICK_RATE_HZ / DTC_GEN_HEAP_SIZE
+ *   soc            → 外设片段挂接点（&soc）
+ *
+ * 外设片段见 board/dtsi/*.dtsi（tim.dtsi / gpio.dtsi / usb.dtsi）。
+ */
+/dts-v1/;
+
+#include "tim.dtsi"
+#include "gpio.dtsi"
+#include "usb.dtsi"
+
+/chosen {
+	tick-rate = <1000>;
+	heap-size = <32768>;
+};
+
+/ {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	model = "STMicro STM32F407ZGT6";
+	compatible = "st,stm32f407zgt6", "st,stm32f407";
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-m4";
+			reg = <0>;
+			/* 实际 SYSCLK: HSI + PLL(M16/N192/P2) = 96MHz
+			 * disabled: 不进驱动匹配表, 仅供 dtc-lite 读 clock-frequency 生成主频宏 */
+			clock-frequency = <96000000>;
+			status = "disabled";
+		};
+	};
+
+	soc: soc {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <0>;
+	};
+};

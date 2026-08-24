@@ -1,0 +1,40 @@
+// SPDX-License-Identifier: Apache-2.0
+/*
+ * STM32F407 USB 板级片段 — OTG_FS Device (CDC 虚拟串口日志调试)
+ *
+ * 用法: board/dts/board.dts 中 #include "usb.dtsi"
+ * PA11 = D- / PA12 = D+, AF10 = OTG_FS; 48MHz 由 PLLQ 提供 (SystemClock_Config)
+ * label=console 供 syscalls.c _write 按 label 查找输出日志
+ *
+ * 厂商宏经 VENDOR_INC_DIRS / dtc-lite -I 解析（见根 CMakeLists.txt）
+ */
+#include <stm32f4xx_ll_gpio.h>
+#include <stm32f4xx_ll_bus.h>
+
+
+&soc {
+	/* OTG_FS 全速 Device: vfs/usb "usb-otg-host" 解析并初始化总线 */
+	usb_otg_fs: usb@50000000 {
+		compatible = "usb-otg-host";
+		reg = <0x50000000>;
+		usb-base = <USB_OTG_FS_PERIPH_BASE>;
+		rhport = <0>;
+		irqn = <67>; /* OTG_FS_IRQn (stm32f407xx.h enum, dtc-lite 不展开) */
+		vbus-sense = <0>;
+		dma-enable = <0>;
+		dp-port = <GPIOA_BASE>;
+		dp-pin = <LL_GPIO_PIN_12>;
+		dp-af = <10>; /* GPIO_AF10_OTG_FS (stm32f4xx_hal_gpio_ex.h 带 cast 宏, dtc-lite 不展开) */
+		dm-port = <GPIOA_BASE>;
+		dm-pin = <LL_GPIO_PIN_11>;
+		dm-af = <10>; /* GPIO_AF10_OTG_FS */
+		status = "okay";
+	};
+
+	/* CDC ACM 虚拟串口客户端: 主机默认枚举 Config0 (CDC+HID) */
+	console: usb-cdc@0 {
+		compatible = "heterogeneous,usb-cdc-acm";
+		reg = <0>;
+		status = "okay";
+	};
+};

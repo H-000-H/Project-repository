@@ -1,0 +1,5 @@
+.cache/
+.cursor/
+.vscode/
+build/
+bin/
