@@ -286,6 +286,12 @@ void xscheduler_start(void)
 #ifdef CONFIG_VIRQ
             COMPAT_IGNORE_RESULT(device_get_prop_int(tick_dev, "tick_delay", &s_priv.tick_delay));
             interrupt_virtual_register(VIRQ(tim, 0), scheduler_tim_isr_top, NULL, &s_priv);
+
+            int irqn = -1;
+            int priority = 5;
+            COMPAT_IGNORE_RESULT(device_get_prop_int(tick_dev, "irqn", &irqn));
+            COMPAT_IGNORE_RESULT(device_get_prop_int(tick_dev, "nvic-priority", &priority));
+            interrupt_hw_enable(irqn, (uint32_t)priority);
 #endif
             return;
         }
