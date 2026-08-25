@@ -1,9 +1,9 @@
 {
-  "idf.espIdfPath": "/home/ning/esp-idf",
-  "idf.toolsPath": "/home/ning/.espressif",
-  "idf.pythonBinPath": "/home/ning/.espressif/tools/python/v6.0.1/venv/bin/python3",
-  "terminal.integrated.env.linux": {
-    "IDF_PATH": "/home/ning/esp-idf"
+  "idf.espIdfPath": "D:/Espressif_vscode/frameworks/esp-idf-v5.5.2",
+  "idf.toolsPath": "D:/Espressif_vscode/tools",
+  "idf.pythonBinPath": "D:/Espressif_vscode/python_env/idf5.5_py3.11_env/Scripts/python.exe",
+  "terminal.integrated.env.windows": {
+    "IDF_PATH": "D:/Espressif_vscode/frameworks/esp-idf-v5.5.2"
   },
   "C_Cpp.intelliSenseEngine": "disabled",
   "files.associations": {
@@ -12,14 +12,14 @@
     "*.overlay": "c",
     "*.dtso": "c"
   },
-  "clangd.path": "/home/ning/.espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clangd",
+  "clangd.path": "D:/Espressif_vscode/tools/esp-clang/esp-19.1.2_20250312/esp-clang/bin/clangd.exe",
   "clangd.arguments": [
     "--background-index",
     "--query-driver=**",
-    "--compile-commands-dir=/home/ning/project/Heterogeneous-Multicore/platform/Espressif/esp32s3/build"
+    "--compile-commands-dir=c:/device_platform/esp32s3/Host-Device-Architecture-esp32s3-node/build"
   ],
-  "idf.currentSetup": "/home/ning/.espressif/v6.0.1/esp-idf",
+  "idf.currentSetup": "D:/Espressif_vscode/frameworks/esp-idf-v5.5.2/",
   "idf.flashType": "UART",
-  "idf.port": "/dev/ttyACM0",
+  "idf.port": "COM3",
   "idf.customExtraVars": {}
 }

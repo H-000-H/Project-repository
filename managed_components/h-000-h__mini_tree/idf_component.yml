@@ -1,0 +1,19 @@
+dependencies:
+  espressif/cjson:
+    version: ^1.7
+  espressif/led_strip:
+    version: ^3.0
+  idf:
+    version: '>=4.4'
+description: 这是一个通用的vfs驱动模型和dts抽象设备树和os抽象插件
+files:
+  exclude:
+  - build/**
+  - .cache/**
+  - compile_commands.json
+  - dist/**
+  - espressif__cjson/**
+  - espressif__led_strip/**
+  - esp-component.sh
+url: https://github.com/H-000-H/mini_tree
+version: 1.2.1
