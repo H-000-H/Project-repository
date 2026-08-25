@@ -15,8 +15,8 @@
 | :--- | :--- | :--- | :--- |
 | `Host-Device-Architecture-stm32f407zgt6-node` | STM32  | stm32f407各种应用层开发| 进行中 |
 | `Host-Device-Architecture-stm32f103c8t6-node` | STM32  | stm32f103各种应用层开发| 进行中 |
-| `Host-Device-Architecture-ch307-node`|CH32||ch32v307各种应用层开发|进行中|
-| `Host-Device-Architecture-esp32s3-node`|ESP-IDF||esp32各种应用层开发|进行中|
+| `Host-Device-Architecture-ch307-node`|CH32|ch32v307各种应用层开发|进行中|
+| `Host-Device-Architecture-esp32s3-node`|ESP-IDF|esp32各种应用层开发|进行中|
 
 ---
 
