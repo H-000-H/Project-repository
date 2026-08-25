@@ -1,0 +1,14 @@
+# Target labels
+ mini_tree_fc_tinyusb-populate
+# Source files and their labels
+C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/_deps/mini_tree_fc_tinyusb-subbuild/CMakeFiles/mini_tree_fc_tinyusb-populate
+C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/_deps/mini_tree_fc_tinyusb-subbuild/CMakeFiles/mini_tree_fc_tinyusb-populate.rule
+C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/_deps/mini_tree_fc_tinyusb-subbuild/CMakeFiles/mini_tree_fc_tinyusb-populate-complete.rule
+C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/_deps/mini_tree_fc_tinyusb-subbuild/mini_tree_fc_tinyusb-populate-prefix/src/mini_tree_fc_tinyusb-populate-stamp/mini_tree_fc_tinyusb-populate-build.rule
+C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/_deps/mini_tree_fc_tinyusb-subbuild/mini_tree_fc_tinyusb-populate-prefix/src/mini_tree_fc_tinyusb-populate-stamp/mini_tree_fc_tinyusb-populate-configure.rule
+C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/_deps/mini_tree_fc_tinyusb-subbuild/mini_tree_fc_tinyusb-populate-prefix/src/mini_tree_fc_tinyusb-populate-stamp/mini_tree_fc_tinyusb-populate-download.rule
+C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/_deps/mini_tree_fc_tinyusb-subbuild/mini_tree_fc_tinyusb-populate-prefix/src/mini_tree_fc_tinyusb-populate-stamp/mini_tree_fc_tinyusb-populate-install.rule
+C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/_deps/mini_tree_fc_tinyusb-subbuild/mini_tree_fc_tinyusb-populate-prefix/src/mini_tree_fc_tinyusb-populate-stamp/mini_tree_fc_tinyusb-populate-mkdir.rule
+C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/_deps/mini_tree_fc_tinyusb-subbuild/mini_tree_fc_tinyusb-populate-prefix/src/mini_tree_fc_tinyusb-populate-stamp/mini_tree_fc_tinyusb-populate-patch.rule
+C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/_deps/mini_tree_fc_tinyusb-subbuild/mini_tree_fc_tinyusb-populate-prefix/src/mini_tree_fc_tinyusb-populate-stamp/mini_tree_fc_tinyusb-populate-test.rule
+C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/_deps/mini_tree_fc_tinyusb-subbuild/mini_tree_fc_tinyusb-populate-prefix/src/mini_tree_fc_tinyusb-populate-stamp/mini_tree_fc_tinyusb-populate-update.rule

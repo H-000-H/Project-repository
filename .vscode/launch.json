@@ -1,0 +1,39 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug CH32V307 (WCH-LinkE + OpenOCD)",
+            "type": "cortex-debug",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build/Debug/ch307_node",
+            "servertype": "openocd",
+            "serverpath": "/opt/wch-openocd/bin/openocd",
+            "searchDir": [],
+            "configFiles": [
+                "/opt/wch-openocd/bin/wch-riscv.cfg"
+            ],
+            "device": "CH32V307",
+            "runToEntryPoint": "main",
+            "showDevDebugOutput": "raw",
+            "gdbPath": "/usr/bin/gdb-multiarch",
+            "preLaunchTask": "CMake: build"
+        },
+        {
+            "name": "Attach CH32V307 (WCH-LinkE + OpenOCD)",
+            "type": "cortex-debug",
+            "request": "attach",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build/Debug/ch307_node",
+            "servertype": "openocd",
+            "serverpath": "/opt/wch-openocd/bin/openocd",
+            "searchDir": [],
+            "configFiles": [
+                "/opt/wch-openocd/bin/wch-riscv.cfg"
+            ],
+            "device": "CH32V307",
+            "gdbPath": "/usr/bin/gdb-multiarch",
+            "preLaunchTask": "CMake: build"
+        }
+    ]
+}

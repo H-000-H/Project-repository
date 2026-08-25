@@ -1,0 +1,17 @@
+C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/CMakeFiles/ch307_node.dir
+C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/CMakeFiles/edit_cache.dir
+C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/CMakeFiles/rebuild_cache.dir
+C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/hal/CMakeFiles/ch32_periph.dir
+C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/hal/CMakeFiles/ch32_hal.dir
+C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/hal/CMakeFiles/edit_cache.dir
+C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/hal/CMakeFiles/rebuild_cache.dir
+C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/mini_tree/CMakeFiles/mini_tree.dir
+C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/mini_tree/CMakeFiles/mini_tree_gen.dir
+C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/mini_tree/CMakeFiles/edit_cache.dir
+C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/mini_tree/CMakeFiles/rebuild_cache.dir
+C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/mini_tree_etl/CMakeFiles/edit_cache.dir
+C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/mini_tree_etl/CMakeFiles/rebuild_cache.dir
+C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/mini_tree/lib/CMakeFiles/kconfig_generate.dir
+C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/mini_tree/lib/CMakeFiles/board_dts_generate.dir
+C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/mini_tree/lib/CMakeFiles/edit_cache.dir
+C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/mini_tree/lib/CMakeFiles/rebuild_cache.dir

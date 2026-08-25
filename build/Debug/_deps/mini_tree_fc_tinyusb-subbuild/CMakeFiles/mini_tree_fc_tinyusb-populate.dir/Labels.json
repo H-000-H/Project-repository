@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/_deps/mini_tree_fc_tinyusb-subbuild/CMakeFiles/mini_tree_fc_tinyusb-populate"
+		},
+		{
+			"file" : "C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/_deps/mini_tree_fc_tinyusb-subbuild/CMakeFiles/mini_tree_fc_tinyusb-populate.rule"
+		},
+		{
+			"file" : "C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/_deps/mini_tree_fc_tinyusb-subbuild/CMakeFiles/mini_tree_fc_tinyusb-populate-complete.rule"
+		},
+		{
+			"file" : "C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/_deps/mini_tree_fc_tinyusb-subbuild/mini_tree_fc_tinyusb-populate-prefix/src/mini_tree_fc_tinyusb-populate-stamp/mini_tree_fc_tinyusb-populate-build.rule"
+		},
+		{
+			"file" : "C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/_deps/mini_tree_fc_tinyusb-subbuild/mini_tree_fc_tinyusb-populate-prefix/src/mini_tree_fc_tinyusb-populate-stamp/mini_tree_fc_tinyusb-populate-configure.rule"
+		},
+		{
+			"file" : "C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/_deps/mini_tree_fc_tinyusb-subbuild/mini_tree_fc_tinyusb-populate-prefix/src/mini_tree_fc_tinyusb-populate-stamp/mini_tree_fc_tinyusb-populate-download.rule"
+		},
+		{
+			"file" : "C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/_deps/mini_tree_fc_tinyusb-subbuild/mini_tree_fc_tinyusb-populate-prefix/src/mini_tree_fc_tinyusb-populate-stamp/mini_tree_fc_tinyusb-populate-install.rule"
+		},
+		{
+			"file" : "C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/_deps/mini_tree_fc_tinyusb-subbuild/mini_tree_fc_tinyusb-populate-prefix/src/mini_tree_fc_tinyusb-populate-stamp/mini_tree_fc_tinyusb-populate-mkdir.rule"
+		},
+		{
+			"file" : "C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/_deps/mini_tree_fc_tinyusb-subbuild/mini_tree_fc_tinyusb-populate-prefix/src/mini_tree_fc_tinyusb-populate-stamp/mini_tree_fc_tinyusb-populate-patch.rule"
+		},
+		{
+			"file" : "C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/_deps/mini_tree_fc_tinyusb-subbuild/mini_tree_fc_tinyusb-populate-prefix/src/mini_tree_fc_tinyusb-populate-stamp/mini_tree_fc_tinyusb-populate-test.rule"
+		},
+		{
+			"file" : "C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/_deps/mini_tree_fc_tinyusb-subbuild/mini_tree_fc_tinyusb-populate-prefix/src/mini_tree_fc_tinyusb-populate-stamp/mini_tree_fc_tinyusb-populate-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"mini_tree_fc_tinyusb-populate"
+		],
+		"name" : "mini_tree_fc_tinyusb-populate"
+	}
+}

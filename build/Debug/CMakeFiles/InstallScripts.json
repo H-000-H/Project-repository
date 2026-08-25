@@ -1,0 +1,11 @@
+{
+	"InstallScripts" : 
+	[
+		"C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/cmake_install.cmake",
+		"C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/hal/cmake_install.cmake",
+		"C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/mini_tree/cmake_install.cmake",
+		"C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/mini_tree_etl/cmake_install.cmake",
+		"C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/mini_tree/lib/cmake_install.cmake"
+	],
+	"Parallel" : false
+}
