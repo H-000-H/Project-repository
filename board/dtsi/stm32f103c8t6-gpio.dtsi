@@ -1,0 +1,39 @@
+// SPDX-License-Identifier: Apache-2.0
+/*
+ *
+ * 用法: board/dts/board.dts 中 #include "stm32f103c8t6-gpio.dtsi"
+ * label=led 供 Led::Led_Task 的 device_find_by_label("led") 查找
+ *
+ * 厂商宏经 VENDOR_INC_DIRS / VENDOR_DEFINES / dtc-lite -I/-D 解析（见根 CMakeLists.txt）：
+ *   根 CMakeLists 需配置 VENDOR_DEFINES = STM32F103xB USE_FULL_LL_DRIVER，
+ *   否则 stm32f1xx.h 中外设位宏被 #if defined(STM32F103xB) 挡掉、LL 宏展开失败。
+ * LL_GPIO_PIN_13 为 F1 32 位复合值(如 0x24200020U)，hal_gpio_dev_t.pin 已用 uint32_t 承载。
+ */
+#include <stm32f1xx_ll_gpio.h>
+#include <stm32f1xx_ll_bus.h>
+#include <dt-bindings/gpio/gpio-parameter.h>
+
+/ {
+	/*
+	 * GPIO 输出脚模板；板级用 &gpio-led0 { } 继承覆盖 port/pin/clk
+	 */
+	gpio-led0: gpios-pin@13 {
+		compatible = "heterogeneous,gpios";
+		reg = <13>;
+		gpio-mode = <LL_GPIO_MODE_OUTPUT>;
+		gpio-pull = <LL_GPIO_PULL_DOWN>; /* 输出模式下上下拉不生效 */
+		gpio-speed = <LL_GPIO_SPEED_FREQ_LOW>;
+		gpio-otype = <LL_GPIO_OUTPUT_PUSHPULL>;
+		gpio-intr = <DTS_GPIO_DEFAULT_INTR>;
+		default-level = <0>; /* 常见 PC13 LED 低电平亮，默认灭 */
+		status = "disabled";
+	};
+};
+
+/* 继承 &gpio-led0 模板 → GPIOC.13 板载 LED */
+&gpio-led0 {
+	gpio-port = <GPIOC_BASE>;
+	gpio-pin = <LL_GPIO_PIN_13>;
+	gpio-clk = <LL_APB2_GRP1_PERIPH_GPIOC>;
+	status = "okay";
+};

@@ -1,0 +1,56 @@
+// SPDX-License-Identifier: Apache-2.0
+/*
+ * STM32F103C8T6 UART 板级片段 — USART1 (PA9 TX / PA10 RX)
+ * F1的DMA太jb不正常了写法写不下去LL库了
+ * 用法: board/dts/board.dts 中 #include "stm32f103c8t6-uart.dtsi"
+ *
+ * 厂商宏经 VENDOR_INC_DIRS / VENDOR_DEFINES / dtc-lite 预处理展开。
+ * 注意:
+ *  - F1 无 AFR, GPIO 复用走 HAL_GPIO_Init: TX=GPIO_MODE_AF_PP(复用推挽), RX=GPIO_MODE_INPUT(浮空)。
+ *  - tx-pin/rx-pin 用 HAL 位掩码 GPIO_PIN_x (放得进 uint16_t), 不用 LL_GPIO_PIN_x 复合值。
+ *  - data-width/stop-bits 等用 LL_USART_* 宏 (F1 的 LL 宏值与 HAL 枚举值相同)。
+ *  - DMA: dma-cfg 短元组 <handle channel priority memsize enable>, dma-enable=0 时不用 DMA。
+ */
+#include <stm32f1xx_ll_usart.h>
+#include <stm32f1xx_ll_bus.h>
+#include <stm32f1xx_hal_gpio.h>
+#include <stm32f1xx.h>
+
+/ {
+	uart1: uart@1 {
+		compatible = "uart";
+		reg = <1>;
+		uart-base  = <USART1_BASE>;
+		uart-clk   = <LL_APB2_GRP1_PERIPH_USART1>;
+		uart-baud  = <115200>;
+		data-width = <LL_USART_DATAWIDTH_8B>;
+		parity     = <LL_USART_PARITY_NONE>;
+		stop-bits  = <LL_USART_STOPBITS_1>;
+		direction  = <LL_USART_DIRECTION_TX_RX>;
+		hw-control = <LL_USART_HWCONTROL_NONE>;
+		oversampling = <LL_USART_OVERSAMPLING_16>;
+
+		tx-port = <GPIOA_BASE>;
+		tx-pin  = <GPIO_PIN_9>;
+		tx-clk  = <LL_APB2_GRP1_PERIPH_GPIOA>;
+		tx-af   = <0>;
+		tx-mode = <GPIO_MODE_AF_PP>;
+		tx-speed = <GPIO_SPEED_FREQ_HIGH>;
+
+		rx-port = <GPIOA_BASE>;
+		rx-pin  = <GPIO_PIN_10>;
+		rx-clk  = <LL_APB2_GRP1_PERIPH_GPIOA>;
+		rx-af   = <0>;
+		rx-mode = <GPIO_MODE_INPUT>;
+
+		/* dma-cfg: <handle channel priority memsize enable>; enable=0 暂不用 DMA */
+		dma-cfg = <0 1 0 0 0>;
+		status = "okay";
+
+		uart1_client: uart-client@1 {
+			compatible = "uart-client";
+			reg = <1>;
+			status = "disabled";
+		};
+	};
+};

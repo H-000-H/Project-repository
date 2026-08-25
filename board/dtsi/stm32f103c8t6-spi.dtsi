@@ -1,0 +1,70 @@
+// SPDX-License-Identifier: Apache-2.0
+/*
+ * STM32F103C8T6 SPI 板级片段 — SPI1 (PA5 SCK / PA6 MISO / PA7 MOSI)
+ *
+ * 用法: board/dts/board.dts 中 #include "stm32f103c8t6-spi.dtsi"
+ *
+ * 厂商宏经 VENDOR_INC_DIRS / VENDOR_DEFINES / dtc-lite 预处理展开。
+ * - MOSI/SCK 用 GPIO_MODE_AF_PP (复用推挽), MISO 用 GPIO_MODE_INPUT (浮空)。
+ * - mosi-pin/miso-pin/sclk-pin 用 HAL 位掩码 GPIO_PIN_x。
+ * - CS 软件管理 (client 的 cs-pin 填 GPIO_PIN_4)。
+ */
+#include <stm32f1xx_ll_bus.h>
+#include <stm32f1xx_hal_gpio.h>
+#include <stm32f1xx.h>
+
+/ {
+	spi0: spi@0 {
+		compatible = "spi-master";
+		reg = <0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		spi-base = <SPI1_BASE>;
+		spi-clk  = <LL_APB2_GRP1_PERIPH_SPI1>;
+
+		mosi-port = <GPIOA_BASE>;
+		mosi-pin  = <GPIO_PIN_7>;
+		mosi-clk  = <LL_APB2_GRP1_PERIPH_GPIOA>;
+		mosi-af   = <0>;
+		mosi-mode = <GPIO_MODE_AF_PP>;
+		mosi-speed = <GPIO_SPEED_FREQ_HIGH>;
+
+		miso-port = <GPIOA_BASE>;
+		miso-pin  = <GPIO_PIN_6>;
+		miso-clk  = <LL_APB2_GRP1_PERIPH_GPIOA>;
+		miso-af   = <0>;
+		miso-mode = <GPIO_MODE_INPUT>;
+
+		sclk-port = <GPIOA_BASE>;
+		sclk-pin  = <GPIO_PIN_5>;
+		sclk-clk  = <LL_APB2_GRP1_PERIPH_GPIOA>;
+		sclk-af   = <0>;
+		sclk-mode = <GPIO_MODE_AF_PP>;
+		sclk-speed = <GPIO_SPEED_FREQ_HIGH>;
+
+		irqn = <0>;
+		irq-priority = <0>;
+		it-enable = <0>;
+		max-trans-buffer = <512>;
+		max-transfer-buffer = <512>;
+		status = "disabled";
+
+		spi0_client: spi-master-client@0 {
+			compatible = "heterogeneous,spi-master-client";
+			reg = <0>;
+			cs-port = <GPIOA_BASE>;
+			cs-pin  = <GPIO_PIN_4>;
+			cs-clk  = <LL_APB2_GRP1_PERIPH_GPIOA>;
+			spi-mode = <0>;           /* 模式 0 (CPOL=0, CPHA=0) */
+			spi-max-frequency = <1000000>;
+			transfer-direction = <1>; /* 全双工 */
+			data-width = <0>;         /* 8-bit */
+			nss = <0>;                /* 软件 NSS */
+			bit-order = <0>;          /* MSB 先 */
+			crc-calculation = <0>;    /* 关 */
+			crc-poly = <7>;
+			standard = <0>;
+			status = "disabled";
+		};
+	};
+};
