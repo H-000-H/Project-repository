@@ -1,0 +1,25 @@
+{
+  "idf.espIdfPath": "/home/ning/esp-idf",
+  "idf.toolsPath": "/home/ning/.espressif",
+  "idf.pythonBinPath": "/home/ning/.espressif/tools/python/v6.0.1/venv/bin/python3",
+  "terminal.integrated.env.linux": {
+    "IDF_PATH": "/home/ning/esp-idf"
+  },
+  "C_Cpp.intelliSenseEngine": "disabled",
+  "files.associations": {
+    "*.dts": "c",
+    "*.dtsi": "c",
+    "*.overlay": "c",
+    "*.dtso": "c"
+  },
+  "clangd.path": "/home/ning/.espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clangd",
+  "clangd.arguments": [
+    "--background-index",
+    "--query-driver=**",
+    "--compile-commands-dir=/home/ning/project/Heterogeneous-Multicore/platform/Espressif/esp32s3/build"
+  ],
+  "idf.currentSetup": "/home/ning/.espressif/v6.0.1/esp-idf",
+  "idf.flashType": "UART",
+  "idf.port": "/dev/ttyACM0",
+  "idf.customExtraVars": {}
+}

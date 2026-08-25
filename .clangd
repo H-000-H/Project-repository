@@ -1,0 +1,80 @@
+# ESP32-S3 板级 clangd（必须用 esp-clang，见 .vscode/settings.json）
+#
+# 要点：
+# - compile_commands 来自 gcc；clangd 用 --query-driver 抽系统头时，若 CompileFlags
+#   里带了 --target=...，会把 -target 传给 gcc 导致抽取失败。
+# - 因此去掉 -specs（gcc 专用），并显式 -isystem 补：
+#   1) esp-clang libstdc++（cstring/cstddef；顺序与 `clang++ -v` 一致）
+#   2) gcc picolibc C 头（与 IDF 构建一致）
+#   3) esp-clang newlib/picolibc 目标 C 头
+# - 去掉 -Werror*：IDE 解析不应把 IDF 头里的兼容告警抬成 error。
+# - picolibc 的 ::isinf/::isnan 与 C++ <math.h> using 在 clang 下冲突（g++ 可过）；
+#   压掉 using_decl_conflict，避免假红。
+CompileFlags:
+  CompilationDatabase: build
+  Remove:
+    - -f*
+    - -m*
+    - --target=*
+    - -specs=*
+    - -Werror*
+  Add:
+    - --target=xtensa-esp-unknown-elf
+    - -mcpu=esp32s3
+    - -isystem
+    - /home/ning/.espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/include/c++/14.2.0
+    - -isystem
+    - /home/ning/.espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/lib/clang-runtimes/xtensa-esp-unknown-elf/include/c++/14.2.0
+    - -isystem
+    - /home/ning/.espressif/tools/xtensa-esp-elf/esp-15.2.0_20251204/xtensa-esp-elf/picolibc/include
+    - -isystem
+    - /home/ning/.espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/include
+    - -Wno-ignored-attributes
+    - -Wno-extern-c-compat
+    - -Wno-unused-command-line-argument
+    - -ferror-limit=0
+
+Diagnostics:
+  UnusedIncludes: None
+  MissingIncludes: None
+  Suppress:
+    - using_decl_conflict
+
+---
+If:
+  PathMatch: .*\.(cpp|cc|cxx)$
+CompileFlags:
+  Add:
+    - -std=gnu++26
+
+---
+# DTS/DTSI：按 C 解析以便 #include / 宏跳转（板级 board_esp32s3 + 中间件 dt-bindings）
+If:
+  PathMatch: .*(board_esp32s3|mini_tree[/\\]board)[/\\].*\.(dts|dtsi)$
+CompileFlags:
+  CompilationDatabase: None
+  Add:
+    - --target=xtensa-esp-unknown-elf
+    - -mcpu=esp32s3
+    - -std=gnu17
+    - -x
+    - c
+    - -isystem
+    - /home/ning/.espressif/tools/xtensa-esp-elf/esp-15.2.0_20251204/xtensa-esp-elf/picolibc/include
+    - -DCONFIG_IDF_TARGET_ESP32S3=1
+    - -DIDF_TARGET_ESP32S3=1
+    - -I/home/ning/project/device_platform/mcu/Espressif/esp32s3/Host-Device-Architecture-esp32s3-node/components/board_esp32s3
+    - -I/home/ning/project/device_platform/mcu/Espressif/esp32s3/Host-Device-Architecture-esp32s3-node/components/board_esp32s3/dtsi
+    - -I/home/ning/project/shelf/mini_tree/board
+    - -I/home/ning/project/shelf/mini_tree/board/dt-bindings
+    - -I/home/ning/esp-idf/components/esp_hal_gpio/include
+    - -I/home/ning/esp-idf/components/esp_hal_gpio/esp32s3/include
+    - -I/home/ning/esp-idf/components/esp_hal_uart/include
+    - -I/home/ning/esp-idf/components/esp_hal_gpspi/include
+    - -I/home/ning/esp-idf/components/soc/include
+    - -I/home/ning/esp-idf/components/soc/esp32s3/include
+    - -I/home/ning/esp-idf/components/esp_common/include
+    - -I/home/ning/esp-idf/components/esp_hw_support/include
+    - -I/home/ning/esp-idf/components/hal/platform_port/include
+Diagnostics:
+  Suppress: '*'

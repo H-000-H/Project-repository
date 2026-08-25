@@ -1,0 +1,5 @@
+dependencies:
+  idf:
+    version: '>=5.0.0'
+  espressif/led_strip: "^3.0.0"
+  h-000-h/mini_tree: "^1.3.0"

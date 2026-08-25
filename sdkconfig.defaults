@@ -1,0 +1,18 @@
+CONFIG_IDF_TARGET="esp32s3"
+
+# mini_tree（与组件 Kconfig / .config 对齐）
+# 平台: 记录用, 实际由 esp_idf.cmake 接入 IDF (见 Kconfig.mini_tree 中 PLATFORM_ESP32 的 help)
+CONFIG_PLATFORM_ESP32=y
+# CONFIG_PLATFORM_ARM_CM4F is not set
+CONFIG_OSAL_FREERTOS=y
+# CONFIG_OSAL_NULL is not set
+CONFIG_SYS_LOG_USE_ESP=y
+# CONFIG_SYS_LOG_USE_PRINTF is not set
+CONFIG_OSAL_MUTEX_POOL_SIZE=128
+CONFIG_SYSTEM_CPP=y
+
+# mini_tree 功能开关钉死 (原 .config 软编码已迁到 sdkconfig, 见 esp_idf_cmake.md §3)
+CONFIG_SYSTEM=y
+CONFIG_USB=y
+# CONFIG_EVENT_BUS is not set
+# CONFIG_SYSTEM_CMD is not set

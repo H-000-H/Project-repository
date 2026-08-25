@@ -1,0 +1,14 @@
+idf_component_register(
+    SRCS
+        "start/start.cpp"
+        "ws2812/ws2812.cpp"
+        "cjson/cjson_test.cpp"
+    INCLUDE_DIRS
+        "start"
+        "ws2812"
+        "cjson"
+    REQUIRES
+        mini_tree
+        driver_ws2812
+        espressif__cjson
+)
