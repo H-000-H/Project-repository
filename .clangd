@@ -1,6 +1,0 @@
-CompileFlags:
-  CompilationDatabase: build/debug
-  Compiler: arm-none-eabi-gcc
-  Remove:
-    - "-mcpu=*"
-    - "-mthumb"
