@@ -16,17 +16,19 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* 须在 <stdio.h> / <stdlib.h> 等标准头之后 include（通常由 osal.h 末尾引入）。
+/* 须在 <stdio.h> / <stdlib.h> 等标准头之后 include（通常由 mini_backend.h 等公共头引入）。
  *
  * 豁免须在任意 #include 之前定义:
  *   ALLOW_HEAP_ALLOC   — calloc / free / malloc / realloc
- *   ALLOW_STDIO_OUTPUT — vprintf / my_printf_output
+ *   ALLOW_STDIO_OUTPUT — vprintf
  *
- * 典型豁免: printf_output.c, osal_freertos.c, osal_null.c, osal_rtthread.c
+ * 典型豁免: mini-log/src/log.c (独立日志库, 自带 stdio 输出, 不引入本 poison 头),
+ *           mini_backend_bare.c (内存三函数转发 libc 堆),
+ *           mini_backend_freertos.c, mini_backend_mini_os.c, mini_backend_rtthread.c
  *
  * 注意: 不 poison system — Xtensa/ESP-IDF 头文件宏参数名会冲突.
  *
- * 内存 API: 项目代码须用 COMPAT_MEM_SET / COMPAT_MEM_COPY / COMPAT_MEM_MOVE
+ * 内存 API: 项目代码须用 MINI_MEM_SET / MINI_MEM_COPY / MINI_MEM_MOVE
  * (compiler_compat.h), 禁止直接调用 memset/memcpy/memmove; 官方 SDK 目录除外.
  */
 #if defined(__GNUC__)
@@ -41,7 +43,7 @@
 #endif
 
 #if !defined(ALLOW_STDIO_OUTPUT)
-#pragma GCC poison vprintf my_printf_output
+#pragma GCC poison vprintf
 #endif
 
 #endif /* __GNUC__ */

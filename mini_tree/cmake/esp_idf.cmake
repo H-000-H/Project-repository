@@ -12,9 +12,6 @@ get_filename_component(MINI_TREE_DIR "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 set(KCONFIG_DOT "${MINI_TREE_DIR}/.config")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${KCONFIG_DOT}")
 
-file(STRINGS "${KCONFIG_DOT}" CONFIG_OSAL_ENTRY   REGEX "^CONFIG_OSAL_(FREERTOS|RTTHREAD|NULL)=y$")
-file(STRINGS "${KCONFIG_DOT}" CONFIG_SYSTEM_ENTRY REGEX "^CONFIG_SYSTEM_(C|CPP)=y$")
-
 # System / EventBus 软编码：.config 显式 "# CONFIG_SYSTEM is not set" 才裁剪；缺省视为启用（对齐 Kconfig default y）
 file(STRINGS "${KCONFIG_DOT}" CONFIG_SYSTEM_OFF REGEX "^# CONFIG_SYSTEM is not set$")
 if(CONFIG_SYSTEM_OFF)
@@ -29,10 +26,9 @@ if(CONFIG_EVENT_BUS_OFF OR NOT MINI_TREE_SYSTEM)
 else()
     set(MINI_TREE_EVENT_BUS ON)
 endif()
-# SystemCmd: 默认关, 仅显式 "CONFIG_SYSTEM_CMD=y" 才编入
+# SystemCmd: 默认关, 仅显式 "CONFIG_SYSTEM_CMD=y" 才编入 (系统层唯一保留的 C++ 模块)
 file(STRINGS "${KCONFIG_DOT}" CONFIG_SYSTEM_CMD_ON REGEX "^CONFIG_SYSTEM_CMD=y$")
-# SYSTEM_CMD 仅 SYSTEM_CPP 后端有效
-if(CONFIG_SYSTEM_CMD_ON AND CONFIG_SYSTEM_ENTRY STREQUAL "CONFIG_SYSTEM_CPP=y")
+if(CONFIG_SYSTEM_CMD_ON AND MINI_TREE_SYSTEM)
     set(MINI_TREE_SYSTEM_CMD ON)
 else()
     set(MINI_TREE_SYSTEM_CMD OFF)
@@ -57,13 +53,13 @@ foreach(d ${HAL_INCLUDE_DIRS})
 endforeach()
 set(HAL_INCLUDE_DIRS ${_HAL_INC_EXISTING})
 
-# ESP 强制 FreeRTOS OSAL（对接 IDF 内核）
-set(OSAL_SRCS "${MINI_TREE_DIR}/osal/src/osal_freertos.c")
-set(OSAL_DEFINE CONFIG_OSAL_FREERTOS)
+# ESP 强制 FreeRTOS 后端（对接 IDF 内核）
+set(MINI_OS_SRCS "${MINI_TREE_DIR}/core/src/mini_backend_freertos.c")
+set(MINI_OS_DEFINE CONFIG_OS_FREERTOS)
 
 # HAL stub 全量编入, 但每个 stub 文件内部已做 #if defined(ESP_PLATFORM) 屏蔽:
 # ESP 构建下文件编译为空 (hal_* 由板级组件提供 strong 实现, 缺失直接链接报错,
-# 杜绝静默 -ENOSYS); 非 ESP 构建保留 weak stub 兜底。
+# 杜绝静默 MINI_ERR_NOTSUPP); 非 ESP 构建保留 weak stub 兜底。
 # 板级需覆盖的引用集 (随 DRIVER_SRCS/SYSTEM_SRCS 变化, 缺失时链接错误会指出):
 #   外设 7: gpio/spi/uart/i2c/can/tim/adc  系统 5: iwdg/storage/flash/usb/platform_safety
 # 注意: hal_cpu_secondary_startup 被 CONFIG_CPU_CORES>1 引用, CPU_CORES=1 时不链接;
@@ -82,7 +78,6 @@ set(HAL_SRCS
     "${MINI_TREE_DIR}/hal/dac/hal_dac.c"
     "${MINI_TREE_DIR}/hal/tim/hal_tim.c"
     "${MINI_TREE_DIR}/hal/amp/hal_amp.c"
-    "${MINI_TREE_DIR}/hal/storage/hal_flash.c"
     "${MINI_TREE_DIR}/hal/storage/hal_storage.c"
     "${MINI_TREE_DIR}/hal/system/hal_platform_safety.c"
     "${MINI_TREE_DIR}/hal/system/hal_sdio.c"
@@ -95,25 +90,22 @@ if(MINI_TREE_USB)
 endif()
 
 if(MINI_TREE_SYSTEM)
-    if(CONFIG_SYSTEM_ENTRY STREQUAL "CONFIG_SYSTEM_CPP=y")
-        set(SYSTEM_SRCS
-            "${MINI_TREE_DIR}/system_cpp/src/system_init.cpp"
-            "${MINI_TREE_DIR}/system_cpp/src/system_scrubber.cpp"
-            "${MINI_TREE_DIR}/system_cpp/src/system_wdt.cpp"
-            "${MINI_TREE_DIR}/system_cpp/src/task_manager.cpp"
-            "${MINI_TREE_DIR}/system_cpp/src/safe_state.c"
-        )
-        if(MINI_TREE_SYSTEM_CMD)
-            list(APPEND SYSTEM_SRCS "${MINI_TREE_DIR}/system_cpp/src/system_cmd.cpp")
-        endif()
-    else()
-        set(SYSTEM_SRCS
-            "${MINI_TREE_DIR}/system_c/src/system_init.c"
-            "${MINI_TREE_DIR}/system_c/src/system_scrubber.c"
-            "${MINI_TREE_DIR}/system_c/src/system_wdt.c"
-            "${MINI_TREE_DIR}/system_c/src/task_manager.c"
-            "${MINI_TREE_DIR}/system_cpp/src/safe_state.c"
-        )
+    # 系统运行时恒为纯 C (system_c/); safe_state 亦为 C, 同属 system_c/
+    set(SYSTEM_SRCS
+        "${MINI_TREE_DIR}/system_c/src/system_init.c"
+        "${MINI_TREE_DIR}/system_c/src/system_wdt.c"
+        "${MINI_TREE_DIR}/system_c/src/task_manager.c"
+        "${MINI_TREE_DIR}/system_c/src/safe_state.c"
+    )
+    # system_scrubber 的校验原语来自 mini-ota (image_verify_area), 而 CONFIG_MINI_OTA
+    # 只支持 Cortex-M —— ESP(Xtensa) 下恒为关, 故本项在 ESP 构建里不会被选中。
+    file(STRINGS "${KCONFIG_DOT}" MINI_TREE_SCRUBBER_ON REGEX "^CONFIG_SYSTEM_SCRUBBER=y$")
+    if(MINI_TREE_SCRUBBER_ON)
+        list(APPEND SYSTEM_SRCS "${MINI_TREE_DIR}/system_c/src/system_scrubber.c")
+    endif()
+    # SystemCmd (命令分发器) 是系统层唯一保留的 C++ 模块, 仅 CONFIG_SYSTEM_CMD=y 时编入
+    if(MINI_TREE_SYSTEM_CMD)
+        list(APPEND SYSTEM_SRCS "${MINI_TREE_DIR}/system_cpp/src/system_cmd.cpp")
     endif()
 endif()
 
@@ -128,9 +120,16 @@ set(BOARD_SRCS
 )
 
 set(CORE_SRCS
-    "${MINI_TREE_DIR}/core/src/buffer_pool.c"
-    "${MINI_TREE_DIR}/core/src/production_log.c"
-    "${MINI_TREE_DIR}/core/src/printf_output.c"
+    "${MINI_TREE_DIR}/core/src/mini_backend_bare.c"
+    "${MINI_TREE_DIR}/core/src/mini_backend_freertos.c"
+    "${MINI_TREE_DIR}/core/src/mini_backend_mini_os.c"
+    "${MINI_TREE_DIR}/core/src/mini_backend_rtthread.c"
+    "${MINI_TREE_DIR}/core/src/mini_panic.c"
+    "${MINI_TREE_DIR}/core/src/mini_slot.c"
+    "${MINI_TREE_DIR}/core/src/mini_time.c"
+    "${MINI_TREE_DIR}/core/src/status.c"
+    "${MINI_TREE_DIR}/mini-log/src/log.c"
+    "${MINI_TREE_DIR}/mini-log/src/crc.c"
 )
 if(MINI_TREE_EVENT_BUS)
     list(APPEND CORE_SRCS "${MINI_TREE_DIR}/core/src/event_bus.c")
@@ -296,7 +295,7 @@ endif()
 
 idf_component_register(
     SRCS
-        ${OSAL_SRCS}
+        ${MINI_OS_SRCS}
         ${HAL_SRCS}
         ${BOARD_SRCS}
         ${CORE_SRCS}
@@ -309,10 +308,10 @@ idf_component_register(
         "${MINI_TREE_DIR}/board/define/vfs"
         "${MINI_TREE_DIR}/board"
         "${MINI_TREE_DIR}/core/include"
-        "${MINI_TREE_DIR}/osal/include"
         "${MINI_TREE_DIR}/system_c/include"
         "${MINI_TREE_DIR}/system_cpp/include"
         "${MINI_TREE_DIR}/algorithm/buffer"
+        "${MINI_TREE_DIR}/mini-log/inc"
         "${MINI_TREE_DIR}/interrupt"
         ${_PRODUCT_DRV_INC_DIRS}
         ${_PRODUCT_DRV_SRC_DIRS}
@@ -400,9 +399,9 @@ add_dependencies(${COMPONENT_LIB}
 
 set_source_files_properties(${GEN_SRCS} PROPERTIES GENERATED TRUE)
 
-target_compile_definitions(${COMPONENT_LIB} PUBLIC ${OSAL_DEFINE} ETL_NO_STL)
-if(CONFIG_SYSTEM_ENTRY STREQUAL "CONFIG_SYSTEM_CPP=y")
-    target_compile_definitions(${COMPONENT_LIB} PRIVATE CONFIG_SYSTEM_CPP)
+target_compile_definitions(${COMPONENT_LIB} PUBLIC ${MINI_OS_DEFINE} ETL_NO_STL)
+# 系统层唯一的 C++ 模块是 SystemCmd (命令分发器); 编入时对其施加 no-rtti/no-exceptions
+if(MINI_TREE_SYSTEM_CMD)
     target_compile_options(${COMPONENT_LIB} PRIVATE
         $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>
         $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>

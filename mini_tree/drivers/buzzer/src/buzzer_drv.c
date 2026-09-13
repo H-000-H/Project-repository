@@ -16,7 +16,8 @@
 #include "device.h"
 #include "driver.h"
 #include "dt_config_gen.h"
-#include "osal.h"
+#include "mini_slot.h"
+#include "mini_time.h"
 #include "status.h"
 #include "system_log.h"
 #include "vfs-gpio.h"
@@ -34,27 +35,27 @@
 /** @brief 蜂鸣器驱动实例（嵌入 fops 与双后端句柄） */
 struct buzzer_device
 {
-    struct file_operations ops; /**< 挂入 device 的 fops */
-    struct device* tim_dev; /**< PWM TIM 设备（phandle: pwm，可选） */
-    struct device* gpio_dev; /**< 电平 GPIO 设备（phandle: beep-gpio，可选） */
-    struct vfs_tim_arg tim; /**< PWM 参数（快路径） */
-    struct vfs_gpio_arg gpio; /**< GPIO 参数 */
-    int use_tim; /**< 后端选择：1=TIM PWM，0=GPIO */
+    struct file_operations ops;      /**< 挂入 device 的 fops */
+    struct device*         tim_dev;  /**< PWM TIM 设备（phandle: pwm，可选） */
+    struct device*         gpio_dev; /**< 电平 GPIO 设备（phandle: beep-gpio，可选） */
+    struct vfs_tim_arg     tim;      /**< PWM 参数（快路径） */
+    struct vfs_gpio_arg    gpio;     /**< GPIO 参数 */
+    int                    use_tim;  /**< 后端选择：1=TIM PWM，0=GPIO */
 
     int hw_ready; /**< 硬件已初始化标志 */
 };
 
-static struct buzzer_device s_buzzer_pool[BUZZER_POOL_COUNT] COMPAT_ALIGNED(4);
-static uint8_t s_buzzer_used[BUZZER_POOL_COUNT] COMPAT_ALIGNED(4);
-static osal_pool_t s_buzzer_pool_ctrl COMPAT_ALIGNED(4);
-static const char* const k_tag = "buzzer";
+static struct buzzer_device           s_buzzer_pool[BUZZER_POOL_COUNT] MINI_ALIGNED(4);
+static uint8_t                        s_buzzer_used[BUZZER_POOL_COUNT] MINI_ALIGNED(4);
+static mini_slot_t s_buzzer_pool_ctrl MINI_ALIGNED(4);
+static const char* const              k_tag = "buzzer";
 
 /**
- * @brief 驱动池启动初始化（pre_execution 阶段，创建静态对象池）
+ * @brief 驱动池启动初始化（mini_pre_execution 阶段，创建静态对象池）
  */
-pre_execution(PRE_EXEC_PRIO_DRIVER_POOL) static void buzzer_pool_boot_init(void)
+mini_pre_execution(MINI_PRE_EXEC_PRIO_DRIVER_POOL) static void buzzer_pool_boot_init(void)
 {
-    COMPAT_IGNORE_RESULT(osal_pool_init(&s_buzzer_pool_ctrl, s_buzzer_used, BUZZER_POOL_COUNT));
+    MINI_IGNORE_RESULT(mini_slot_init(&s_buzzer_pool_ctrl, s_buzzer_used, BUZZER_POOL_COUNT));
 }
 
 /**
@@ -62,16 +63,13 @@ pre_execution(PRE_EXEC_PRIO_DRIVER_POOL) static void buzzer_pool_boot_init(void)
  * @param[in] pdev device 指针
  * @return 驱动实例指针，无效时 ERR_PTR
  */
-static struct buzzer_device* buzzer_get_drvdata(struct device* pdev)
-{
-    return (struct buzzer_device*)device_get_priv(pdev);
-}
+static struct buzzer_device* buzzer_get_drvdata(struct device* pdev) { return (struct buzzer_device*)device_get_priv(pdev); }
 
 /**
  * @brief 首次 open 时打开对应后端（TIM 或 GPIO）
- * @return MINI_OK 或 VFS_ERR_*
+ * @return MINI_OK 或 MINI_ERR_*
  */
-static int buzzer_hw_create(struct buzzer_device* dev)
+static mt_err_t buzzer_hw_create(struct buzzer_device* dev)
 {
     if (!dev)
         return MINI_ERR_INVAL;
@@ -104,9 +102,9 @@ static void buzzer_hw_destroy(struct buzzer_device* dev)
     if (!dev || !dev->hw_ready)
         return;
     if (dev->tim_dev)
-        COMPAT_IGNORE_RESULT(device_close(dev->tim_dev));
+        MINI_IGNORE_RESULT(device_close(dev->tim_dev));
     if (dev->gpio_dev)
-        COMPAT_IGNORE_RESULT(device_close(dev->gpio_dev));
+        MINI_IGNORE_RESULT(device_close(dev->gpio_dev));
     dev->hw_ready = 0;
 }
 
@@ -117,8 +115,8 @@ static int buzzer_open(struct device* pdev, void* arg)
 {
     struct buzzer_device* dev;
     struct dev_lifecycle* lc;
-    int first, ret;
-    COMPAT_IGNORE_RESULT(arg);
+    int                   first, ret;
+    MINI_IGNORE_RESULT(arg);
     if (!pdev || !pdev->ops)
         return MINI_ERR_INVAL;
     dev = buzzer_get_drvdata(pdev);
@@ -151,7 +149,7 @@ static int buzzer_close(struct device* pdev)
 {
     struct buzzer_device* dev;
     struct dev_lifecycle* lc;
-    int last;
+    int                   last;
     if (!pdev || !pdev->ops)
         return MINI_ERR_INVAL;
     dev = buzzer_get_drvdata(pdev);
@@ -172,7 +170,7 @@ static int buzzer_close(struct device* pdev)
 /**
  * @brief ioctl 命令分发类型（命令处理函数由 map 绑定）
  */
-typedef int (*buzzer_ioctl_fn_t)(struct buzzer_device* dev, void* arg, size_t arg_len, uint32_t ms);
+typedef mt_err_t (*buzzer_ioctl_fn_t)(struct buzzer_device* dev, void* arg, size_t arg_len, uint32_t ms);
 struct buzzer_ioctl_map
 {
     buzzer_ioctl_fn_t handler;
@@ -181,9 +179,9 @@ struct buzzer_ioctl_map
 /**
  * @brief BUZZER_CMD_BEEP 实现：PWM 占空比或 GPIO 电平控制，可带时长
  */
-static int buzzer_cmd_beep(struct buzzer_device* dev, void* arg, size_t len, uint32_t ms)
+static mt_err_t buzzer_cmd_beep(struct buzzer_device* dev, void* arg, size_t len, uint32_t ms)
 {
-    int on;
+    int      on;
     uint32_t dur;
     if (!dev->hw_ready || !arg || len != sizeof(int))
         return MINI_ERR_INVAL;
@@ -194,8 +192,7 @@ static int buzzer_cmd_beep(struct buzzer_device* dev, void* arg, size_t len, uin
         dev->tim.arr = 1000U;
         dev->tim.ccr = on ? 500U : 0U;
         dev->tim.channel = 1U;
-        COMPAT_IGNORE_RESULT(
-            device_ioctl(dev->tim_dev, TIM_CMD_PWM_UPDATE, &dev->tim, sizeof(dev->tim), 100));
+        MINI_IGNORE_RESULT(device_ioctl(dev->tim_dev, TIM_CMD_PWM_UPDATE, &dev->tim, sizeof(dev->tim), 100));
     }
     else if (dev->gpio_dev)
     {
@@ -203,7 +200,7 @@ static int buzzer_cmd_beep(struct buzzer_device* dev, void* arg, size_t len, uin
         vfs_gpio_set_level(&dev->gpio);
     }
     if (on)
-        osal_delay_ms(dur);
+        mini_delay_ms(dur);
     return MINI_OK;
 }
 static const struct buzzer_ioctl_map s_buzzer_map[BUZZER_CMD_COUNT] = {
@@ -213,12 +210,12 @@ static const struct buzzer_ioctl_map s_buzzer_map[BUZZER_CMD_COUNT] = {
 /**
  * @brief fops.ioctl：查表分发命令，持 io 生命周期锁
  */
-static int buzzer_ioctl(struct device* pdev, int cmd, void* arg, size_t arg_len, uint32_t ms)
+static mt_err_t buzzer_ioctl(struct device* pdev, int cmd, void* arg, size_t arg_len, uint32_t ms)
 {
     struct buzzer_device* dev;
     struct dev_lifecycle* lc;
-    int32_t off;
-    int ret;
+    int32_t               off;
+    int                   ret;
     if (!pdev || !pdev->ops)
         return MINI_ERR_INVAL;
     dev = buzzer_get_drvdata(pdev);
@@ -248,17 +245,17 @@ static const struct file_operations buzzer_fops = {
 /**
  * @brief probe：claim 池项、绑定 pwm/beep-gpio 并挂 fops
  */
-static int buzzer_probe(struct device* pdev)
+static mt_err_t buzzer_probe(struct device* pdev)
 {
     struct buzzer_device* dev;
-    int pool_idx, ret;
+    int                   pool_idx, ret;
     if (!pdev)
         return MINI_ERR_INVAL;
-    pool_idx = osal_pool_claim(&s_buzzer_pool_ctrl);
+    pool_idx = mini_slot_claim(&s_buzzer_pool_ctrl);
     if (pool_idx < 0)
         return MINI_ERR_NOMEM;
     dev = &s_buzzer_pool[pool_idx];
-    COMPAT_MEM_SET(dev, 0, sizeof(*dev));
+    MINI_MEM_SET(dev, 0, sizeof(*dev));
     dev->tim_dev = device_get_phandle_dev(pdev, "pwm");
     dev->gpio_dev = device_get_phandle_dev(pdev, "beep-gpio");
     dev->use_tim = !IS_ERR(dev->tim_dev);
@@ -279,23 +276,23 @@ static int buzzer_probe(struct device* pdev)
     }
     dev->ops = buzzer_fops;
     pdev->ops = &dev->ops;
-    SYS_LOGI(k_tag, "probe OK pool=%dev", pool_idx);
+    MT_LOG_INFO(k_tag, "probe OK pool=%dev", pool_idx);
     return MINI_OK;
 err:
     pdev->ops = NULL;
-    COMPAT_MEM_SET(dev, 0, sizeof(*dev));
-    COMPAT_IGNORE_RESULT(osal_pool_release(&s_buzzer_pool_ctrl, pool_idx));
+    MINI_MEM_SET(dev, 0, sizeof(*dev));
+    MINI_IGNORE_RESULT(mini_slot_release(&s_buzzer_pool_ctrl, pool_idx));
     return ret;
 }
 
 /**
  * @brief remove：排空在途 io、释放硬件并归还池项
  */
-static int buzzer_remove(struct device* pdev)
+static mt_err_t buzzer_remove(struct device* pdev)
 {
     struct buzzer_device* dev;
     struct dev_lifecycle* lc;
-    int idx;
+    int                   idx;
     if (!pdev)
         return MINI_ERR_INVAL;
     dev = buzzer_get_drvdata(pdev);
@@ -307,14 +304,14 @@ static int buzzer_remove(struct device* pdev)
     idx = (int)(dev - s_buzzer_pool);
     dev_lc_remove_start(lc);
     device_ops_unregister(pdev);
-    if (dev_lc_remove_drain(lc, OSAL_WAIT_FOREVER) != MINI_OK)
+    if (dev_lc_remove_drain(lc, MINI_WAIT_FOREVER) != MINI_OK)
     {
         dev_lc_remove_finish(lc);
         return MINI_ERR_IO;
     }
     buzzer_hw_destroy(dev);
-    COMPAT_MEM_SET(dev, 0, sizeof(*dev));
-    COMPAT_IGNORE_RESULT(osal_pool_release(&s_buzzer_pool_ctrl, idx));
+    MINI_MEM_SET(dev, 0, sizeof(*dev));
+    MINI_IGNORE_RESULT(mini_slot_release(&s_buzzer_pool_ctrl, idx));
     dev_lc_remove_finish(lc);
     return MINI_OK;
 }

@@ -40,7 +40,7 @@
 | 文档 | 说明 |
 | :--- | :--- |
 | [architecture.md](architecture.md) | 分层与数据流 |
-| [patterns.md](patterns.md) | 关键机制解剖：pre_execution 注册链 / 两段式点火 / 编译期 probe 表 / xtask 调度 / VIRQ 上下半部 / SPSC 无锁通道 / dev_lifecycle / 非阻塞状态机 |
+| [patterns.md](patterns.md) | 关键机制解剖：mini_pre_execution 注册链 / 两段式点火 / 编译期 probe 表 / xtask 调度 / VIRQ 上下半部 / SPSC 无锁通道 / dev_lifecycle / 非阻塞状态机 |
 | [ecosystem.md](ecosystem.md) | 积木型链接：已接入开源库清单与扩展方式 |
 | [design_decisions.md](design_decisions.md) | 仍生效的设计决策与作者偏好 |
 | [references.md](references.md) | 外部对照：ESP VFS / FreeRTOS / Linux / RTT / LVGL / Qt |
@@ -49,7 +49,8 @@
 | [peripherals.md](peripherals.md) | 外设 compatible / ioctl 一览 |
 | [usb_tusb_port.md](usb_tusb_port.md) | TinyUSB 板级契约 |
 | [amp.md](amp.md) | 双核 AMP |
-| [osal_switching.md](osal_switching.md) | OSAL 后端切换 |
+| [mini-os.md](mini-os.md) | mini-os 自研内核（调度/时间轮/PI/堆/port/集成接线） |
+| [backend_switching.md](backend_switching.md) | OS 后端切换 |
 | [net.md](net.md) | 网络协议栈胶水（MQTT / TCP / PPP / USB 网卡） |
 
 ### 编码与运行时
@@ -60,7 +61,7 @@
 | [app_cpp_guide.md](app_cpp_guide.md) | 应用层 C++ 限制与推荐（ETL 容器 / 编码分档 / 禁则） |
 | [memory_footprint.md](memory_footprint.md) | 内存足迹：固定静态开销与裁剪开关 |
 | [service_spec.md](service_spec.md) | 应用层允许/禁止 |
-| [runtime_services.md](runtime_services.md) | EventBus / VIRQ / SYSTEM_C·CPP / 缓冲 |
+| [runtime_services.md](runtime_services.md) | EventBus / VIRQ / 系统运行时后端 / 缓冲 |
 | [can_hook.md](can_hook.md) | CAN 协议超集钩子 |
 | [fast_path.md](fast_path.md) | ISR / 热路径红线 |
 | [api_compatibility.md](api_compatibility.md) | API 稳定面 |

@@ -16,7 +16,7 @@
 #include "device.h"
 #include "driver.h"
 #include "dt_config_gen.h"
-#include "osal.h"
+#include "mini_slot.h"
 #include "status.h"
 #include "system_log.h"
 #include "vfs-i2c.h"
@@ -33,23 +33,23 @@
 /** @brief PCF8574 驱动实例（嵌入 fops） */
 struct pcf8574_device
 {
-    struct file_operations ops; /**< 挂入 device 的 fops */
-    struct device* i2c_dev; /**< 所属 I2C client 设备 */
+    struct file_operations ops;     /**< 挂入 device 的 fops */
+    struct device*         i2c_dev; /**< 所属 I2C client 设备 */
 
     int hw_ready; /**< 硬件已初始化标志 */
 };
 
-static struct pcf8574_device s_pcf8574_pool[PCF8574_POOL_COUNT] COMPAT_ALIGNED(4);
-static uint8_t s_pcf8574_used[PCF8574_POOL_COUNT] COMPAT_ALIGNED(4);
-static osal_pool_t s_pcf8574_pool_ctrl COMPAT_ALIGNED(4);
-static const char* const k_tag = "pcf8574";
+static struct pcf8574_device           s_pcf8574_pool[PCF8574_POOL_COUNT] MINI_ALIGNED(4);
+static uint8_t                         s_pcf8574_used[PCF8574_POOL_COUNT] MINI_ALIGNED(4);
+static mini_slot_t s_pcf8574_pool_ctrl MINI_ALIGNED(4);
+static const char* const               k_tag = "pcf8574";
 
 /**
- * @brief 驱动池启动初始化（pre_execution 阶段，创建静态对象池）
+ * @brief 驱动池启动初始化（mini_pre_execution 阶段，创建静态对象池）
  */
-pre_execution(PRE_EXEC_PRIO_DRIVER_POOL) static void pcf8574_pool_boot_init(void)
+mini_pre_execution(MINI_PRE_EXEC_PRIO_DRIVER_POOL) static void pcf8574_pool_boot_init(void)
 {
-    COMPAT_IGNORE_RESULT(osal_pool_init(&s_pcf8574_pool_ctrl, s_pcf8574_used, PCF8574_POOL_COUNT));
+    MINI_IGNORE_RESULT(mini_slot_init(&s_pcf8574_pool_ctrl, s_pcf8574_used, PCF8574_POOL_COUNT));
 }
 
 /**
@@ -57,17 +57,13 @@ pre_execution(PRE_EXEC_PRIO_DRIVER_POOL) static void pcf8574_pool_boot_init(void
  * @param[in] pdev device 指针
  * @return 驱动实例指针，无效时 ERR_PTR
  */
-static struct pcf8574_device* pcf8574_get_drvdata(struct device* pdev)
-{
-    return (struct pcf8574_device*)device_get_priv(pdev);
-}
+static struct pcf8574_device* pcf8574_get_drvdata(struct device* pdev) { return (struct pcf8574_device*)device_get_priv(pdev); }
 
 /**
  * @brief 向 I2C 总线写数据
- * @return MINI_OK 或 VFS_ERR_*
+ * @return MINI_OK 或 MINI_ERR_*
  */
-static int pcf8574_i2c_wr(struct pcf8574_device* dev, const uint8_t* tx, size_t len,
-                          uint32_t timeout_ms)
+static mt_err_t pcf8574_i2c_wr(struct pcf8574_device* dev, const uint8_t* tx, size_t len, uint32_t timeout_ms)
 {
     if (!dev || !dev->i2c_dev || !tx || len == 0U)
         return MINI_ERR_INVAL;
@@ -75,9 +71,9 @@ static int pcf8574_i2c_wr(struct pcf8574_device* dev, const uint8_t* tx, size_t 
 }
 /**
  * @brief 从 I2C 总线读数据
- * @return MINI_OK 或 VFS_ERR_*
+ * @return MINI_OK 或 MINI_ERR_*
  */
-static int pcf8574_i2c_rd(struct pcf8574_device* dev, uint8_t* rx, size_t len, uint32_t timeout_ms)
+static mt_err_t pcf8574_i2c_rd(struct pcf8574_device* dev, uint8_t* rx, size_t len, uint32_t timeout_ms)
 {
     if (!dev || !dev->i2c_dev || !rx || len == 0U)
         return MINI_ERR_INVAL;
@@ -86,9 +82,9 @@ static int pcf8574_i2c_rd(struct pcf8574_device* dev, uint8_t* rx, size_t len, u
 
 /**
  * @brief 首次 open 时打开 I2C 总线（空实现，仅确保 hw_ready）
- * @return MINI_OK 或 VFS_ERR_*
+ * @return MINI_OK 或 MINI_ERR_*
  */
-static int pcf8574_hw_create(struct pcf8574_device* dev)
+static mt_err_t pcf8574_hw_create(struct pcf8574_device* dev)
 {
     int ret;
     if (!dev)
@@ -112,7 +108,7 @@ static void pcf8574_hw_destroy(struct pcf8574_device* dev)
         return;
 
     if (dev->i2c_dev)
-        COMPAT_IGNORE_RESULT(device_close(dev->i2c_dev));
+        MINI_IGNORE_RESULT(device_close(dev->i2c_dev));
     dev->hw_ready = 0;
 }
 
@@ -122,9 +118,9 @@ static void pcf8574_hw_destroy(struct pcf8574_device* dev)
 static int pcf8574_open(struct device* pdev, void* arg)
 {
     struct pcf8574_device* dev;
-    struct dev_lifecycle* lc;
-    int first, ret;
-    COMPAT_IGNORE_RESULT(arg);
+    struct dev_lifecycle*  lc;
+    int                    first, ret;
+    MINI_IGNORE_RESULT(arg);
     if (!pdev || !pdev->ops)
         return MINI_ERR_INVAL;
     dev = pcf8574_get_drvdata(pdev);
@@ -156,8 +152,8 @@ static int pcf8574_open(struct device* pdev, void* arg)
 static int pcf8574_close(struct device* pdev)
 {
     struct pcf8574_device* dev;
-    struct dev_lifecycle* lc;
-    int last;
+    struct dev_lifecycle*  lc;
+    int                    last;
     if (!pdev || !pdev->ops)
         return MINI_ERR_INVAL;
     dev = pcf8574_get_drvdata(pdev);
@@ -178,8 +174,7 @@ static int pcf8574_close(struct device* pdev)
 /**
  * @brief ioctl 命令分发类型（命令处理函数由 map 绑定）
  */
-typedef int (*pcf8574_ioctl_fn_t)(struct pcf8574_device* dev, void* arg, size_t arg_len,
-                                  uint32_t ms);
+typedef mt_err_t (*pcf8574_ioctl_fn_t)(struct pcf8574_device* dev, void* arg, size_t arg_len, uint32_t ms);
 struct pcf8574_ioctl_map
 {
     pcf8574_ioctl_fn_t handler;
@@ -188,7 +183,7 @@ struct pcf8574_ioctl_map
 /**
  * @brief PCF8574_CMD_WRITE 实现：写 8bit 输出口
  */
-static int pcf8574_cmd_write(struct pcf8574_device* dev, void* arg, size_t len, uint32_t timeout_ms)
+static mt_err_t pcf8574_cmd_write(struct pcf8574_device* dev, void* arg, size_t len, uint32_t timeout_ms)
 {
     uint8_t val;
     if (!dev->hw_ready || !arg || len != sizeof(uint8_t))
@@ -199,7 +194,7 @@ static int pcf8574_cmd_write(struct pcf8574_device* dev, void* arg, size_t len, 
 /**
  * @brief PCF8574_CMD_READ 实现：读 8bit 输入口
  */
-static int pcf8574_cmd_read(struct pcf8574_device* dev, void* arg, size_t len, uint32_t timeout_ms)
+static mt_err_t pcf8574_cmd_read(struct pcf8574_device* dev, void* arg, size_t len, uint32_t timeout_ms)
 {
     if (!dev->hw_ready || !arg || len != sizeof(uint8_t))
         return MINI_ERR_INVAL;
@@ -214,12 +209,12 @@ static const struct pcf8574_ioctl_map s_pcf8574_map[PCF8574_CMD_COUNT] = {
 /**
  * @brief fops.ioctl：查表分发命令，持 io 生命周期锁
  */
-static int pcf8574_ioctl(struct device* pdev, int cmd, void* arg, size_t arg_len, uint32_t ms)
+static mt_err_t pcf8574_ioctl(struct device* pdev, int cmd, void* arg, size_t arg_len, uint32_t ms)
 {
     struct pcf8574_device* dev;
-    struct dev_lifecycle* lc;
-    int32_t off;
-    int ret;
+    struct dev_lifecycle*  lc;
+    int32_t                off;
+    int                    ret;
     if (!pdev || !pdev->ops)
         return MINI_ERR_INVAL;
     dev = pcf8574_get_drvdata(pdev);
@@ -249,17 +244,17 @@ static const struct file_operations pcf8574_fops = {
 /**
  * @brief probe：claim 池项、绑定父 I2C 设备并挂 fops
  */
-static int pcf8574_probe(struct device* pdev)
+static mt_err_t pcf8574_probe(struct device* pdev)
 {
     struct pcf8574_device* dev;
-    int pool_idx, ret;
+    int                    pool_idx, ret;
     if (!pdev)
         return MINI_ERR_INVAL;
-    pool_idx = osal_pool_claim(&s_pcf8574_pool_ctrl);
+    pool_idx = mini_slot_claim(&s_pcf8574_pool_ctrl);
     if (pool_idx < 0)
         return MINI_ERR_NOMEM;
     dev = &s_pcf8574_pool[pool_idx];
-    COMPAT_MEM_SET(dev, 0, sizeof(*dev));
+    MINI_MEM_SET(dev, 0, sizeof(*dev));
     dev->i2c_dev = device_get_parent(pdev);
     if (!dev->i2c_dev)
     {
@@ -274,23 +269,23 @@ static int pcf8574_probe(struct device* pdev)
     }
     dev->ops = pcf8574_fops;
     pdev->ops = &dev->ops;
-    SYS_LOGI(k_tag, "probe OK pool=%dev", pool_idx);
+    MT_LOG_INFO(k_tag, "probe OK pool=%dev", pool_idx);
     return MINI_OK;
 err:
     pdev->ops = NULL;
-    COMPAT_MEM_SET(dev, 0, sizeof(*dev));
-    COMPAT_IGNORE_RESULT(osal_pool_release(&s_pcf8574_pool_ctrl, pool_idx));
+    MINI_MEM_SET(dev, 0, sizeof(*dev));
+    MINI_IGNORE_RESULT(mini_slot_release(&s_pcf8574_pool_ctrl, pool_idx));
     return ret;
 }
 
 /**
  * @brief remove：排空在途 io、释放硬件并归还池项
  */
-static int pcf8574_remove(struct device* pdev)
+static mt_err_t pcf8574_remove(struct device* pdev)
 {
     struct pcf8574_device* dev;
-    struct dev_lifecycle* lc;
-    int idx;
+    struct dev_lifecycle*  lc;
+    int                    idx;
     if (!pdev)
         return MINI_ERR_INVAL;
     dev = pcf8574_get_drvdata(pdev);
@@ -302,14 +297,14 @@ static int pcf8574_remove(struct device* pdev)
     idx = (int)(dev - s_pcf8574_pool);
     dev_lc_remove_start(lc);
     device_ops_unregister(pdev);
-    if (dev_lc_remove_drain(lc, OSAL_WAIT_FOREVER) != MINI_OK)
+    if (dev_lc_remove_drain(lc, MINI_WAIT_FOREVER) != MINI_OK)
     {
         dev_lc_remove_finish(lc);
         return MINI_ERR_IO;
     }
     pcf8574_hw_destroy(dev);
-    COMPAT_MEM_SET(dev, 0, sizeof(*dev));
-    COMPAT_IGNORE_RESULT(osal_pool_release(&s_pcf8574_pool_ctrl, idx));
+    MINI_MEM_SET(dev, 0, sizeof(*dev));
+    MINI_IGNORE_RESULT(mini_slot_release(&s_pcf8574_pool_ctrl, idx));
     dev_lc_remove_finish(lc);
     return MINI_OK;
 }

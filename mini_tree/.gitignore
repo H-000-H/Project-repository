@@ -68,12 +68,17 @@ Thumbs.db
 # 本地环境 / 配置备份（勿提交本机路径）
 # ---------------------------------------------
 .config.old
+# genconfig 暂存的当前不可见符号 (依赖不满足的选项), 构建期自动维护
+.config.preserved
 *.user
 *.workspace
 
 # 本地 Kconfig 扩展 (不入库, 作者本地使用)
 # 详见 Kconfig.local 顶部注释; 需要时在 Kconfig.non_esp 末尾手动 source
 Kconfig.local
+
+net/local.cmake
+docs/cn/net_local.md
 
 # ---------------------------------------------
 # 编辑器个人目录（共享的 .vscode/ 可入库）
@@ -99,7 +104,7 @@ ide/third_party/etl/
 
 # ---------------------------------------------
 # 开源积木：默认 FetchContent，勿提交进 git
-# lib/ 仅保留 vendor：freeRTOS / rtthread
+# lib/ 仅保留 vendor：mini-os（自研）/ freeRTOS / rtthread
 # 若需离线，可手动 clone 到对应路径（cmake 会优先用本地）
 # ---------------------------------------------
 lib/tinyusb/
@@ -145,20 +150,22 @@ lib/uC-LIB/
 
 # ---------------------------------------------
 # net/ 只保留 mqtt 最小构建集 + pppif/usb 网卡
-# 屏蔽：http/https/udp/mqtts/tls/ethernet/arch/sys/CMakeLists/lwipopts
+# 屏蔽：http/https/udp/mqtts/tls/mqtt_broker/ethernet/arch/sys/CMakeLists/lwipopts
 # ---------------------------------------------
 /net/port/ethernet/
 /net/port/http/
 /net/port/https/
 /net/port/mqtt/mqtt_broker.c
 /net/port/mqtt/mqtt_broker.h
+/net/port/mqtt_broker/
 /net/port/mqtts/
 /net/port/tls/
 /net/port/udp/
 # ---------------------------------------------
-# ui/ 只保留 display/，其余不提交
+# ui/ 只保留 display/
 # ---------------------------------------------
 /ui/CMakeLists.txt
 /ui/lvgl/
 /ui/touch/
 /ui/u8g2/
+

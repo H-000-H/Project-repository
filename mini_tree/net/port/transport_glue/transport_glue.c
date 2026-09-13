@@ -6,7 +6,7 @@
  * @author H-000-H
  * @details write 把数据写入底层通道的 TX FIFO (写满则让出调度等待);
  *          read 从 RX FIFO 取数据, 无数据时按 recv_timeout_ms 轮询等待。
- *          裸机协作式调度下, 等待均通过 osal_delay_ms(1) 让出,
+ *          裸机协作式调度下, 等待均通过 mini_delay_ms(1) 让出,
  *          让网卡收包泵任务有机会把数据推进协议栈。
  *          末尾 send/recv 是把 NET_* 错误码翻译为 core 库字节数契约的薄适配。
  */
@@ -14,7 +14,7 @@
 
 #include "compiler_compat.h"
 #include "lwip/err.h"
-#include "osal.h"
+#include "mini_time.h"
 #include "system_log.h"
 #include <stdbool.h>
 
@@ -37,7 +37,7 @@ int network_transport_disconnect(struct NetworkContext* context)
     if (context == NULL || context->tcp_client == NULL)
         return NET_ERR_INVAL;
 
-    COMPAT_IGNORE_RESULT(tcp_client_disconnect(context->tcp_client));
+    MINI_IGNORE_RESULT(tcp_client_disconnect(context->tcp_client));
     return NET_OK;
 }
 
@@ -63,15 +63,15 @@ int network_transport_write(struct NetworkContext* context, const void* buffer, 
         return NET_ERR_INVAL;
 
     struct tcp_client_context* tcp_client = context->tcp_client;
-    const uint8_t* data = (const uint8_t*)buffer;
-    size_t remaining = length;
-    uint32_t start_ms = osal_time_ms();
+    const uint8_t*             data = (const uint8_t*)buffer;
+    size_t                     remaining = length;
+    uint32_t                   start_ms = mini_time_ms();
 
     while (remaining > 0U)
     {
         if (!tcp_client->is_connected)
         {
-            SYS_LOGW(s_kTag, "write aborted, link down");
+            MT_LOG_WARN(s_kTag, "write aborted, link down");
             return NET_ERR_CONN;
         }
 
@@ -86,27 +86,25 @@ int network_transport_write(struct NetworkContext* context, const void* buffer, 
         if (written == 0U)
         {
             /* TX FIFO 满: 让出调度等待窗口释放 */
-            if ((osal_time_ms() - start_ms) >= NETWORK_TRANSPORT_TX_TIMEOUT_MS)
+            if ((mini_time_ms() - start_ms) >= NETWORK_TRANSPORT_TX_TIMEOUT_MS)
             {
-                SYS_LOGE(s_kTag, "write timeout, fifo full");
+                MT_LOG_ERROR(s_kTag, "write timeout, fifo full");
                 return NET_ERR_TIMEOUT;
             }
-            osal_delay_ms(1);
+            mini_delay_ms(1);
         }
     }
 
     return NET_OK;
 }
 
-int network_transport_read(struct NetworkContext* context, void* buffer, size_t length,
-                           size_t* read_length)
+int network_transport_read(struct NetworkContext* context, void* buffer, size_t length, size_t* read_length)
 {
-    if (context == NULL || context->tcp_client == NULL || buffer == NULL || length == 0U ||
-        read_length == NULL)
+    if (context == NULL || context->tcp_client == NULL || buffer == NULL || length == 0U || read_length == NULL)
         return NET_ERR_INVAL;
 
     struct tcp_client_context* tcp_client = context->tcp_client;
-    uint32_t start_ms = osal_time_ms();
+    uint32_t                   start_ms = mini_time_ms();
 
     for (;;)
     {
@@ -129,9 +127,9 @@ int network_transport_read(struct NetworkContext* context, void* buffer, size_t 
         *read_length = 0U;
         if (context->recv_timeout_ms == 0U)
             return NET_OK;
-        if ((osal_time_ms() - start_ms) >= context->recv_timeout_ms)
+        if ((mini_time_ms() - start_ms) >= context->recv_timeout_ms)
             return NET_OK;
-        osal_delay_ms(1);
+        mini_delay_ms(1);
     }
 }
 
@@ -149,7 +147,7 @@ int32_t network_transport_send(struct NetworkContext* context, const void* buffe
 int32_t network_transport_recv(struct NetworkContext* context, void* buffer, size_t length)
 {
     size_t read_length = 0;
-    int err = network_transport_read(context, buffer, length, &read_length);
+    int    err = network_transport_read(context, buffer, length, &read_length);
     if (err != NET_OK)
         return -1;
     return (int32_t)read_length;

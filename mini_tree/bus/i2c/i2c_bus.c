@@ -22,7 +22,7 @@
 #include "compiler_compat.h"
 #include "device.h"
 #include "hal_i2c.h"
-#include "osal.h"
+#include "mini_slot.h"
 #include "status.h"
 #include "system_log.h"
 
@@ -35,33 +35,33 @@
 /** @brief I2C host 运行时描述符 (静态池, 含 HAL 嵌入 + atomic ref_count) */
 struct i2c_bus_host
 {
-    struct device* pdev; /**< 关联设备 */
-    struct hal_i2c_bus_host hal_host; /**< 嵌入 HAL host (非指针) */
-    COMPAT_ATOMIC_INT ref_count; /**< atomic 引用计数 */
+    struct device*          pdev;      /**< 关联设备 */
+    struct hal_i2c_bus_host hal_host;  /**< 嵌入 HAL host (非指针) */
+    MINI_ATOMIC_INT         ref_count; /**< atomic 引用计数 */
 };
 
 /** @brief I2C client 运行时描述符 (静态表, 按 device_id 索引) */
 struct i2c_bus_client
 {
-    struct device* pdev; /**< 关联设备 */
-    struct i2c_bus_host* host; /**< 所属 host */
-    struct hal_i2c_device_config cfg; /**< 设备配置 (DTSI 直投) */
-    struct hal_i2c_dev hal_dev; /**< HAL 设备对象 */
-    int hw_open; /**< 硬件打开计数 */
+    struct device*               pdev;    /**< 关联设备 */
+    struct i2c_bus_host*         host;    /**< 所属 host */
+    struct hal_i2c_device_config cfg;     /**< 设备配置 (DTSI 直投) */
+    struct hal_i2c_dev           hal_dev; /**< HAL 设备对象 */
+    int                          hw_open; /**< 硬件打开计数 */
 };
 
-static struct i2c_bus_host s_i2c_hosts[I2C_BUS_HOST_MAX];
-static uint8_t s_i2c_host_used[I2C_BUS_HOST_MAX];
-static osal_pool_t s_i2c_host_pool_ctrl;
+static struct i2c_bus_host   s_i2c_hosts[I2C_BUS_HOST_MAX];
+static uint8_t               s_i2c_host_used[I2C_BUS_HOST_MAX];
+static mini_slot_t           s_i2c_host_pool_ctrl;
 static struct i2c_bus_client s_i2c_clients[DEV_ID_COUNT];
-static const char* const k_tag = "i2c_bus";
+static const char* const     k_tag = "i2c_bus";
 
 /**
  * @brief I2C Host 池启动初始化
  */
-pre_execution(PRE_EXEC_PRIO_RES_POOL) static void i2c_bus_pool_init(void)
+mini_pre_execution(MINI_PRE_EXEC_PRIO_RES_POOL) static void i2c_bus_pool_init(void)
 {
-    COMPAT_IGNORE_RESULT(osal_pool_init(&s_i2c_host_pool_ctrl, s_i2c_host_used, I2C_BUS_HOST_MAX));
+    MINI_IGNORE_RESULT(mini_slot_init(&s_i2c_host_pool_ctrl, s_i2c_host_used, I2C_BUS_HOST_MAX));
 }
 /* -------------------------------------------------------------------------- */
 /* Host pool helpers */
@@ -74,7 +74,7 @@ pre_execution(PRE_EXEC_PRIO_RES_POOL) static void i2c_bus_pool_init(void)
 static struct i2c_bus_host* i2c_host_from_device(struct device* pdev)
 {
     for (int index = 0; index < I2C_BUS_HOST_MAX; index++)
-        if (osal_pool_is_used(&s_i2c_host_pool_ctrl, index) && s_i2c_hosts[index].pdev == pdev)
+        if (mini_slot_is_used(&s_i2c_host_pool_ctrl, index) && s_i2c_hosts[index].pdev == pdev)
             return &s_i2c_hosts[index];
     return NULL;
 }
@@ -96,10 +96,10 @@ static struct i2c_bus_client* i2c_client_from_device(struct device* pdev)
 /* controller_ops (host 级操作) */
 /* -------------------------------------------------------------------------- */
 /* 前向声明: s_i2c_controller_ops 引用 impl 函数, 但 impl 定义在 ops 表之后 */
-static int i2c_host_init_impl(struct device* pdev, const void* cfg);
-static int i2c_host_deinit_impl(struct device* pdev);
-static int i2c_host_role_impl(struct device* pdev);
-static int i2c_client_register_impl(struct device* pdev, const void* cfg, void** out);
+static mt_err_t  i2c_host_init_impl(struct device* pdev, const void* cfg);
+static mt_err_t  i2c_host_deinit_impl(struct device* pdev);
+static int  i2c_host_role_impl(struct device* pdev);
+static mt_err_t  i2c_client_register_impl(struct device* pdev, const void* cfg, void** out);
 static void i2c_client_unregister_impl(struct device* pdev);
 
 /**
@@ -118,14 +118,14 @@ static const struct bus_controller_ops s_i2c_controller_ops = {
  * @brief I2C 总线主机初始化实现
  * @param[in] pdev host device 指针
  * @param[in] cfg host 配置指针
- * @return 成功返回 MINI_OK, 失败返回 VFS_ERR_*
+ * @return 成功返回 MINI_OK, 失败返回 MINI_ERR_*
  */
-static int i2c_host_init_impl(struct device* pdev, const void* cfg)
+static mt_err_t i2c_host_init_impl(struct device* pdev, const void* cfg)
 {
     const struct hal_i2c_bus_config* host_cfg;
-    struct i2c_bus_host* host;
-    int idx;
-    int ret;
+    struct i2c_bus_host*             host;
+    int                              idx;
+    int                              ret;
 
     if (!pdev || !cfg)
         return MINI_ERR_INVAL;
@@ -135,53 +135,50 @@ static int i2c_host_init_impl(struct device* pdev, const void* cfg)
     if (i2c_host_from_device(pdev))
         return MINI_OK;
 
-    idx = osal_pool_claim(&s_i2c_host_pool_ctrl);
+    idx = mini_slot_claim(&s_i2c_host_pool_ctrl);
     if (idx < 0)
         return MINI_ERR_NOMEM;
 
     host = &s_i2c_hosts[idx];
 
-    COMPAT_MEM_SET(host, 0, sizeof(*host));
+    MINI_MEM_SET(host, 0, sizeof(*host));
 
     host->pdev = pdev;
 
-    COMPAT_ATOMIC_RUNTIME_INIT(&host->ref_count, 0);
+    MINI_ATOMIC_RUNTIME_INIT(&host->ref_count, 0);
 
     ret = hal_i2c_bus_host_init(&host->hal_host, idx, host_cfg);
     if (ret != MINI_OK)
     {
-        COMPAT_MEM_SET(host, 0, sizeof(*host));
-        COMPAT_IGNORE_RESULT(osal_pool_release(&s_i2c_host_pool_ctrl, idx));
+        MINI_MEM_SET(host, 0, sizeof(*host));
+        MINI_IGNORE_RESULT(mini_slot_release(&s_i2c_host_pool_ctrl, idx));
         return ret;
     }
 
     ret = bus_controller_bind_full(pdev, BUS_TYPE_I2C, &s_i2c_controller_ops, host);
     if (ret != MINI_OK)
     {
-        COMPAT_IGNORE_RESULT(hal_i2c_bus_host_deinit(&host->hal_host));
-        COMPAT_MEM_SET(host, 0, sizeof(*host));
-        COMPAT_IGNORE_RESULT(osal_pool_release(&s_i2c_host_pool_ctrl, idx));
+        MINI_IGNORE_RESULT(hal_i2c_bus_host_deinit(&host->hal_host));
+        MINI_MEM_SET(host, 0, sizeof(*host));
+        MINI_IGNORE_RESULT(mini_slot_release(&s_i2c_host_pool_ctrl, idx));
         return ret;
     }
 
     return MINI_OK;
 }
 
-int i2c_bus_host_init(struct device* pdev, const struct hal_i2c_bus_config* cfg)
-{
-    return i2c_host_init_impl(pdev, cfg);
-}
+mt_err_t i2c_bus_host_init(struct device* pdev, const struct hal_i2c_bus_config* cfg) { return i2c_host_init_impl(pdev, cfg); }
 
 /**
  * @brief I2C 总线主机销毁实现
  * @param[in] pdev host device 指针
- * @return 成功返回 MINI_OK, 失败返回 VFS_ERR_*
+ * @return 成功返回 MINI_OK, 失败返回 MINI_ERR_*
  */
-static int i2c_host_deinit_impl(struct device* pdev)
+static mt_err_t i2c_host_deinit_impl(struct device* pdev)
 {
     struct i2c_bus_host* host;
-    int idx;
-    int ret;
+    int                  idx;
+    int                  ret;
 
     if (!pdev)
         return MINI_ERR_INVAL;
@@ -190,10 +187,9 @@ static int i2c_host_deinit_impl(struct device* pdev)
     if (!host)
         return MINI_ERR_NODEV;
 
-    if (COMPAT_ATOMIC_LOAD(&host->ref_count, COMPAT_MO_SEQ_CST) != 0)
+    if (MINI_ATOMIC_LOAD(&host->ref_count, MINI_SEQ_CST) != 0)
     {
-        SYS_LOGW(k_tag, "host deinit busy: ref_count=%d",
-                 COMPAT_ATOMIC_LOAD(&host->ref_count, COMPAT_MO_SEQ_CST));
+        MT_LOG_WARN(k_tag, "host deinit busy: ref_count=%d", MINI_ATOMIC_LOAD(&host->ref_count, MINI_SEQ_CST));
         return MINI_ERR_BUSY;
     }
 
@@ -203,13 +199,13 @@ static int i2c_host_deinit_impl(struct device* pdev)
     ret = hal_i2c_bus_host_deinit(&host->hal_host);
     if (ret == MINI_OK)
     {
-        COMPAT_MEM_SET(host, 0, sizeof(*host));
-        COMPAT_IGNORE_RESULT(osal_pool_release(&s_i2c_host_pool_ctrl, idx));
+        MINI_MEM_SET(host, 0, sizeof(*host));
+        MINI_IGNORE_RESULT(mini_slot_release(&s_i2c_host_pool_ctrl, idx));
     }
     return ret;
 }
 
-int i2c_bus_host_deinit(struct device* pdev) { return i2c_host_deinit_impl(pdev); }
+mt_err_t i2c_bus_host_deinit(struct device* pdev) { return i2c_host_deinit_impl(pdev); }
 
 /**
  * @brief 查询 host 角色 (支持传 host 或 client device)
@@ -219,7 +215,7 @@ int i2c_bus_host_deinit(struct device* pdev) { return i2c_host_deinit_impl(pdev)
 static int i2c_host_role_impl(struct device* pdev)
 {
     struct bus_controller* ctlr = NULL;
-    struct i2c_bus_host* host;
+    struct i2c_bus_host*   host;
 
     if (!pdev)
         return -1;
@@ -237,8 +233,7 @@ static int i2c_host_role_impl(struct device* pdev)
     if (!host)
         return -1;
 
-    return host->hal_host.cfg.bus_role == HAL_I2C_BUS_ROLE_MASTER ? I2C_BUS_ROLE_MASTER :
-                                                                    I2C_BUS_ROLE_SLAVE;
+    return host->hal_host.cfg.bus_role == HAL_I2C_BUS_ROLE_MASTER ? I2C_BUS_ROLE_MASTER : I2C_BUS_ROLE_SLAVE;
 }
 
 int i2c_bus_host_role(struct device* pdev) { return i2c_host_role_impl(pdev); }
@@ -248,15 +243,15 @@ int i2c_bus_host_role(struct device* pdev) { return i2c_host_role_impl(pdev); }
  * @param[in] pdev client device 指针
  * @param[in] cfg client 配置指针
  * @param[out] out 输出 client 指针
- * @return 成功返回 MINI_OK, 失败返回 VFS_ERR_*
+ * @return 成功返回 MINI_OK, 失败返回 MINI_ERR_*
  */
-static int i2c_client_register_impl(struct device* pdev, const void* cfg, void** out)
+static mt_err_t i2c_client_register_impl(struct device* pdev, const void* cfg, void** out)
 {
     const struct hal_i2c_device_config* client_cfg;
-    struct bus_controller* ctlr;
-    struct i2c_bus_host* host;
-    struct i2c_bus_client* client;
-    int id;
+    struct bus_controller*              ctlr;
+    struct i2c_bus_host*                host;
+    struct i2c_bus_client*              client;
+    int                                 id;
 
     if (!pdev || !cfg || !out)
         return MINI_ERR_INVAL;
@@ -284,19 +279,18 @@ static int i2c_client_register_impl(struct device* pdev, const void* cfg, void**
         return MINI_OK;
     }
 
-    COMPAT_MEM_SET(client, 0, sizeof(*client));
+    MINI_MEM_SET(client, 0, sizeof(*client));
     client->pdev = pdev;
     client->host = host;
     client->cfg = *client_cfg;
 
-    (void)COMPAT_ATOMIC_FETCH_ADD(&host->ref_count, 1, COMPAT_MO_SEQ_CST);
+    (void)MINI_ATOMIC_FETCH_ADD(&host->ref_count, 1, MINI_SEQ_CST);
 
     *out = client;
     return MINI_OK;
 }
 
-int i2c_bus_client_register(struct device* pdev, const struct hal_i2c_device_config* cfg,
-                            struct i2c_bus_client** out)
+mt_err_t i2c_bus_client_register(struct device* pdev, const struct hal_i2c_device_config* cfg, struct i2c_bus_client** out)
 {
     return i2c_client_register_impl(pdev, cfg, (void**)out);
 }
@@ -308,7 +302,7 @@ int i2c_bus_client_register(struct device* pdev, const struct hal_i2c_device_con
 static void i2c_client_unregister_impl(struct device* pdev)
 {
     struct i2c_bus_client* client;
-    struct i2c_bus_host* host;
+    struct i2c_bus_host*   host;
 
     client = i2c_client_from_device(pdev);
     if (!client)
@@ -317,23 +311,23 @@ static void i2c_client_unregister_impl(struct device* pdev)
     /* 若 client 仍 hw_open, 先 close 以释放 HAL 层 ref_count 与 HAL 句柄 */
     if (client->hw_open)
     {
-        COMPAT_IGNORE_RESULT(i2c_bus_close(pdev));
+        MINI_IGNORE_RESULT(i2c_bus_close(pdev));
         client->hw_open = 0;
     }
 
     host = client->host;
     if (host)
-        (void)COMPAT_ATOMIC_FETCH_SUB(&host->ref_count, 1, COMPAT_MO_SEQ_CST);
+        (void)MINI_ATOMIC_FETCH_SUB(&host->ref_count, 1, MINI_SEQ_CST);
 
-    COMPAT_MEM_SET(client, 0, sizeof(*client));
+    MINI_MEM_SET(client, 0, sizeof(*client));
 }
 
 void i2c_bus_client_unregister(struct device* pdev) { i2c_client_unregister_impl(pdev); }
 
-int i2c_bus_open(struct device* pdev)
+mt_err_t i2c_bus_open(struct device* pdev)
 {
     struct i2c_bus_client* client;
-    int ret;
+    int                    ret;
 
     client = i2c_client_from_device(pdev);
     if (!client)
@@ -342,7 +336,7 @@ int i2c_bus_open(struct device* pdev)
     if (client->hw_open)
         return MINI_OK;
 
-    COMPAT_IGNORE_RESULT(hal_i2c_dev_init(&client->hal_dev, &client->host->hal_host, &client->cfg));
+    MINI_IGNORE_RESULT(hal_i2c_dev_init(&client->hal_dev, &client->host->hal_host, &client->cfg));
     ret = hal_i2c_dev_hw_open(&client->hal_dev);
     if (ret != MINI_OK)
         return ret;
@@ -351,7 +345,7 @@ int i2c_bus_open(struct device* pdev)
     return MINI_OK;
 }
 
-int i2c_bus_close(struct device* pdev)
+mt_err_t i2c_bus_close(struct device* pdev)
 {
     struct i2c_bus_client* client;
 
@@ -361,7 +355,7 @@ int i2c_bus_close(struct device* pdev)
 
     if (client->hw_open)
     {
-        COMPAT_IGNORE_RESULT(hal_i2c_dev_hw_close(&client->hal_dev));
+        MINI_IGNORE_RESULT(hal_i2c_dev_hw_close(&client->hal_dev));
         client->hw_open = 0;
     }
     return MINI_OK;
@@ -374,10 +368,9 @@ int i2c_bus_close(struct device* pdev)
  * @param[in] len 字节数
  * @param[in] timeout_ms 超时 (ms)
  * @param[in] xfer_mode 传输模式 (POLL / DMA / AUTO)
- * @return 成功返回 MINI_OK, 失败返回 VFS_ERR_*
+ * @return 成功返回 MINI_OK, 失败返回 MINI_ERR_*
  */
-static int i2c_master_write_mode(struct i2c_bus_client* client, const uint8_t* tx, size_t len,
-                                 uint32_t timeout_ms, uint32_t xfer_mode)
+static mt_err_t i2c_master_write_mode(struct i2c_bus_client* client, const uint8_t* tx, size_t len, uint32_t timeout_ms, uint32_t xfer_mode)
 {
     if (xfer_mode > HAL_I2C_XFER_DMA)
         return MINI_ERR_INVAL;
@@ -405,10 +398,9 @@ static int i2c_master_write_mode(struct i2c_bus_client* client, const uint8_t* t
  * @param[in] len 字节数
  * @param[in] timeout_ms 超时 (ms)
  * @param[in] xfer_mode 传输模式 (POLL / DMA / AUTO)
- * @return 成功返回 MINI_OK, 失败返回 VFS_ERR_*
+ * @return 成功返回 MINI_OK, 失败返回 MINI_ERR_*
  */
-static int i2c_master_read_mode(struct i2c_bus_client* client, uint8_t* rx, size_t len,
-                                uint32_t timeout_ms, uint32_t xfer_mode)
+static mt_err_t i2c_master_read_mode(struct i2c_bus_client* client, uint8_t* rx, size_t len, uint32_t timeout_ms, uint32_t xfer_mode)
 {
     if (xfer_mode > HAL_I2C_XFER_DMA)
         return MINI_ERR_INVAL;
@@ -428,11 +420,10 @@ static int i2c_master_read_mode(struct i2c_bus_client* client, uint8_t* rx, size
     return hal_i2c_read(&client->hal_dev, rx, len, timeout_ms);
 }
 
-int i2c_bus_transfer(struct device* pdev, const uint8_t* tx, uint8_t* rx, size_t len,
-                     uint32_t timeout_ms, uint32_t xfer_mode)
+mt_err_t i2c_bus_transfer(struct device* pdev, const uint8_t* tx, uint8_t* rx, size_t len, uint32_t timeout_ms, uint32_t xfer_mode)
 {
     struct i2c_bus_client* client;
-    int role;
+    int                    role;
 
     if (!pdev || len == 0 || (!tx && !rx))
         return MINI_ERR_INVAL;
@@ -455,8 +446,7 @@ int i2c_bus_transfer(struct device* pdev, const uint8_t* tx, uint8_t* rx, size_t
         if (xfer_mode == HAL_I2C_XFER_DMA)
             return hal_i2c_dma_write_then_read(&client->hal_dev, tx, rx, len, timeout_ms);
         /* AUTO: DMA 可用则走 DMA 组合, 否则 poll */
-        if (client->host->hal_host.cfg.dma_tx.dma_enable &&
-            (len == 1U || client->host->hal_host.cfg.dma_rx.dma_enable))
+        if (client->host->hal_host.cfg.dma_tx.dma_enable && (len == 1U || client->host->hal_host.cfg.dma_rx.dma_enable))
         {
             int ret = hal_i2c_dma_write_then_read(&client->hal_dev, tx, rx, len, timeout_ms);
             if (ret != MINI_ERR_NOTSUPP)
@@ -469,8 +459,7 @@ int i2c_bus_transfer(struct device* pdev, const uint8_t* tx, uint8_t* rx, size_t
     return i2c_master_read_mode(client, rx, len, timeout_ms, xfer_mode);
 }
 
-int i2c_bus_write(struct device* pdev, const uint8_t* tx, size_t len, uint32_t timeout_ms,
-                  uint32_t xfer_mode)
+mt_err_t i2c_bus_write(struct device* pdev, const uint8_t* tx, size_t len, uint32_t timeout_ms, uint32_t xfer_mode)
 {
     struct i2c_bus_client* client;
 
@@ -487,8 +476,7 @@ int i2c_bus_write(struct device* pdev, const uint8_t* tx, size_t len, uint32_t t
     return i2c_master_write_mode(client, tx, len, timeout_ms, xfer_mode);
 }
 
-int i2c_bus_read(struct device* pdev, uint8_t* rx, size_t len, uint32_t timeout_ms,
-                 uint32_t xfer_mode)
+mt_err_t i2c_bus_read(struct device* pdev, uint8_t* rx, size_t len, uint32_t timeout_ms, uint32_t xfer_mode)
 {
     struct i2c_bus_client* client;
 
@@ -508,34 +496,31 @@ int i2c_bus_read(struct device* pdev, uint8_t* rx, size_t len, uint32_t timeout_
 /* -------------------------------------------------------------------------- */
 /* Slave API — 故意空壳: STM32 路径固定返回 NOTSUPP */
 /* -------------------------------------------------------------------------- */
-int i2c_bus_slave_sync(struct device* pdev, const uint8_t* tx, uint8_t* rx, size_t len,
-                       uint32_t timeout_ms)
+mt_err_t i2c_bus_slave_sync(struct device* pdev, const uint8_t* tx, uint8_t* rx, size_t len, uint32_t timeout_ms)
 {
-    COMPAT_IGNORE_RESULT(pdev);
-    COMPAT_IGNORE_RESULT(tx);
-    COMPAT_IGNORE_RESULT(rx);
-    COMPAT_IGNORE_RESULT(len);
-    COMPAT_IGNORE_RESULT(timeout_ms);
+    MINI_IGNORE_RESULT(pdev);
+    MINI_IGNORE_RESULT(tx);
+    MINI_IGNORE_RESULT(rx);
+    MINI_IGNORE_RESULT(len);
+    MINI_IGNORE_RESULT(timeout_ms);
     return MINI_ERR_NOTSUPP;
 }
 
-int i2c_bus_slave_queue_tx(struct device* pdev, const uint8_t* data, size_t len,
-                           uint32_t timeout_ms)
+mt_err_t i2c_bus_slave_queue_tx(struct device* pdev, const uint8_t* data, size_t len, uint32_t timeout_ms)
 {
-    COMPAT_IGNORE_RESULT(pdev);
-    COMPAT_IGNORE_RESULT(data);
-    COMPAT_IGNORE_RESULT(len);
-    COMPAT_IGNORE_RESULT(timeout_ms);
+    MINI_IGNORE_RESULT(pdev);
+    MINI_IGNORE_RESULT(data);
+    MINI_IGNORE_RESULT(len);
+    MINI_IGNORE_RESULT(timeout_ms);
     return MINI_ERR_NOTSUPP;
 }
 
-int i2c_bus_slave_get_trans_result(struct device* pdev, uint8_t* rx_data, size_t rx_cap,
-                                   size_t* trans_len, uint32_t timeout_ms)
+mt_err_t i2c_bus_slave_get_trans_result(struct device* pdev, uint8_t* rx_data, size_t rx_cap, size_t* trans_len, uint32_t timeout_ms)
 {
-    COMPAT_IGNORE_RESULT(pdev);
-    COMPAT_IGNORE_RESULT(rx_data);
-    COMPAT_IGNORE_RESULT(rx_cap);
-    COMPAT_IGNORE_RESULT(trans_len);
-    COMPAT_IGNORE_RESULT(timeout_ms);
+    MINI_IGNORE_RESULT(pdev);
+    MINI_IGNORE_RESULT(rx_data);
+    MINI_IGNORE_RESULT(rx_cap);
+    MINI_IGNORE_RESULT(trans_len);
+    MINI_IGNORE_RESULT(timeout_ms);
     return MINI_ERR_NOTSUPP;
 }

@@ -113,7 +113,7 @@ dtc-lite 把它们收进静态表；**运行期不再 `strcmp` 匹配驱动名**
 - `compatible`：与 DTS 节点 `compatible = "..."` **完全一致**
 - `probe`/`remove`：返回 `MINI_OK` 或 `MINI_ERR_*`
 
-命名统一小写（`.clang-tidy` 的 `readability-identifier-naming` 强制）：`x_task` / `x_scheduler` / `list_node` / `k_tag` / `struct event` / `mini_tree::` 等；`.clang-format` 为 Allman、单语句去括号、4 空格、200 列。app 层为建议，app 以下为强规定。
+命名统一小写（`.clang-tidy` 的 `readability-identifier-naming` 强制）：`x_task` / `x_scheduler` / `list_node` / `k_tag` / `struct event` 等；`.clang-format` 为 Allman、单语句去括号、4 空格、200 列。app 层为建议，app 以下为强规定。
 
 ---
 
@@ -182,7 +182,7 @@ ESP 接线细节见 [getting_started.md](getting_started.md) §4.2。
 
 1. `dev_lc_remove_start(device_lc(dev))`
 2. `device_ops_unregister(dev)`
-3. `dev_lc_remove_drain(..., OSAL_WAIT_FOREVER)`
+3. `dev_lc_remove_drain(..., MINI_WAIT_FOREVER)`
 4. 释放硬件 / bus
 5. `dev_lc_remove_finish(...)`
 

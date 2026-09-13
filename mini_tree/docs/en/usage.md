@@ -33,12 +33,12 @@
 | **HW pass-through** | DTSI macro values enter the config struct; HAL does zero translation | HAL header field comments |
 | **Bus poison** | calling `hal_*` is forbidden until `*_BUS_IMPL` is defined | `bus/*/*_bus.h` |
 | **VFS (this repo)** | the device `file_operations` layer — **not** the Linux-kernel VFS | `vfs/*` |
-| **OSAL** | OS abstraction, three backends: bare-metal (cooperative / preemptive) / FreeRTOS v11.3.0 / RT-Thread v5.3.0 | `osal/` |
+| **the unified interface** | a thin backend interface (`mini_backend.h`: IPC + task family, compile-time dispatch) for **in-tree** code only (board/vfs/bus/core/system/net); application code is recommended to use each kernel's native API directly, not forced | `core/include/mini_backend.h` |
 | **VIRQ** | virtual IRQ number + top/bottom halves | `interrupt/` |
 | **status / MINI_ERR_*** | unified error codes | `core/include/status.h` |
 | **Brick** | optional open-source capability block (GUI/network/FS…) | [ecosystem.md](ecosystem.md); `mini_tree_link_*` |
-| **vendor / Fetch** | only FreeRTOS / RT-Thread / ETL live permanently in `lib/`; TinyUSB / lwIP are config-time FetchContent, the rest link-time | [ecosystem.md](ecosystem.md) §0 |
-| **two-phase ignition** | pre-os → start-tasks → complete → scheduler | `system_init.h` / `system_init.hpp` |
+| **vendor / Fetch** | only mini-os / FreeRTOS / RT-Thread / ETL live permanently in `lib/`; TinyUSB / lwIP are config-time FetchContent, the rest link-time | [ecosystem.md](ecosystem.md) §0 |
+| **two-phase ignition** | pre-os → start-tasks → complete → scheduler | `system_init.h` |
 
 ---
 
@@ -49,7 +49,7 @@
 1. [getting_started.md](getting_started.md) — config & CMake
 2. [device_tree_porting.md](device_tree_porting.md) — HAL + DTS checklist
 3. [driver_guide.md](driver_guide.md) — compatible / property contracts
-4. [osal_switching.md](osal_switching.md) — pick an RTOS
+4. [backend_switching.md](backend_switching.md) — pick an RTOS
 5. [faq.md](faq.md) · [problem_summary.md](problem_summary.md)
 
 ### Path B — App Development (write business logic)
@@ -74,10 +74,10 @@
 | :--- | :--- | :---: |
 | `docs/` | topic docs (entry: [README.md](README.md)) | No |
 | `board` / `vfs` / `bus` / `hal` | device model and peripheral stack | HAL impl **No** (weak only) |
-| `core` / `osal` / `interrupt` / `system_*` | runtime infrastructure | OSAL backends may pull kernels from `lib/` |
+| `core` / `interrupt` / `system_*` | runtime infrastructure | OS backends may pull kernels from `lib/` |
 | `tools` | dtc-lite, genconfig, gen_compile_db, menuconfig | No |
 | `ide/stubs` | clangd placeholder headers without a build | No |
-| `lib/` | vendored: FreeRTOS / RT-Thread / ETL; TinyUSB / lwIP at config time, the rest at link time | Open-source bricks, see [ecosystem.md](ecosystem.md) |
+| `lib/` | vendored: mini-os / FreeRTOS / RT-Thread / ETL; TinyUSB / lwIP at config time, the rest at link time | Open-source bricks, see [ecosystem.md](ecosystem.md) |
 
 ---
 
@@ -89,7 +89,7 @@ Condensed map below; full TOC in [docs/README.md](README.md).
 | :--- | :--- |
 | Onboarding | [getting_started](getting_started.md) · [faq](faq.md) · [keil_integration](keil_integration.md) |
 | Ecosystem | [ecosystem](ecosystem.md) (bricks / Fetch) · [architecture](architecture.md) |
-| Porting | [device_tree_porting](device_tree_porting.md) · [driver_guide](driver_guide.md) · [usb_tusb_port](usb_tusb_port.md) · [amp](amp.md) · [osal_switching](osal_switching.md) |
+| Porting | [device_tree_porting](device_tree_porting.md) · [driver_guide](driver_guide.md) · [usb_tusb_port](usb_tusb_port.md) · [amp](amp.md) · [backend_switching](backend_switching.md) |
 | Coding | [service_spec](service_spec.md) · [peripherals](peripherals.md) · [runtime_services](runtime_services.md) · [can_hook](can_hook.md) · [fast_path](fast_path.md) · [api_compatibility](api_compatibility.md) |
 | Diagnostics | [debug_monitor](debug_monitor.md) · [problem_summary](problem_summary.md) |
 | Selection | [design_decisions](design_decisions.md) · [references](references.md) |
@@ -118,7 +118,7 @@ mini_tree_pre_os_init()
   → (business/platform optional prep)
 mini_tree_start_tasks()      // includes board_driver_probe_all
 system_init_complete()
-  → vTaskStartScheduler / rt_system_scheduler_start / mini_tree_system_loop (bare-metal)
+  → vTaskStartScheduler / rt_system_scheduler_start / mini_os_schedule_start / mini_tree_system_loop (bare-metal)
 ```
 
 ---

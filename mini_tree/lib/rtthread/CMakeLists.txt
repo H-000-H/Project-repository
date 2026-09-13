@@ -104,6 +104,14 @@ elseif(RTTHREAD_PORT STREQUAL "risc-v/common")
     )
 endif()
 
+# ── 启用汇编语言 ──
+# 架构端口的上下文切换/中断开关 (rt_hw_context_switch*, rt_hw_interrupt_disable/enable,
+# PendSV_Handler) 都在 libcpu/*/context_gcc.S 里。根 project() 只声明 LANGUAGES C CXX,
+# 且仅在独立构建时执行 (ESP-IDF 组件构建走父工程 project, 此处不跑); mini-os 靠自身
+# project(... C ASM) 激活 ASM, rtthread 若不激活, .S 会被 CMake 静默丢弃 ->
+# 静态库阶段无报错, 链接真实固件时才缺这些 port 符号。故在此自启用 ASM
+enable_language(ASM)
+
 # ── 构建库 ──
 add_library(rtthread_kernel STATIC ${RTTHREAD_KERNEL_SRCS})
 
@@ -123,5 +131,33 @@ target_compile_definitions(rtthread_kernel PRIVATE
     RT_KLIBC_USING_LIBC_VSNPRINTF
     RT_KLIBC_USING_LIBC_VSSCANF
 )
+
+# ── 事件集 (Kconfig CONFIG_RTTHREAD_EVENT, 默认关闭) ──
+# rtconfig.h 靠本宏定义 RT_USING_EVENT; RT-Thread 内核源文件看不到
+# kconfig 生成的 config.h, 所以开关必须在 CMake 层注入。
+# PUBLIC 传播: osal 层与内核必须看到同一份 rtconfig.h 展开结果
+# (rt_event 开关会改变 IPC 对象集合, 全工程必须一致)。
+# 关闭时 src/ipc.c 内的 rt_event_* 代码段整体不编译, 无额外 flash/ram 开销。
+# 事件集开关只认 CONFIG_RTTHREAD_EVENT: Kconfig 里它默认关, 且没有任何符号
+# select 它 (事件集不属于统一后端接口, 要用就手动开)。根 CMakeLists 已在配置期
+# 跑 genconfig.py 把 Kconfig 求值结果回写 .config, 所以这里读到的就是当前生效值。
+# 漏判的后果是 ipc.c 里的 rt_event_* 整体不编译, 而业务若已直调它们
+# -> 静态库阶段不报错, 链接 ELF 时才缺符号 (而且 rtconfig.h 展开不一致会连
+# struct rt_thread 布局都对不上)。
+set(RTTHREAD_EVENT OFF)
+if(EXISTS "${_MINI_TREE_KCONFIG}")
+    file(STRINGS "${_MINI_TREE_KCONFIG}" _rtthread_event REGEX "^CONFIG_RTTHREAD_EVENT=y$")
+    if(_rtthread_event)
+        set(RTTHREAD_EVENT ON)
+    endif()
+endif()
+if(RTTHREAD_EVENT)
+    target_compile_definitions(rtthread_kernel PUBLIC
+        MINI_TREE_RTTHREAD_EVENT=1
+    )
+    message(STATUS "mini_tree RT-Thread: event set ON (CONFIG_RTTHREAD_EVENT)")
+else()
+    message(STATUS "mini_tree RT-Thread: event set OFF (RT_USING_EVENT undefined)")
+endif()
 
 add_dependencies(rtthread_kernel kconfig_generate)

@@ -17,8 +17,8 @@
 extern "C"
 {
 #endif
-/** ioctl 命令基址（COMPAT_MAGIC 魔数，防跨模块冲突） */
-#define SX1278_CMD_BASE COMPAT_MAGIC(SX1278)
+/** ioctl 命令基址（MINI_MAGIC 魔数，防跨模块冲突） */
+#define SX1278_CMD_BASE MINI_MAGIC(SX1278)
 /** 复位模块 */
 #define SX1278_CMD_RESET (SX1278_CMD_BASE + 0x01)
 /** 设置中心频率（arg: uint32_t*，Hz） */
@@ -29,12 +29,12 @@ extern "C"
 #define SX1278_CMD_RECV (SX1278_CMD_BASE + 0x04)
 /** 命令总数 */
 #define SX1278_CMD_COUNT 4
-    /** SEND: data=TX；RECV: data=RX 缓冲（可写） */
-    struct sx1278_payload
-    {
-        uint8_t* data; /**< 载荷缓冲 */
-        size_t len; /**< 载荷长度 */
-    };
+/** SEND: data=TX；RECV: data=RX 缓冲（可写） */
+struct sx1278_payload
+{
+    uint8_t* data; /**< 载荷缓冲 */
+    size_t   len;  /**< 载荷长度 */
+};
 #ifdef __cplusplus
 }
 #endif

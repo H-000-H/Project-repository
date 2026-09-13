@@ -9,10 +9,8 @@
 #include "compiler_compat.h"
 #include "lwip/err.h"
 #include "system_log.h"
-_Static_assert((TCP_CLIENT_TX_BUFFER_SIZE & (TCP_CLIENT_TX_BUFFER_SIZE - 1U)) == 0U,
-               "TCP_CLIENT_TX_BUFFER_SIZE must be power of 2");
-_Static_assert((TCP_CLIENT_RX_BUFFER_SIZE & (TCP_CLIENT_RX_BUFFER_SIZE - 1U)) == 0U,
-               "TCP_CLIENT_RX_BUFFER_SIZE must be power of 2");
+_Static_assert((TCP_CLIENT_TX_BUFFER_SIZE & (TCP_CLIENT_TX_BUFFER_SIZE - 1U)) == 0U, "TCP_CLIENT_TX_BUFFER_SIZE must be power of 2");
+_Static_assert((TCP_CLIENT_RX_BUFFER_SIZE & (TCP_CLIENT_RX_BUFFER_SIZE - 1U)) == 0U, "TCP_CLIENT_RX_BUFFER_SIZE must be power of 2");
 
 int tcp_client_poll_send(struct tcp_client_context* ctx)
 {
@@ -27,13 +25,12 @@ int tcp_client_poll_send(struct tcp_client_context* ctx)
     uint8_t temp_buf[128];
 
     /*限制最大发送块大小*/
-    uint16_t chunk =
-        (snd_buf_avail < sizeof(temp_buf)) ? snd_buf_avail : (uint16_t)sizeof(temp_buf);
+    uint16_t chunk = (snd_buf_avail < sizeof(temp_buf)) ? snd_buf_avail : (uint16_t)sizeof(temp_buf);
 
     uint16_t read_bytes = 0;
 
     /* FIFO 空时 read_block 返回 BUFF_ERR_EMPTY, read_bytes 保持 0 */
-    COMPAT_IGNORE_RESULT(fifo_uni_read_block(&ctx->tx_fifo, temp_buf, chunk, &read_bytes));
+    MINI_IGNORE_RESULT(fifo_uni_read_block(&ctx->tx_fifo, temp_buf, chunk, &read_bytes));
 
     if (read_bytes > 0)
     {
@@ -42,10 +39,10 @@ int tcp_client_poll_send(struct tcp_client_context* ctx)
         if (err == ERR_OK)
             return ERR_OK;
         else
-            SYS_LOGE(k_tag, "tcp_write failed: %d\r\n", err);
+            MT_LOG_ERROR(k_tag, "tcp_write failed: %d\r\n", err);
     }
 
-    SYS_LOGE(k_tag, "fifo buffer not read %d bytes\r\n", read_bytes);
+    MT_LOG_ERROR(k_tag, "fifo buffer not read %d bytes\r\n", read_bytes);
     return ERR_VAL;
 }
 
@@ -60,7 +57,7 @@ static void tcp_client_error_callback(void* arg, err_t err)
     struct tcp_client_context* ctx = (struct tcp_client_context*)arg;
     if (ctx != NULL)
     {
-        SYS_LOGE(k_tag, "client err occurred: %d\r\n", err);
+        MT_LOG_ERROR(k_tag, "client err occurred: %d\r\n", err);
         ctx->pcb = NULL; /* lwIP 内部已释放 PCB，此处不调用 tcp_close */
         ctx->is_connected = false;
     }
@@ -74,8 +71,7 @@ static void tcp_client_error_callback(void* arg, err_t err)
  * @param[in] err           错误码
  * @note 该函数在 TCP 接收到数据时调用
  */
-static err_t tcp_client_receive_callback(void* arg, struct tcp_pcb* pcb, struct pbuf* current_buf,
-                                         err_t err)
+static err_t tcp_client_receive_callback(void* arg, struct tcp_pcb* pcb, struct pbuf* current_buf, err_t err)
 {
     struct tcp_client_context* ctx = (struct tcp_client_context*)arg;
 
@@ -89,7 +85,7 @@ static err_t tcp_client_receive_callback(void* arg, struct tcp_pcb* pcb, struct 
     /* 服务器断开连接 */
     if (current_buf == NULL)
     {
-        SYS_LOGI(k_tag, "server disconnected\r\n");
+        MT_LOG_INFO(k_tag, "server disconnected\r\n");
         tcp_arg(pcb, NULL);
         tcp_recv(pcb, NULL);
         tcp_err(pcb, NULL);
@@ -102,25 +98,23 @@ static err_t tcp_client_receive_callback(void* arg, struct tcp_pcb* pcb, struct 
 
     if (err != ERR_OK)
     {
-        SYS_LOGE(k_tag, "tcp_client_receive_callback error: %d\r\n", err);
+        MT_LOG_ERROR(k_tag, "tcp_client_receive_callback error: %d\r\n", err);
         pbuf_free(current_buf);
         return err;
     }
 
     struct pbuf* buf = current_buf;
-    uint16_t total_bytes = 0;
+    uint16_t     total_bytes = 0;
 
     while (buf)
     {
         if (buf->len > 0)
         {
             uint16_t written = 0;
-            COMPAT_IGNORE_RESULT(fifo_uni_write_block(&ctx->rx_fifo, (const uint8_t*)buf->payload,
-                                                      buf->len, &written));
+            MINI_IGNORE_RESULT(fifo_uni_write_block(&ctx->rx_fifo, (const uint8_t*)buf->payload, buf->len, &written));
             total_bytes = (uint16_t)(total_bytes + written);
             if (written < buf->len)
-                SYS_LOGW(k_tag, "RX FIFO full, dropped %u bytes\r\n",
-                         (unsigned int)(buf->len - written));
+                MT_LOG_WARN(k_tag, "RX FIFO full, dropped %u bytes\r\n", (unsigned int)(buf->len - written));
         }
         buf = buf->next;
     }
@@ -141,8 +135,8 @@ static err_t tcp_client_receive_callback(void* arg, struct tcp_pcb* pcb, struct 
  */
 static err_t tcp_client_sent_callback(void* arg, struct tcp_pcb* pcb, uint16_t len)
 {
-    COMPAT_IGNORE_RESULT(pcb);
-    COMPAT_IGNORE_RESULT(len);
+    MINI_IGNORE_RESULT(pcb);
+    MINI_IGNORE_RESULT(len);
     struct tcp_client_context* ctx = (struct tcp_client_context*)arg;
     if (ctx != NULL) /* 发送窗口释放，尝试继续发 TX FIFO 里的下一批数据 */
         tcp_client_poll_send(ctx);
@@ -162,12 +156,12 @@ static err_t tcp_client_connected_callback(void* arg, struct tcp_pcb* pcb, err_t
     struct tcp_client_context* ctx = (struct tcp_client_context*)arg;
     if (ctx == NULL || err != ERR_OK)
     {
-        SYS_LOGE(k_tag, "tcp_client_connected_callback error: %d\r\n", err);
+        MT_LOG_ERROR(k_tag, "tcp_client_connected_callback error: %d\r\n", err);
         if (ctx)
             ctx->is_connected = false;
         return err;
     }
-    SYS_LOGI(k_tag, "connected to %s:%u\r\n", ctx->server_ip, ctx->port);
+    MT_LOG_INFO(k_tag, "connected to %s:%u\r\n", ctx->server_ip, ctx->port);
 
     ctx->is_connected = true;
 
@@ -181,11 +175,10 @@ static err_t tcp_client_connected_callback(void* arg, struct tcp_pcb* pcb, err_t
     return ERR_OK;
 }
 
-int tcp_client_init_and_connect(struct tcp_client_context* ctx, const char* server_ip,
-                                uint16_t port)
+int tcp_client_init_and_connect(struct tcp_client_context* ctx, const char* server_ip, uint16_t port)
 {
     ip_addr_t dest_ip;
-    err_t ret;
+    err_t     ret;
 
     if (!ctx || !server_ip || port == 0)
         return ERR_ARG;
@@ -193,15 +186,13 @@ int tcp_client_init_and_connect(struct tcp_client_context* ctx, const char* serv
     ctx->port = port;
     ctx->is_connected = false;
 
-    COMPAT_IGNORE_RESULT(fifo_uni_init(&ctx->rx_fifo, ctx->rx_buffer, TCP_CLIENT_RX_TX_BYTE_TYPE,
-                                       TCP_CLIENT_RX_BUFFER_SIZE));
-    COMPAT_IGNORE_RESULT(fifo_uni_init(&ctx->tx_fifo, ctx->tx_buffer, TCP_CLIENT_RX_TX_BYTE_TYPE,
-                                       TCP_CLIENT_TX_BUFFER_SIZE));
+    MINI_IGNORE_RESULT(fifo_uni_init(&ctx->rx_fifo, ctx->rx_buffer, TCP_CLIENT_RX_TX_BYTE_TYPE, TCP_CLIENT_RX_BUFFER_SIZE));
+    MINI_IGNORE_RESULT(fifo_uni_init(&ctx->tx_fifo, ctx->tx_buffer, TCP_CLIENT_RX_TX_BYTE_TYPE, TCP_CLIENT_TX_BUFFER_SIZE));
 
     /* 解析 IP */
     if (!ip4addr_aton(server_ip, &dest_ip))
     {
-        SYS_LOGE(k_tag, "invalid IP: %s\r\n", server_ip);
+        MT_LOG_ERROR(k_tag, "invalid IP: %s\r\n", server_ip);
         return ERR_ARG;
     }
 
@@ -209,7 +200,7 @@ int tcp_client_init_and_connect(struct tcp_client_context* ctx, const char* serv
     ctx->pcb = tcp_new();
     if (ctx->pcb == NULL)
     {
-        SYS_LOGE(k_tag, "tcp_new failed\r\n");
+        MT_LOG_ERROR(k_tag, "tcp_new failed\r\n");
         return ERR_MEM;
     }
 
@@ -222,18 +213,17 @@ int tcp_client_init_and_connect(struct tcp_client_context* ctx, const char* serv
 
     if (ret != ERR_OK)
     {
-        SYS_LOGE(k_tag, "tcp_connect failed: %d\r\n", ret);
+        MT_LOG_ERROR(k_tag, "tcp_connect failed: %d\r\n", ret);
         tcp_close(ctx->pcb);
         ctx->pcb = NULL;
         return ret;
     }
 
-    SYS_LOGI(k_tag, "connecting to %s:%d...\r\n", server_ip, port);
+    MT_LOG_INFO(k_tag, "connecting to %s:%d...\r\n", server_ip, port);
     return ERR_OK;
 }
 
-int tcp_client_send(struct tcp_client_context* ctx, const void* data, uint16_t len,
-                    uint16_t* sent_len)
+int tcp_client_send(struct tcp_client_context* ctx, const void* data, uint16_t len, uint16_t* sent_len)
 {
     if (!ctx || !data || len == 0)
         return ERR_ARG;
@@ -243,7 +233,7 @@ int tcp_client_send(struct tcp_client_context* ctx, const void* data, uint16_t l
 
     uint16_t written = 0;
 
-    COMPAT_IGNORE_RESULT(fifo_uni_write_block(&ctx->tx_fifo, (const uint8_t*)data, len, &written));
+    MINI_IGNORE_RESULT(fifo_uni_write_block(&ctx->tx_fifo, (const uint8_t*)data, len, &written));
 
     tcp_client_poll_send(ctx);
 
@@ -259,7 +249,7 @@ int tcp_client_read(struct tcp_client_context* ctx, void* buf, uint16_t len, uin
 
     uint16_t read_bytes = 0;
 
-    COMPAT_IGNORE_RESULT(fifo_uni_read_block(&ctx->rx_fifo, (uint8_t*)buf, len, &read_bytes));
+    MINI_IGNORE_RESULT(fifo_uni_read_block(&ctx->rx_fifo, (uint8_t*)buf, len, &read_bytes));
     *recv_len = read_bytes;
     return ERR_OK;
 }
@@ -279,6 +269,6 @@ int tcp_client_disconnect(struct tcp_client_context* ctx)
         ctx->pcb = NULL;
     }
     ctx->is_connected = false;
-    SYS_LOGI(k_tag, "client disconnected\r\n");
+    MT_LOG_INFO(k_tag, "client disconnected\r\n");
     return ERR_OK;
 }

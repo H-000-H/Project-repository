@@ -64,7 +64,7 @@ Kconfig entry points come in two sets by build backend, both sourcing the same s
 | `Kconfig.non_esp` | repo root | non-ESP entry: `mainmenu` + `source "Kconfig.mini_tree"` (renamed to avoid IDF component-scan auto-discovery, which would double-source it alongside `Kconfig.projbuild`) | `tools/genconfig.py` / `menuconfig.py` / non-ESP `CMakeLists.txt` |
 | `Kconfig.projbuild` | repo root | ESP-IDF entry: `orsource "Kconfig.mini_tree"` (relative to this file), injected into the top-level Kconfig tree by IDF confgen | ESP-IDF (`idf.py menuconfig` / `idf.py reconfigure`) |
 
-Under the ESP path, `idf.py menuconfig` shows a "mini_tree Configuration" submenu at the top level; all `OSAL_*` / `SYSTEM_*` / `EVENT_BUS` switches are evaluated by IDF's `depends on` / `default` / `range` and written into `sdkconfig.h` — no manual `.config` editing needed.
+Under the ESP path, `idf.py menuconfig` shows a "mini_tree Configuration" submenu at the top level; all `OS_*` / `SYSTEM_*` / `EVENT_BUS` switches are evaluated by IDF's `depends on` / `default` / `range` and written into `sdkconfig.h` — no manual `.config` editing needed.
 
 ### 3.1 Generate `config.h`
 
@@ -80,17 +80,17 @@ The root `CMakeLists.txt` runs the same logic during the configure stage (the ES
 | Menu | Symbol | Description |
 | :--- | :--- | :--- |
 | Platform | `PLATFORM_ARM_CM4F` etc. | architecture hint (paired with the toolchain) |
-| Multi-core | `CPU_CORES` / `AMP_MODE` | 1=single core; 2=AMP |
-| OSAL | `OSAL_NULL` / `FREERTOS` / `RTTHREAD` | runtime backend: bare-metal (cooperative / preemptive) / FreeRTOS v11.3.0 / RT-Thread v5.3.0 |
-| OSAL Capacity | `OSAL_NULL_MAX_QUEUES` (base queue count, +1 auto when EventBus on) / `OSAL_NULL_QUEUE_BUF_SZ` / `FREERTOS_HEAP_SIZE` / `RTT_HEAP_SIZE` | queue & heap RAM (backend-scoped) |
-| System | `SYSTEM` / `SYSTEM_CPP` / `SYSTEM_C` | master switch (default on) + language backend |
-| Log | `SYS_LOG_USE_PRINTF` / `OSAL` | `SYS_LOG*` backend |
+| Multi-core | `CPU_CORES` | 1=single core; 2=AMP (mutex switches to atomic CAS; no separate switch) |
+| OS 后端 | `OS_BARE` / `OS_MINI_OS` / `OS_FREERTOS` / `OS_RTTHREAD` | runtime backend: bare-metal (cooperative / preemptive) / mini-os (in-tree, Cortex-M only) / FreeRTOS v11.3.0 / RT-Thread v5.3.0 |
+| the unified interface Capacity | `OS_BARE_MAX_QUEUES` (base queue count, +1 auto when EventBus on) / `OS_BARE_QUEUE_BUF_SZ` / `FREERTOS_HEAP_SIZE` / `RTT_HEAP_SIZE` | queue & heap RAM (backend-scoped) |
+| System | `SYSTEM` | master switch (default on); the system layer is pure C (`system_c/`) |
+| Log | `SYS_LOG_USE_MINI_LOG` / `SYS_LOG_USE_ESP` | `MT_LOG_*` backend (bundled mini-log / ESP-IDF esp_log) |
 | Board Features | `SYSTEM_WDT` / `SYSTEM_SCRUBBER` etc. | framework watchdog (on) / CRC scrubber (off), depends on `SYSTEM` |
-| Runtime | `EVENT_BUS` / `EVENT_BUS_*` / `OSAL_MUTEX_POOL_SIZE` / `BOTTOM_HALF_QUEUE_DEPTH` | master switch + capacity |
+| Runtime | `EVENT_BUS` / `EVENT_BUS_*` / `MINI_MUTEX_POOL_SIZE` / `BOTTOM_HALF_QUEUE_DEPTH` | master switch + capacity |
 
-`SYSTEM` is an optional module **enabled by default**; `EVENT_BUS` and `SYSTEM_CMD` are **off by default**: turning off `SYSTEM` trims `system_c/`, `system_cpp/` and EventBus together; turning on `EVENT_BUS` adds the pub/sub bus while keeping the two-phase boot and watchdogs.
+`SYSTEM` is an optional module **enabled by default**; `EVENT_BUS` and `SYSTEM_CMD` are **off by default**: turning off `SYSTEM` trims `system_c/` and EventBus together (the command module `system_cmd` follows `SYSTEM_CMD`); turning on `EVENT_BUS` adds the pub/sub bus while keeping the two-phase boot and watchdogs.
 
-The repository's bundled `.config` uses common defaults: `OSAL_NULL` + `SYSTEM`/`SYSTEM_CPP` + `SYSTEM_WDT` + `SYS_LOG_USE_PRINTF` (`EVENT_BUS` / `SYSTEM_CMD` / `SYSTEM_SCRUBBER` off).
+The repository's bundled `.config` uses common defaults: `OS_BARE` + `SYSTEM` + `SYSTEM_WDT` + `SYS_LOG_USE_MINI_LOG` (`EVENT_BUS` / `SYSTEM_CMD` / `SYSTEM_SCRUBBER` off).
 
 ---
 
@@ -136,10 +136,10 @@ The `mini_tree` target will:
 
 1. Run `genconfig.py`
 2. Run dtc-lite (scan `DRIVER_REGISTER` in vfs/bus/drivers and generate the compile-time probe table)
-3. Pick OSAL / SYSTEM sources per `.config`; link the vendored kernels in `lib/` (FreeRTOS v11.3.0 / RT-Thread v5.3.0)
+3. Pick the unified interface / SYSTEM sources per `.config`; link the vendored kernels in `lib/` (mini-os / FreeRTOS v11.3.0 / RT-Thread v5.3.0)
 4. Config-time bricks (TinyUSB / lwIP) are directly `include`d by the root CMake via their `cmake/*.cmake`; the rest are enabled at link time by the product side via `mini_tree_link_*` (may fetch over the network on first use)
 
-Language-backend comparison: [runtime_services.md](runtime_services.md#3-system_c-vs-system_cpp); USB board-level contract: [usb_tusb_port.md](usb_tusb_port.md); brick list: [ecosystem.md](ecosystem.md).
+System runtime backend: [runtime_services.md](runtime_services.md#3-system-runtime-backend); USB board-level contract: [usb_tusb_port.md](usb_tusb_port.md); brick list: [ecosystem.md](ecosystem.md).
 
 ### 4.2 What about ESP-IDF?
 
@@ -185,39 +185,28 @@ int main(void)
     /* optional: static init of business services */
 
     mini_tree_start_tasks();   /* probe + framework tasks */
-    /* optional: create business tasks via osal_task_create */
+    /* optional: create business tasks via mini_task_create */
 
     system_init_complete();
 
-#if defined(CONFIG_OSAL_NULL)
+#if defined(CONFIG_OS_BARE)
     for (;;)
         mini_tree_system_loop();
-#elif defined(CONFIG_OSAL_FREERTOS)
+#elif defined(CONFIG_OS_MINI_OS)
+    mini_os_schedule_start();
+#elif defined(CONFIG_OS_FREERTOS)
     vTaskStartScheduler();
-#elif defined(CONFIG_OSAL_RTTHREAD)
+#elif defined(CONFIG_OS_RTTHREAD)
     rt_system_scheduler_start();
 #endif
     return 0;
 }
 ```
 
-### 6.2 C++ (`system_init.hpp`)
+> The system layer is pure C; the ignition functions above are all `extern "C"`, so C++ projects call the same C API directly (except the command infra `SystemCmd`, which stays C++).
 
-```cpp
-#include "config.h"            // CONFIG_OSAL_* / CONFIG_XTASK_PREEMPT macros required by the headers below
-#include "system_init.hpp"
-
-mini_tree::system_pre_os_init();
-/* optional: static init of business services (SystemCmd::get_instance().register_cmd(…) etc.) */
-mini_tree::system_start_tasks();   /* probe + framework tasks */
-/* optional: create business tasks via osal_task_create */
-
-system_init_complete();
-// then start the scheduler (vTaskStartScheduler / rt_system_scheduler_start / mini_tree_system_loop)
-```
-
-> Under bare-metal (`CONFIG_OSAL_NULL`), the C `osal_task_create` **always returns `OSAL_ERR_NOTSUPP`**:
-> C++ projects should use the C++ overload in `osal_null.h` (`CONFIG_OSAL_NULL_TASK_CPP`, on by default;
+> Under bare-metal (`CONFIG_OS_BARE`), the C `mini_task_create` **always returns `MINI_ERR_NOTSUPP`**:
+> C++ projects should use the C++ overload in `mini_backend.h` (`CONFIG_XTASK_PREEMPT`, on by default;
 > `period` is the task period in ms, `param1` is a caller-provided static `x_task*` TCB);
 > C projects call `xscheduler_task_create` directly (see `time_slice/task/xtask.h`). No such limit on OS backends.
 >
@@ -252,7 +241,7 @@ This repo is a **CMake + clangd** based, cross-platform architecture. **At the c
 
 ## 8. Acceptance Checklist
 
-- [ ] `config.h` is generated and OSAL/SYSTEM macros match expectations
+- [ ] `config.h` is generated and the unified interface/SYSTEM macros match expectations
 - [ ] dtc-lite produces `board_nodes.h` with `DEV_ID_COUNT` ≥ 1 (a real board should be far larger than the placeholder)
 - [ ] after linking, HALs like GPIO/UART are platform implementations (not always `MINI_ERR_NOTSUPP`)
 - [ ] `board_driver_probe_all` finishes without unexpected FATAL
@@ -263,5 +252,5 @@ This repo is a **CMake + clangd** based, cross-platform architecture. **At the c
 ## Related Documents
 
 - [device_tree_porting.md](device_tree_porting.md) · [driver_guide.md](driver_guide.md)
-- [osal_switching.md](osal_switching.md) · [faq.md](faq.md) · [ecosystem.md](ecosystem.md)
+- [backend_switching.md](backend_switching.md) · [faq.md](faq.md) · [ecosystem.md](ecosystem.md)
 - [tools_guide.md](../tools_guide.md)

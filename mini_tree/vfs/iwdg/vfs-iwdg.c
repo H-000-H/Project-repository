@@ -13,28 +13,25 @@
 #include "dev_lifecycle.h"
 #include "device.h"
 #include "driver.h"
-#include "osal.h"
+#include "mini_slot.h"
 #include "status.h"
 #include "system_log.h"
 
 struct vfs_iwdg_priv
 {
-    struct file_operations ops; /**< VFS 操作表 */
-    struct hal_iwdg_dev iwdg; /**< HAL IWDG 设备 */
-    int pool_idx; /**< 池索引 */
+    struct file_operations ops;      /**< VFS 操作表 */
+    struct hal_iwdg_dev    iwdg;     /**< HAL IWDG 设备 */
+    int                    pool_idx; /**< 池索引 */
 };
 static struct vfs_iwdg_priv s_priv;
-static uint8_t s_used;
-static osal_pool_t s_pool;
-static const char* k_tag = "vfs_iwdg";
+static uint8_t              s_used;
+static mini_slot_t          s_pool;
+static const char*          k_tag = "vfs_iwdg";
 
 /**
  * @brief IWDG VFS 私有数据池启动初始化
  */
-pre_execution(PRE_EXEC_PRIO_DRIVER_POOL) static void boot(void)
-{
-    COMPAT_IGNORE_RESULT(osal_pool_init(&s_pool, &s_used, 1));
-}
+mini_pre_execution(MINI_PRE_EXEC_PRIO_DRIVER_POOL) static void boot(void) { MINI_IGNORE_RESULT(mini_slot_init(&s_pool, &s_used, 1)); }
 
 /**
  * @brief IWDG 打开: 引用计数, 首次打开时调用 hal_iwdg_start 启动独立看门狗
@@ -42,12 +39,12 @@ pre_execution(PRE_EXEC_PRIO_DRIVER_POOL) static void boot(void)
  * @param[in] arg 未使用
  * @return 成功返回 MINI_OK, 失败返回负数错误码
  */
-static int vfs_iwdg_open(struct device* pdev, void* arg)
+static mt_err_t vfs_iwdg_open(struct device* pdev, void* arg)
 {
     struct vfs_iwdg_priv* priv;
     struct dev_lifecycle* lc;
-    int first, ret;
-    COMPAT_IGNORE_RESULT(arg);
+    int                   first, ret;
+    MINI_IGNORE_RESULT(arg);
     if (!pdev || !pdev->ops)
         return MINI_ERR_INVAL;
     priv = container_of(pdev->ops, struct vfs_iwdg_priv, ops);
@@ -74,10 +71,10 @@ static int vfs_iwdg_open(struct device* pdev, void* arg)
  * @param[in] pdev 设备对象指针
  * @return 成功返回 MINI_OK, 失败返回负数错误码
  */
-static int vfs_iwdg_close(struct device* pdev)
+static mt_err_t vfs_iwdg_close(struct device* pdev)
 {
     struct dev_lifecycle* lc;
-    int last;
+    int                   last;
     if (!pdev || !pdev->ops)
         return MINI_ERR_INVAL;
     lc = device_lc(pdev);
@@ -100,12 +97,12 @@ static int vfs_iwdg_close(struct device* pdev)
  * @param[in] to 未使用
  * @return 成功返回 MINI_OK, 未知命令返回 MINI_ERR_INVAL, 失败返回负数错误码
  */
-static int vfs_iwdg_ioctl(struct device* pdev, int cmd, void* arg, size_t arg_len, uint32_t to)
+static mt_err_t vfs_iwdg_ioctl(struct device* pdev, int cmd, void* arg, size_t arg_len, uint32_t to)
 {
     struct vfs_iwdg_priv* priv;
     struct dev_lifecycle* lc;
-    int ret;
-    COMPAT_IGNORE_RESULT(to);
+    int                   ret;
+    MINI_IGNORE_RESULT(to);
     if (!pdev || !pdev->ops)
         return MINI_ERR_INVAL;
     priv = container_of(pdev->ops, struct vfs_iwdg_priv, ops);
@@ -123,9 +120,7 @@ static int vfs_iwdg_ioctl(struct device* pdev, int cmd, void* arg, size_t arg_le
     case IWDG_CMD_SET_TIMEOUT:
     {
         const struct iwdg_timeout_arg* timeout_arg = arg;
-        ret = (!timeout_arg || arg_len != sizeof(*timeout_arg)) ?
-                  MINI_ERR_INVAL :
-                  hal_iwdg_set_timeout_ms(&priv->iwdg, timeout_arg->timeout_ms);
+        ret = (!timeout_arg || arg_len != sizeof(*timeout_arg)) ? MINI_ERR_INVAL : hal_iwdg_set_timeout_ms(&priv->iwdg, timeout_arg->timeout_ms);
         break;
     }
     case IWDG_CMD_SET_LONG:
@@ -153,24 +148,24 @@ static const struct file_operations s_fops = {
  * @param[in] pdev 设备对象指针
  * @return 成功返回 MINI_OK, 失败返回负数错误码
  */
-static int vfs_iwdg_probe(struct device* pdev)
+static mt_err_t vfs_iwdg_probe(struct device* pdev)
 {
     struct hal_iwdg_config cfg = {.timeout_ms = 8000, .prer = 0xFFFFFFFFU, .rlr = 0xFFFFFFFFU};
-    int value, idx, ret;
+    int                    value, idx, ret;
     if (!pdev)
         return MINI_ERR_INVAL;
-    idx = osal_pool_claim(&s_pool);
+    idx = mini_slot_claim(&s_pool);
     if (idx < 0)
         return MINI_ERR_NOMEM;
-    COMPAT_IGNORE_RESULT(device_get_prop_int(pdev, "timeout-ms", &value));
+    MINI_IGNORE_RESULT(device_get_prop_int(pdev, "timeout-ms", &value));
     if (value > 0)
         cfg.timeout_ms = (uint32_t)value;
-    COMPAT_MEM_SET(&s_priv, 0, sizeof(s_priv));
+    MINI_MEM_SET(&s_priv, 0, sizeof(s_priv));
     s_priv.pool_idx = idx;
     ret = hal_iwdg_init(&s_priv.iwdg, &cfg);
     if (ret != MINI_OK)
     {
-        COMPAT_IGNORE_RESULT(osal_pool_release(&s_pool, idx));
+        MINI_IGNORE_RESULT(mini_slot_release(&s_pool, idx));
         return ret;
     }
     s_priv.ops = s_fops;
@@ -178,10 +173,10 @@ static int vfs_iwdg_probe(struct device* pdev)
     device_lc_bind(pdev);
     if (device_set_priv(pdev, &s_priv) != MINI_OK)
     {
-        COMPAT_IGNORE_RESULT(osal_pool_release(&s_pool, idx));
+        MINI_IGNORE_RESULT(mini_slot_release(&s_pool, idx));
         return MINI_ERR_IO;
     }
-    SYS_LOGI(k_tag, "probe OK");
+    MT_LOG_INFO(k_tag, "probe OK");
     return MINI_OK;
 }
 
@@ -190,11 +185,11 @@ static int vfs_iwdg_probe(struct device* pdev)
  * @param[in] pdev 设备对象指针
  * @return 成功返回 MINI_OK
  */
-static int vfs_iwdg_remove(struct device* pdev)
+static mt_err_t vfs_iwdg_remove(struct device* pdev)
 {
-    COMPAT_IGNORE_RESULT(pdev);
+    MINI_IGNORE_RESULT(pdev);
     device_ops_unregister(pdev);
-    COMPAT_IGNORE_RESULT(osal_pool_release(&s_pool, 0));
+    MINI_IGNORE_RESULT(mini_slot_release(&s_pool, 0));
     return MINI_OK;
 }
 

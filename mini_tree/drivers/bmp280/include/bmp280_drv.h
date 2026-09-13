@@ -17,19 +17,19 @@
 extern "C"
 {
 #endif
-/** ioctl 命令基址（COMPAT_MAGIC 魔数，防跨模块冲突） */
-#define BMP280_CMD_BASE COMPAT_MAGIC(BMP280)
+/** ioctl 命令基址（MINI_MAGIC 魔数，防跨模块冲突） */
+#define BMP280_CMD_BASE MINI_MAGIC(BMP280)
 /** 读取气压/温度（arg: struct bmp280_sample*） */
 #define BMP280_CMD_READ_PRESS_TEMP (BMP280_CMD_BASE + 0x01)
 /** 命令总数 */
 #define BMP280_CMD_COUNT 1
 
-    /** @brief BMP280 采样结果 */
-    struct bmp280_sample
-    {
-        int32_t press_pa; /**< 气压，Pa */
-        int16_t temp_c_x100; /**< 温度，摄氏度 ×100 */
-    };
+/** @brief BMP280 采样结果 */
+struct bmp280_sample
+{
+    int32_t press_pa;    /**< 气压，Pa */
+    int16_t temp_c_x100; /**< 温度，摄氏度 ×100 */
+};
 #ifdef __cplusplus
 }
 #endif

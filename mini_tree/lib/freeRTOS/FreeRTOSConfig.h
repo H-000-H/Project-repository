@@ -73,14 +73,40 @@
 #define configCHECK_FOR_STACK_OVERFLOW          2
 #define configUSE_MALLOC_FAILED_HOOK            0
 
-/* 软件定时器 (由 Kconfig CONFIG_FREERTOS_USE_TIMERS 控制) */
-#ifdef CONFIG_FREERTOS_USE_TIMERS
+/*
+ * 软件定时器 (由 Kconfig CONFIG_FREERTOS_USE_TIMERS 控制)
+ *
+ * CONFIG_FREERTOS_USE_TIMERS 来自 kconfig 生成的 config.h, 而内核源文件
+ * (tasks.c / timers.c / event_groups.c 等) 并不包含 config.h, 只看
+ * #ifdef CONFIG_FREERTOS_USE_TIMERS 会让内核侧的 configUSE_TIMERS 恒为 0,
+ * 与 osal 侧看到的值不一致 (timers.c 开头就有
+ * "INCLUDE_xTimerPendFunctionCall 需要 configUSE_TIMERS" 的 #error)。
+ * 因此 lib/freeRTOS/CMakeLists.txt 额外用 -D 注入
+ * MINI_TREE_FREERTOS_USE_TIMERS 作为等效开关, 两个宏任一命中即视为开启。
+ */
+#if defined(CONFIG_FREERTOS_USE_TIMERS) || defined(MINI_TREE_FREERTOS_USE_TIMERS)
 #define configUSE_TIMERS                        1
 #define configTIMER_TASK_PRIORITY               29  /* 低于 EventBus (30), 避免同级优先级抢占 */
 #define configTIMER_QUEUE_LENGTH                10
 #define configTIMER_TASK_STACK_DEPTH            configMINIMAL_STACK_SIZE
 #else
 #define configUSE_TIMERS                        0
+#endif
+
+
+#if defined(CONFIG_FREERTOS_EVENT_GROUPS) || defined(MINI_TREE_FREERTOS_EVENT_GROUPS)
+#define configUSE_EVENT_GROUPS                  1
+/*
+ * xEventGroupSetBitsFromISR() 在 event_groups.c 里被
+ * (INCLUDE_xTimerPendFunctionCall == 1 && configUSE_TIMERS == 1) 包住:
+ * 它不直接改标志, 而是把 vEventGroupSetBitsCallback  pend 给软件
+ * 定时器守护任务执行 (ISR 里不能阻塞, 而唤醒等待者需要拿事件组锁)。
+ * 不开本宏时 ISR 内置位事件组 (xEventGroupSetBitsFromISR) 会因符号缺失编译失败,
+ * 因此随事件组一起打开 (configUSE_TIMERS 已由 Kconfig select 保证)。
+ */
+#define INCLUDE_xTimerPendFunctionCall          1
+#else
+#define configUSE_EVENT_GROUPS                  0
 #endif
 #if defined(__ARM_ARCH_6M__)
 /* M0/M0+ 无 CLZ 指令, 禁用优化任务选择 (tasks.c 内联汇编会编译失败) */
@@ -94,6 +120,5 @@
 /* CMSIS 向量名映射 — Cube 空 handler 需在 board irq handlers 中改名让位 */
 #define vPortSVCHandler     SVC_Handler
 #define xPortPendSVHandler  PendSV_Handler
-/* SysTick 仍走 Cube SysTick_Handler, 内调 xPortSysTickHandler + HAL_IncTick */
 
 #endif /* FREERTOS_CONFIG_H */

@@ -40,7 +40,7 @@
 | Document | Description |
 | :--- | :--- |
 | [architecture.md](architecture.md) | Layers and data flow |
-| [patterns.md](patterns.md) | Key mechanisms anatomy: pre_execution chain / two-phase boot / compile-time probe table / xtask scheduling / VIRQ top-bottom halves / SPSC lock-free channel / dev_lifecycle / non-blocking state machines |
+| [patterns.md](patterns.md) | Key mechanisms anatomy: mini_pre_execution chain / two-phase boot / compile-time probe table / xtask scheduling / VIRQ top-bottom halves / SPSC lock-free channel / dev_lifecycle / non-blocking state machines |
 | [ecosystem.md](ecosystem.md) | Brick-style linking: integrated open-source libraries and how to extend |
 | [design_decisions.md](design_decisions.md) | Design decisions still in force and author preferences |
 | [references.md](references.md) | External references: ESP VFS / FreeRTOS / Linux / RTT / LVGL / Qt |
@@ -49,7 +49,8 @@
 | [peripherals.md](peripherals.md) | Peripheral compatible / ioctl overview |
 | [usb_tusb_port.md](usb_tusb_port.md) | TinyUSB board-level contract |
 | [amp.md](amp.md) | Dual-core AMP |
-| [osal_switching.md](osal_switching.md) | OSAL backend switching |
+| [mini-os.md](mini-os.md) | In-tree mini-os kernel (scheduler/time wheels/PI/heap/port/integration) |
+| [backend_switching.md](backend_switching.md) | OS backend switching |
 | [net.md](net.md) | Network protocol stack glue (MQTT / TCP / PPP / USB NIC) |
 
 ### Coding & Runtime
@@ -60,7 +61,7 @@
 | [app_cpp_guide.md](app_cpp_guide.md) | Upper-layer C++ restrictions and recommendations (ETL containers / tiering / forbidden) |
 | [memory_footprint.md](memory_footprint.md) | Memory footprint: fixed static RAM overhead & trimming knobs |
 | [service_spec.md](service_spec.md) | Application-layer do's and don'ts |
-| [runtime_services.md](runtime_services.md) | EventBus / VIRQ / SYSTEM_C·CPP / buffers |
+| [runtime_services.md](runtime_services.md) | EventBus / VIRQ / System Runtime / buffers |
 | [can_hook.md](can_hook.md) | CAN protocol superset hooks |
 | [fast_path.md](fast_path.md) | ISR / hot-path red lines |
 | [api_compatibility.md](api_compatibility.md) | API stability surface |

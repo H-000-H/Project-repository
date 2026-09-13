@@ -1,6 +1,6 @@
 # Device-Tree Porting Guide (Consolidated)
 
-> All device-tree (DTS/DTSI) porting steps for wiring mini_tree to a new SoC / new board are consolidated here — no longer scattered across architecture / porting_guide / getting_started. For HAL backends, OSAL backends and the overall CMake flow, see "Related Docs" at the end.
+> All device-tree (DTS/DTSI) porting steps for wiring mini_tree to a new SoC / new board are consolidated here — no longer scattered across architecture / porting_guide / getting_started. For HAL backends, OS backends and the overall CMake flow, see "Related Docs" at the end.
 >
 > Every example below is written against the current repo mechanisms (`tools/dtc-lite.py`, `board/dtsi/*`, `drivers/bmp280`, etc.) and current APIs.
 
@@ -270,7 +270,7 @@ A self-contained sensor driver + board dts + CMake injection forming the smalles
 #include "device.h"
 #include "driver.h"
 #include "dt_config_gen.h"
-#include "osal.h"
+#include "mini_backend.h"
 #include "status.h"
 #include "system_log.h"
 #include "vfs-i2c.h"
@@ -287,8 +287,8 @@ struct bmp280_device {
 };
 
 /* Static pool: fixed size at compile time, no runtime heap allocation */
-static struct bmp280_device s_bmp280_pool[BMP280_POOL_COUNT] COMPAT_ALIGNED(4);
-static uint8_t s_bmp280_used[BMP280_POOL_COUNT] COMPAT_ALIGNED(4);
+static struct bmp280_device s_bmp280_pool[BMP280_POOL_COUNT] MINI_ALIGNED(4);
+static uint8_t s_bmp280_used[BMP280_POOL_COUNT] MINI_ALIGNED(4);
 
 static struct bmp280_device* bmp280_claim(void)
 {
@@ -322,7 +322,7 @@ static int bmp280_probe(struct device* pdev)
     /* 3. bind lifecycle (register during probe only, see driver.h) */
     /* device_lc_bind(pdev); */
 
-    SYS_LOGI("bmp280", "probed @0x%02x on i2c0", dev->addr);
+    MT_LOG_INFO("bmp280", "probed @0x%02x on i2c0", dev->addr);
     return MINI_OK;
 }
 
@@ -372,7 +372,7 @@ set(BOARD_DTSI_DIR         ${MINI_TREE_BOARD_PORT}/dtsi)   # contains my_soc.dts
 | Board entry `main` | clocks/heap/console + two-stage boot | **platform-specific** (change) |
 | App task module `app/<module>/` | business logic: task callback + task registration | **zero change** (once DTS/HAL ready) |
 | Device access | `device_find_by_label` / `device_open` / `device_ioctl` | zero change (via DTS label) |
-| Framework services | OSAL tasks / EventBus / config_store / scheduler | zero change (OSAL backends unify) |
+| Framework services | the unified interface tasks / EventBus / config_store / scheduler | zero change (OS backends unify) |
 
 ### 9.2 API key points
 
@@ -380,8 +380,8 @@ set(BOARD_DTSI_DIR         ${MINI_TREE_BOARD_PORT}/dtsi)   # contains my_soc.dts
 - Task creation:
   - C cooperative: `xscheduler_task_create(task, name, cb, period_ms)` (TCB statically allocated by the caller).
   - C preemptive (`XTASK_PREEMPT`): `x_scheduler_task_create(name, period_ms, priority, cb, param)` (pool-allocated).
-  - C++ bare metal: `osal_task_create(name, stack_size, period, entry, param1, ...)` overload, returns `etl::optional<x_task_handle_t>`.
-  - OS backends (FreeRTOS/RT-Thread): unified C API `osal_task_create`.
+  - C++ bare metal: `mini_task_create(name, stack_size, period, entry, param1, ...)` overload, returns `etl::optional<x_task_handle_t>`.
+  - OS backends (FreeRTOS/RT-Thread): unified C API `mini_task_create`.
 - Main loop: bare metal `while(1) x_scheduler_poll()` (or `mini_tree_system_loop()`); OS backends start their own scheduler.
 
 **Bare-metal scheduler tick source (`xscheduler_start()`) — two-level selection:**
@@ -436,7 +436,7 @@ SysTick is **not** a DTS device node (not on a bus, no `compatible`, no VFS/prob
 **ESP does not need `cpus` / `clock-frequency`; the SysTick layer is fully excluded**, guaranteed threefold:
 
 1. **`hal_systick.c` is not in the ESP source list**: `cmake/esp_idf.cmake` has its own `HAL_SRCS`, which does not compile `hal_systick.c`.
-2. **ESP forces `CONFIG_OSAL_FREERTOS`** (ties to the IDF kernel), so `xtask_coop/preempt` is not compiled and nothing calls `hal_systick_init`; tick belongs to **IDF's SYSTIMER + FreeRTOS** (`CONFIG_FREERTOS_HZ`).
+2. **ESP forces `CONFIG_OS_FREERTOS`** (ties to the IDF kernel), so `xtask_coop/preempt` is not compiled and nothing calls `hal_systick_init`; tick belongs to **IDF's SYSTIMER + FreeRTOS** (`CONFIG_FREERTOS_HZ`).
 3. **ESP's default board DTS has no `cpus`** → dtc-lite takes the fallback, no `#error`, builds normally.
 
 > If an ESP board project explicitly writes `cpus/cpu@0` with `clock-frequency = <0>`, the `#error` fires — but ESP normally should not write `cpus` (it uses the IDF clock tree); keeping the constraint catches copying the placeholder template without fixing it.
@@ -459,7 +459,7 @@ Conclusion: SysTick is an architecture standard, has minimal operations, and its
 ```c
 /* SPDX-License-Identifier: Apache-2.0 */
 #include "system_init.h"
-#include "xtask.h"          /* bare-metal scheduler (CONFIG_OSAL_NULL) */
+#include "xtask.h"          /* bare-metal scheduler (CONFIG_OS_BARE) */
 #include "led.h"            /* app task module */
 
 /* platform: clocks / heap / console init (HAL backend, platform-specific) */
@@ -475,12 +475,12 @@ int main(void)
 
     App_Led_register();               /* register app task */
 
-#if defined(CONFIG_OSAL_NULL)
+#if defined(CONFIG_OS_BARE)
     for (;;)
         x_scheduler_poll();           /* bare-metal time-slice poll (incl. preemptive) */
-#elif defined(CONFIG_OSAL_FREERTOS)
+#elif defined(CONFIG_OS_FREERTOS)
     vTaskStartScheduler();
-#elif defined(CONFIG_OSAL_RTTHREAD)
+#elif defined(CONFIG_OS_RTTHREAD)
     rt_system_scheduler_start();
 #endif
     return 0;
@@ -523,7 +523,7 @@ static void led_task_cb(x_task* self)
 {
     struct vfs_gpio_arg arg = {0};
     int ret;
-    COMPAT_IGNORE_RESULT(self);
+    MINI_IGNORE_RESULT(self);
 
     if (s_led_dev == NULL)
     {
@@ -532,7 +532,7 @@ static void led_task_cb(x_task* self)
             return;
         if (device_open(pdev, NULL) != MINI_OK)
         {
-            SYS_LOGE(s_kTag, "device_open(led) failed");
+            MT_LOG_ERROR(s_kTag, "device_open(led) failed");
             return;
         }
         s_led_dev = pdev;
@@ -540,14 +540,14 @@ static void led_task_cb(x_task* self)
 
     ret = device_ioctl(s_led_dev, GPIO_CMD_TOGGLE, &arg, sizeof(arg), 100);
     if (ret != MINI_OK)
-        SYS_LOGE(s_kTag, "device_ioctl(TOGGLE) failed: %d", ret);
+        MT_LOG_ERROR(s_kTag, "device_ioctl(TOGGLE) failed: %d", ret);
 }
 
 /* task registration: cooperative signature (task, name, cb, period_ms) */
 void App_Led_register(void)
 {
     if (xscheduler_task_create(&g_led_task, APP_LED_NAME, led_task_cb, APP_LED_PERIOD_MS) == 0)
-        SYS_LOGE(s_kTag, "register failed");
+        MT_LOG_ERROR(s_kTag, "register failed");
 }
 ```
 
@@ -573,13 +573,13 @@ namespace App_Led
 } // namespace App_Led
 ```
 
-`led.cpp` (C++ uses the bare-metal `osal_task_create` overload, returns `etl::optional`):
+`led.cpp` (C++ uses the bare-metal `mini_task_create` overload, returns `etl::optional`):
 
 ```cpp
 /* SPDX-License-Identifier: Apache-2.0 */
 #include "led.hpp"
 #include "device.h"
-#include "osal_null.h"          /* bare-metal C++ osal_task_create overload */
+#include "mini_backend.h"          /* bare-metal C++ mini_task_create overload */
 #include "status.h"
 #include "system_log.h"
 #include "vfs-gpio.h"
@@ -592,7 +592,7 @@ namespace App_Led
     {
         struct vfs_gpio_arg arg = {0};
         int ret;
-        COMPAT_IGNORE_RESULT(self);
+        MINI_IGNORE_RESULT(self);
 
         if (s_led_dev == nullptr)
         {
@@ -601,7 +601,7 @@ namespace App_Led
                 return;
             if (device_open(pdev, nullptr) != MINI_OK)
             {
-                SYS_LOGE(kName.c_str(), "device_open(led) failed");
+                MT_LOG_ERROR(kName.c_str(), "device_open(led) failed");
                 return;
             }
             s_led_dev = pdev;
@@ -609,14 +609,14 @@ namespace App_Led
 
         ret = device_ioctl(s_led_dev, GPIO_CMD_TOGGLE, &arg, sizeof(arg), 100);
         if (ret != MINI_OK)
-            SYS_LOGE(kName.c_str(), "device_ioctl(TOGGLE) failed: %d", ret);
+            MT_LOG_ERROR(kName.c_str(), "device_ioctl(TOGGLE) failed: %d", ret);
     }
 
     etl::optional<int> register_task(void)
     {
         /* bare-metal C++ overload: cooperative = (name, stack_size, period, entry, param1);
            with CONFIG_XTASK_PREEMPT=y the 3rd arg is priority and stack_size is reused as period */
-        auto handle = osal_task_create(kName.c_str(), 0u, kPeriodMs,
+        auto handle = mini_task_create(kName.c_str(), 0u, kPeriodMs,
                                        led_task_cb, nullptr);
         if (!handle)
             return etl::nullopt;
@@ -625,7 +625,7 @@ namespace App_Led
 } // namespace App_Led
 ```
 
-> On bare-metal C++ prefer the `osal_task_create` overload (consistent OSAL habits); C projects call `xscheduler_task_create` directly. OS backends (FreeRTOS/RT-Thread) always go through the C API `osal_task_create`. With preemptive scheduling (`XTASK_PREEMPT`), C uses `x_scheduler_task_create(name, period, priority, cb, param)`.
+> On bare-metal C++ prefer the `mini_task_create` overload (consistent the unified interface habits); C projects call `xscheduler_task_create` directly. OS backends (FreeRTOS/RT-Thread) always go through the C API `mini_task_create`. With preemptive scheduling (`XTASK_PREEMPT`), C uses `x_scheduler_task_create(name, period, priority, cb, param)`.
 
 ---
 

@@ -64,23 +64,21 @@
 
 ---
 
-## core / osal / interrupt / system
+## core / interrupt / system
 
 | 路径 | 说明 |
 | :--- | :--- |
 | `core/include/status.h` | `MINI_ERR_*`、`ERR_PTR` |
 | `core/include/compiler_compat.h` | 可移植属性与 mem API |
 | `core/include/compiler_compat_poison.h` | poison 层 |
-| `core/include/event_bus.h` · `event_bus.hpp` | 事件总线 |
-| `core/include/buffer_pool.h` | 缓冲池 |
-| `core/include/system_log.h` · `production_log.h` | 日志 |
+| `core/include/event_bus.h` | 事件总线 |
+| `core/include/system_log.h` | 日志 |
 | `core/src/*.c` | 上述实现 |
-| `osal/include/osal.h` | OSAL 总头 |
-| `osal/include/osal_null.h` | 裸机后端辅助接口 + C++ 任务重载声明（`CONFIG_OSAL_NULL_TASK_CPP`） |
-| `osal/src/osal_{null,freertos,rtthread}.c` | 三后端 |
-| `osal/src/osal_task.cpp` | 裸机 C++ 任务创建封装（`CONFIG_OSAL_NULL_TASK_CPP`） |
+| `core/include/mini_backend.h` | 统一接口总头 |
+| `core/src/mini_backend_{bare,mini_os,freertos,rtthread}.c` | 四后端 |
 | `interrupt/interrupt.{c,h}` | VIRQ |
-| `system_c/` · `system_cpp/` | init、wdt、scrubber、safe_state、task_manager、cmd（Kconfig 选 C 或 C++） |
+| `system_c/` | init、wdt、scrubber、safe_state、task_manager（系统层，纯 C） |
+| `system_cpp/` | 仅 cmd（`SystemCmd`，C++，`CONFIG_SYSTEM_CMD`，默认关） |
 | `time_slice/task/xtask*.{c,h}` | 裸机调度（协调式 `xtask_coop.c` / 抢占式 `xtask_preempt.c` / 共用 `xtask.h`） |
 
 ---
@@ -125,7 +123,7 @@
 | :--- | :--- |
 | `display/display_ui_bridge.h` | 面向 UI 库回调的入口（LVGL flush / u8g2 SendBuffer），走 `DISPLAY_CMD_*`，零第三方库依赖 |
 
-> `lib/` 现状：vendor 仅 **FreeRTOS、RT-Thread、ETL**；**TinyUSB / lwIP** 为配置期 FetchContent，其余积木为链接期 FetchContent。
+> `lib/` 现状：vendor 仅 **mini-os、FreeRTOS、RT-Thread、ETL**，另有随仓 **mini-ota** OTA/引导（`CONFIG_MINI_OTA`）；**TinyUSB / lwIP** 为配置期 FetchContent，其余积木为链接期 FetchContent。
 
 ---
 

@@ -16,7 +16,8 @@
 #include "device.h"
 #include "driver.h"
 #include "dt_config_gen.h"
-#include "osal.h"
+#include "mini_slot.h"
+#include "mini_time.h"
 #include "status.h"
 #include "system_log.h"
 #include "vfs-i2c.h"
@@ -33,23 +34,23 @@
 /** @brief SHT30 驱动实例（嵌入 fops） */
 struct sht30_device
 {
-    struct file_operations ops; /**< 挂入 device 的 fops */
-    struct device* i2c_dev; /**< 所属 I2C client 设备 */
+    struct file_operations ops;     /**< 挂入 device 的 fops */
+    struct device*         i2c_dev; /**< 所属 I2C client 设备 */
 
     int hw_ready; /**< 硬件已初始化标志 */
 };
 
-static struct sht30_device s_sht30_pool[SHT30_POOL_COUNT] COMPAT_ALIGNED(4);
-static uint8_t s_sht30_used[SHT30_POOL_COUNT] COMPAT_ALIGNED(4);
-static osal_pool_t s_sht30_pool_ctrl COMPAT_ALIGNED(4);
-static const char* const k_tag = "sht30";
+static struct sht30_device           s_sht30_pool[SHT30_POOL_COUNT] MINI_ALIGNED(4);
+static uint8_t                       s_sht30_used[SHT30_POOL_COUNT] MINI_ALIGNED(4);
+static mini_slot_t s_sht30_pool_ctrl MINI_ALIGNED(4);
+static const char* const             k_tag = "sht30";
 
 /**
- * @brief 驱动池启动初始化（pre_execution 阶段，创建静态对象池）
+ * @brief 驱动池启动初始化（mini_pre_execution 阶段，创建静态对象池）
  */
-pre_execution(PRE_EXEC_PRIO_DRIVER_POOL) static void sht30_pool_boot_init(void)
+mini_pre_execution(MINI_PRE_EXEC_PRIO_DRIVER_POOL) static void sht30_pool_boot_init(void)
 {
-    COMPAT_IGNORE_RESULT(osal_pool_init(&s_sht30_pool_ctrl, s_sht30_used, SHT30_POOL_COUNT));
+    MINI_IGNORE_RESULT(mini_slot_init(&s_sht30_pool_ctrl, s_sht30_used, SHT30_POOL_COUNT));
 }
 
 /**
@@ -57,17 +58,13 @@ pre_execution(PRE_EXEC_PRIO_DRIVER_POOL) static void sht30_pool_boot_init(void)
  * @param[in] pdev device 指针
  * @return 驱动实例指针，无效时 ERR_PTR
  */
-static struct sht30_device* sht30_get_drvdata(struct device* pdev)
-{
-    return (struct sht30_device*)device_get_priv(pdev);
-}
+static struct sht30_device* sht30_get_drvdata(struct device* pdev) { return (struct sht30_device*)device_get_priv(pdev); }
 
 /**
  * @brief 向 I2C 总线写数据
- * @return MINI_OK 或 VFS_ERR_*
+ * @return MINI_OK 或 MINI_ERR_*
  */
-static int sht30_i2c_wr(struct sht30_device* dev, const uint8_t* tx, size_t len,
-                        uint32_t timeout_ms)
+static mt_err_t sht30_i2c_wr(struct sht30_device* dev, const uint8_t* tx, size_t len, uint32_t timeout_ms)
 {
     if (!dev || !dev->i2c_dev || !tx || len == 0U)
         return MINI_ERR_INVAL;
@@ -76,9 +73,9 @@ static int sht30_i2c_wr(struct sht30_device* dev, const uint8_t* tx, size_t len,
 
 /**
  * @brief 从 I2C 总线读数据
- * @return MINI_OK 或 VFS_ERR_*
+ * @return MINI_OK 或 MINI_ERR_*
  */
-static int sht30_i2c_rd(struct sht30_device* dev, uint8_t* rx, size_t len, uint32_t timeout_ms)
+static mt_err_t sht30_i2c_rd(struct sht30_device* dev, uint8_t* rx, size_t len, uint32_t timeout_ms)
 {
     if (!dev || !dev->i2c_dev || !rx || len == 0U)
         return MINI_ERR_INVAL;
@@ -87,9 +84,9 @@ static int sht30_i2c_rd(struct sht30_device* dev, uint8_t* rx, size_t len, uint3
 
 /**
  * @brief 首次 open 时打开 I2C 总线（空实现，仅确保 hw_ready）
- * @return MINI_OK 或 VFS_ERR_*
+ * @return MINI_OK 或 MINI_ERR_*
  */
-static int sht30_hw_create(struct sht30_device* dev)
+static mt_err_t sht30_hw_create(struct sht30_device* dev)
 {
     if (!dev)
         return MINI_ERR_INVAL;
@@ -112,7 +109,7 @@ static void sht30_hw_destroy(struct sht30_device* dev)
     if (!dev || !dev->hw_ready)
         return;
     if (dev->i2c_dev)
-        COMPAT_IGNORE_RESULT(device_close(dev->i2c_dev));
+        MINI_IGNORE_RESULT(device_close(dev->i2c_dev));
     dev->hw_ready = 0;
 }
 
@@ -121,10 +118,10 @@ static void sht30_hw_destroy(struct sht30_device* dev)
  */
 static int sht30_open(struct device* pdev, void* arg)
 {
-    struct sht30_device* dev;
+    struct sht30_device*  dev;
     struct dev_lifecycle* lc;
-    int first, ret;
-    COMPAT_IGNORE_RESULT(arg);
+    int                   first, ret;
+    MINI_IGNORE_RESULT(arg);
     if (!pdev || !pdev->ops)
         return MINI_ERR_INVAL;
     dev = sht30_get_drvdata(pdev);
@@ -155,9 +152,9 @@ static int sht30_open(struct device* pdev, void* arg)
  */
 static int sht30_close(struct device* pdev)
 {
-    struct sht30_device* dev;
+    struct sht30_device*  dev;
     struct dev_lifecycle* lc;
-    int last;
+    int                   last;
     if (!pdev || !pdev->ops)
         return MINI_ERR_INVAL;
     dev = sht30_get_drvdata(pdev);
@@ -178,7 +175,7 @@ static int sht30_close(struct device* pdev)
 /**
  * @brief ioctl 命令分发类型（命令处理函数由 map 绑定）
  */
-typedef int (*sht30_ioctl_fn_t)(struct sht30_device* dev, void* arg, size_t arg_len, uint32_t ms);
+typedef mt_err_t (*sht30_ioctl_fn_t)(struct sht30_device* dev, void* arg, size_t arg_len, uint32_t ms);
 struct sht30_ioctl_map
 {
     sht30_ioctl_fn_t handler;
@@ -187,18 +184,18 @@ struct sht30_ioctl_map
 /**
  * @brief SHT30_CMD_READ_TEMP_RH 实现：触发测量（20ms）并换算 T/RH
  */
-static int sht30_cmd_read(struct sht30_device* dev, void* arg, size_t len, uint32_t timeout_ms)
+static mt_err_t sht30_cmd_read(struct sht30_device* dev, void* arg, size_t len, uint32_t timeout_ms)
 {
-    const uint8_t cmd[2] = {0x24, 0x00};
-    uint8_t raw[6];
+    const uint8_t        cmd[2] = {0x24, 0x00};
+    uint8_t              raw[6];
     struct sht30_sample* sample = (struct sht30_sample*)arg;
-    int ret;
+    int                  ret;
     if (!dev->hw_ready || !sample || len != sizeof(*sample))
         return MINI_ERR_INVAL;
     ret = sht30_i2c_wr(dev, cmd, 2, timeout_ms);
     if (ret != MINI_OK)
         return ret;
-    osal_delay_ms(20);
+    mini_delay_ms(20);
     ret = sht30_i2c_rd(dev, raw, 6, timeout_ms);
     if (ret != MINI_OK)
         return ret;
@@ -217,12 +214,12 @@ static const struct sht30_ioctl_map s_sht30_map[SHT30_CMD_COUNT] = {
 /**
  * @brief fops.ioctl：查表分发命令，持 io 生命周期锁
  */
-static int sht30_ioctl(struct device* pdev, int cmd, void* arg, size_t arg_len, uint32_t ms)
+static mt_err_t sht30_ioctl(struct device* pdev, int cmd, void* arg, size_t arg_len, uint32_t ms)
 {
-    struct sht30_device* dev;
+    struct sht30_device*  dev;
     struct dev_lifecycle* lc;
-    int32_t off;
-    int ret;
+    int32_t               off;
+    int                   ret;
     if (!pdev || !pdev->ops)
         return MINI_ERR_INVAL;
     dev = sht30_get_drvdata(pdev);
@@ -252,17 +249,17 @@ static const struct file_operations sht30_fops = {
 /**
  * @brief probe：claim 池项、绑定父 I2C 设备并挂 fops
  */
-static int sht30_probe(struct device* pdev)
+static mt_err_t sht30_probe(struct device* pdev)
 {
     struct sht30_device* dev;
-    int pool_idx, ret;
+    int                  pool_idx, ret;
     if (!pdev)
         return MINI_ERR_INVAL;
-    pool_idx = osal_pool_claim(&s_sht30_pool_ctrl);
+    pool_idx = mini_slot_claim(&s_sht30_pool_ctrl);
     if (pool_idx < 0)
         return MINI_ERR_NOMEM;
     dev = &s_sht30_pool[pool_idx];
-    COMPAT_MEM_SET(dev, 0, sizeof(*dev));
+    MINI_MEM_SET(dev, 0, sizeof(*dev));
     dev->i2c_dev = device_get_parent(pdev);
     if (!dev->i2c_dev)
     {
@@ -277,23 +274,23 @@ static int sht30_probe(struct device* pdev)
     }
     dev->ops = sht30_fops;
     pdev->ops = &dev->ops;
-    SYS_LOGI(k_tag, "probe OK pool=%dev", pool_idx);
+    MT_LOG_INFO(k_tag, "probe OK pool=%dev", pool_idx);
     return MINI_OK;
 err:
     pdev->ops = NULL;
-    COMPAT_MEM_SET(dev, 0, sizeof(*dev));
-    COMPAT_IGNORE_RESULT(osal_pool_release(&s_sht30_pool_ctrl, pool_idx));
+    MINI_MEM_SET(dev, 0, sizeof(*dev));
+    MINI_IGNORE_RESULT(mini_slot_release(&s_sht30_pool_ctrl, pool_idx));
     return ret;
 }
 
 /**
  * @brief remove：排空在途 io、释放硬件并归还池项
  */
-static int sht30_remove(struct device* pdev)
+static mt_err_t sht30_remove(struct device* pdev)
 {
-    struct sht30_device* dev;
+    struct sht30_device*  dev;
     struct dev_lifecycle* lc;
-    int idx;
+    int                   idx;
     if (!pdev)
         return MINI_ERR_INVAL;
     dev = sht30_get_drvdata(pdev);
@@ -305,14 +302,14 @@ static int sht30_remove(struct device* pdev)
     idx = (int)(dev - s_sht30_pool);
     dev_lc_remove_start(lc);
     device_ops_unregister(pdev);
-    if (dev_lc_remove_drain(lc, OSAL_WAIT_FOREVER) != MINI_OK)
+    if (dev_lc_remove_drain(lc, MINI_WAIT_FOREVER) != MINI_OK)
     {
         dev_lc_remove_finish(lc);
         return MINI_ERR_IO;
     }
     sht30_hw_destroy(dev);
-    COMPAT_MEM_SET(dev, 0, sizeof(*dev));
-    COMPAT_IGNORE_RESULT(osal_pool_release(&s_sht30_pool_ctrl, idx));
+    MINI_MEM_SET(dev, 0, sizeof(*dev));
+    MINI_IGNORE_RESULT(mini_slot_release(&s_sht30_pool_ctrl, idx));
     dev_lc_remove_finish(lc);
     return MINI_OK;
 }

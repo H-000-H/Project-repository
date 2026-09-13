@@ -14,7 +14,7 @@
 | 编号 | 问题 | 影响 | 规避 / 状态 |
 | :--- | :--- | :--- | :--- |
 | P1 | `err_section` 在部分链接脚本未单独放置 | 错误符号表与代码同段，诊断困难 | `CONFIG_ERR_SECTION=1` 仅在有独立 ROM 区时有效；见 [memory_footprint.md](memory_footprint.md) §1 |
-| P2 | 裸机 C++ 任务在 `CONFIG_OSAL_NULL_TASK_CPP` 下的栈归属 | 栈由谁分配不清，可能溢出 | 暂由平台在 `osal_task.cpp` 手动指定；长期归 `system` 任务管理 |
+| P2 | 裸机 C++ 任务在 `CONFIG_XTASK_PREEMPT` 下的栈归属 | 栈由谁分配不清，可能溢出 | 暂由平台在 `（C++ 封装已移除）` 手动指定；长期归 `system` 任务管理 |
 | P3 | dtc-lite 对嵌套 dtsi 的 `include` 解析顺序敏感 | 板级覆盖易错 | 平台固定 `BOARD_DTSI_DIR` 单一来源 |
 
 ---
@@ -34,7 +34,6 @@
 | 编号 | 问题 | 影响 | 规避 / 状态 |
 | :--- | :--- | :--- | :--- |
 | P7 | `.clang-tidy` 分层在 app 层仅建议 | 命名规范可能被忽略 | 靠 review 兜底 |
-| P8 | `tools/build_size.py` 的 `--format=baseline` 无历史基线时报警 | 首次运行无对照 | 先跑一次生成基线 |
 | P9 | `ide/stubs/` 与 real 头不同步 | clangd 误报 | 重跑 CMake configure 再生 |
 
 ---

@@ -113,7 +113,7 @@ Rules:
 - `compatible`: **exactly** matches the DTS node's `compatible = "..."`
 - `probe`/`remove`: return `MINI_OK` or `MINI_ERR_*`
 
-Identifiers are uniformly lowercase (enforced by `.clang-tidy` `readability-identifier-naming`): `x_task` / `x_scheduler` / `list_node` / `k_tag` / `struct event` / `mini_tree::`, etc.; `.clang-format` uses Allman braces, no braces on single statements, 4-space indent, 200 columns. Recommended at `app`, mandatory below `app`.
+Identifiers are uniformly lowercase (enforced by `.clang-tidy` `readability-identifier-naming`): `x_task` / `x_scheduler` / `list_node` / `k_tag` / `struct event`, etc.; `.clang-format` uses Allman braces, no braces on single statements, 4-space indent, 200 columns. Recommended at `app`, mandatory below `app`.
 
 ---
 
@@ -182,7 +182,7 @@ Drivers with fops should follow this order (`driver.h` comments):
 
 1. `dev_lc_remove_start(device_lc(dev))`
 2. `device_ops_unregister(dev)`
-3. `dev_lc_remove_drain(..., OSAL_WAIT_FOREVER)`
+3. `dev_lc_remove_drain(..., MINI_WAIT_FOREVER)`
 4. Release hardware / bus
 5. `dev_lc_remove_finish(...)`
 

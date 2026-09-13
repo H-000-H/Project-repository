@@ -14,15 +14,15 @@
 
 #include "compiler_compat.h"
 #include "lwip/err.h"
-#include "osal.h"
+#include "mini_time.h"
 #include "system_log.h"
 #include <string.h>
 
 static const char* const s_kTag = "mqtt_client";
 
-#define MQTT_CONNACK_TIMEOUT_MS 10000 /**< CONNECT 发出后等待 CONNACK 的超时时间 */
+#define MQTT_CONNACK_TIMEOUT_MS 10000     /**< CONNECT 发出后等待 CONNACK 的超时时间 */
 #define MQTT_TCP_CONNECT_TIMEOUT_MS 15000 /**< TCP 三次握手等待上限 */
-#define MQTT_TRANSPORT_RECV_WAIT_MS 1 /**< 传输层 recv 单次等待 (让出调度给收包泵) */
+#define MQTT_TRANSPORT_RECV_WAIT_MS 1     /**< 传输层 recv 单次等待 (让出调度给收包泵) */
 
 /**
  * @brief QoS 数值转 coreMQTT 枚举 (越界截断到 QoS2)
@@ -42,7 +42,7 @@ static MQTTQoS_t mqtt_qos_from_u8(uint8_t qos)
  * @brief coreMQTT 时间源 (毫秒)
  * @return uint32_t 当前时间戳
  */
-static uint32_t mqtt_get_time_ms(void) { return osal_time_ms(); }
+static uint32_t mqtt_get_time_ms(void) { return mini_time_ms(); }
 
 /* -------------------------------------------------------------------------- */
 /* coreMQTT 事件回调                                                          */
@@ -57,23 +57,18 @@ static uint32_t mqtt_get_time_ms(void) { return osal_time_ms(); }
  * @param[in] get_props_buffer  接收报文属性解析器 (本层不解析属性)
  * @return bool true 事件已处理
  */
-static bool mqtt_event_callback(MQTTContext_t* mqtt_context, MQTTPacketInfo_t* packet_info,
-                                MQTTDeserializedInfo_t* deserialized_info,
-                                MQTTSuccessFailReasonCode_t* reason_code,
-                                MQTTPropBuilder_t* send_props_buffer,
-                                MQTTPropBuilder_t* get_props_buffer)
+static bool mqtt_event_callback(MQTTContext_t* mqtt_context, MQTTPacketInfo_t* packet_info, MQTTDeserializedInfo_t* deserialized_info,
+                                MQTTSuccessFailReasonCode_t* reason_code, MQTTPropBuilder_t* send_props_buffer, MQTTPropBuilder_t* get_props_buffer)
 {
-    COMPAT_IGNORE_RESULT(reason_code);
-    COMPAT_IGNORE_RESULT(send_props_buffer);
-    COMPAT_IGNORE_RESULT(get_props_buffer);
+    MINI_IGNORE_RESULT(reason_code);
+    MINI_IGNORE_RESULT(send_props_buffer);
+    MINI_IGNORE_RESULT(get_props_buffer);
 
-    struct mqtt_client_context* context =
-        container_of(mqtt_context, struct mqtt_client_context, mqtt_context);
+    struct mqtt_client_context* context = container_of(mqtt_context, struct mqtt_client_context, mqtt_context);
 
     if (deserialized_info->deserializationResult != MQTTSuccess)
     {
-        SYS_LOGE(s_kTag, "packet deserialize failed: %d",
-                 (int)deserialized_info->deserializationResult);
+        MT_LOG_ERROR(s_kTag, "packet deserialize failed: %d", (int)deserialized_info->deserializationResult);
         return true;
     }
 
@@ -88,11 +83,9 @@ static bool mqtt_event_callback(MQTTContext_t* mqtt_context, MQTTPacketInfo_t* p
         /* QoS1/2 的 PUBACK/PUBREC 由 coreMQTT 自动回复, 这里只转发业务数据 */
         if (context->message_callback != NULL)
         {
-            uint16_t payload_length = (publish_info->payloadLength > UINT16_MAX) ?
-                                          UINT16_MAX :
-                                          (uint16_t)publish_info->payloadLength;
-            context->message_callback(publish_info->pTopicName, publish_info->topicNameLength,
-                                      (const uint8_t*)publish_info->pPayload, payload_length);
+            uint16_t payload_length = (publish_info->payloadLength > UINT16_MAX) ? UINT16_MAX : (uint16_t)publish_info->payloadLength;
+            context->message_callback(publish_info->pTopicName, publish_info->topicNameLength, (const uint8_t*)publish_info->pPayload,
+                                      payload_length);
         }
         break;
     }
@@ -105,14 +98,13 @@ static bool mqtt_event_callback(MQTTContext_t* mqtt_context, MQTTPacketInfo_t* p
     case MQTT_PACKET_TYPE_PUBCOMP:
     {
         /* 请求完成确认: 仅记录包标识, 不跟踪在途请求 */
-        SYS_LOGI(s_kTag, "ack type 0x%02X, pid %u", (unsigned)packet_info->type,
-                 (unsigned)deserialized_info->packetIdentifier);
+        MT_LOG_INFO(s_kTag, "ack type 0x%02X, pid %u", (unsigned)packet_info->type, (unsigned)deserialized_info->packetIdentifier);
         break;
     }
 
     case MQTT_PACKET_TYPE_DISCONNECT:
     {
-        SYS_LOGW(s_kTag, "broker sent DISCONNECT");
+        MT_LOG_WARN(s_kTag, "broker sent DISCONNECT");
         context->is_mqtt_connected = false;
         break;
     }
@@ -124,7 +116,7 @@ static bool mqtt_event_callback(MQTTContext_t* mqtt_context, MQTTPacketInfo_t* p
 
     default:
     {
-        SYS_LOGW(s_kTag, "unhandled packet type 0x%02X", (unsigned)packet_info->type);
+        MT_LOG_WARN(s_kTag, "unhandled packet type 0x%02X", (unsigned)packet_info->type);
         break;
     }
     }
@@ -154,18 +146,16 @@ int mqtt_client_init(struct mqtt_client_context* context)
     context->network_buffer.size = sizeof(context->network_buffer_memory);
 
     MQTTStatus_t status =
-        MQTT_Init(&context->mqtt_context, &context->transport_interface, mqtt_get_time_ms,
-                  mqtt_event_callback, &context->network_buffer);
+        MQTT_Init(&context->mqtt_context, &context->transport_interface, mqtt_get_time_ms, mqtt_event_callback, &context->network_buffer);
     if (status != MQTTSuccess)
     {
-        SYS_LOGE(s_kTag, "MQTT_Init failed: %d", (int)status);
+        MT_LOG_ERROR(s_kTag, "MQTT_Init failed: %d", (int)status);
         return NET_ERR_INVAL;
     }
     return NET_OK;
 }
 
-int mqtt_client_set_message_callback(struct mqtt_client_context* context,
-                                     mqtt_message_callback_t callback)
+int mqtt_client_set_message_callback(struct mqtt_client_context* context, mqtt_message_callback_t callback)
 {
     if (!context)
         return NET_ERR_INVAL;
@@ -182,7 +172,7 @@ static void mqtt_reset_connection(struct mqtt_client_context* context)
     context->is_mqtt_connected = false;
     context->connect_requested = false;
     context->connack_pending = false;
-    COMPAT_IGNORE_RESULT(network_transport_disconnect(&context->network_context));
+    MINI_IGNORE_RESULT(network_transport_disconnect(&context->network_context));
 }
 
 int mqtt_client_do_connect(struct mqtt_client_context* context)
@@ -192,21 +182,20 @@ int mqtt_client_do_connect(struct mqtt_client_context* context)
 
     if (context->connect_requested || context->is_mqtt_connected)
     {
-        SYS_LOGW(s_kTag, "already connecting/connected");
+        MT_LOG_WARN(s_kTag, "already connecting/connected");
         return NET_ERR_STATE;
     }
 
-    int err =
-        network_transport_connect(&context->network_context, context->broker_ip, context->port);
+    int err = network_transport_connect(&context->network_context, context->broker_ip, context->port);
     if (err != NET_OK)
         return err;
 
     context->connect_requested = true;
     context->connack_pending = false;
     context->is_mqtt_connected = false;
-    context->tcp_connect_start_ms = osal_time_ms();
+    context->tcp_connect_start_ms = mini_time_ms();
 
-    SYS_LOGI(s_kTag, "connecting to %s:%u...", context->broker_ip, context->port);
+    MT_LOG_INFO(s_kTag, "connecting to %s:%u...", context->broker_ip, context->port);
     return NET_OK;
 }
 
@@ -238,7 +227,7 @@ static int mqtt_handshake(struct mqtt_client_context* context)
 
     /* 遗嘱消息 (可选) */
     MQTTPublishInfo_t will_info = {0};
-    bool has_will = (context->will_options.topic != NULL && context->will_options.message != NULL);
+    bool              has_will = (context->will_options.topic != NULL && context->will_options.message != NULL);
     if (has_will)
     {
         will_info.qos = mqtt_qos_from_u8(context->will_options.qos);
@@ -250,19 +239,18 @@ static int mqtt_handshake(struct mqtt_client_context* context)
     }
 
     context->connack_pending = true;
-    bool session_present = false;
+    bool         session_present = false;
     MQTTStatus_t status =
-        MQTT_Connect(&context->mqtt_context, &connect_info, has_will ? &will_info : NULL,
-                     MQTT_CONNACK_TIMEOUT_MS, &session_present, NULL, NULL);
+        MQTT_Connect(&context->mqtt_context, &connect_info, has_will ? &will_info : NULL, MQTT_CONNACK_TIMEOUT_MS, &session_present, NULL, NULL);
 
     if (status == MQTTSuccess)
     {
         context->is_mqtt_connected = true;
-        SYS_LOGI(s_kTag, "CONNACK ok, mqtt connected");
+        MT_LOG_INFO(s_kTag, "CONNACK ok, mqtt connected");
         return NET_OK;
     }
 
-    SYS_LOGE(s_kTag, "MQTT_Connect failed: %d", (int)status);
+    MT_LOG_ERROR(s_kTag, "MQTT_Connect failed: %d", (int)status);
     mqtt_reset_connection(context);
     return NET_ERR_CONN;
 }
@@ -274,28 +262,26 @@ int mqtt_client_disconnect(struct mqtt_client_context* context)
 
     /* MQTT 会话建立时先发 DISCONNECT 报文, 通知 Broker 正常下线 (遗嘱不触发) */
     if (context->is_mqtt_connected)
-        COMPAT_IGNORE_RESULT(MQTT_Disconnect(&context->mqtt_context, NULL, NULL));
+        MINI_IGNORE_RESULT(MQTT_Disconnect(&context->mqtt_context, NULL, NULL));
 
     mqtt_reset_connection(context);
-    SYS_LOGI(s_kTag, "mqtt disconnected");
+    MT_LOG_INFO(s_kTag, "mqtt disconnected");
     return NET_OK;
 }
 
 bool is_mqtt_client_connected(const struct mqtt_client_context* context)
 {
-    return (context != NULL) && context->is_mqtt_connected &&
-           network_transport_is_connected(&context->network_context);
+    return (context != NULL) && context->is_mqtt_connected && network_transport_is_connected(&context->network_context);
 }
 
 /* -------------------------------------------------------------------------- */
 /* 发布与订阅                                                                 */
 /* -------------------------------------------------------------------------- */
-int mqtt_client_publish(struct mqtt_client_context* context, const char* topic, const void* payload,
-                        uint16_t length, uint8_t qos, bool retain)
+int mqtt_client_publish(struct mqtt_client_context* context, const char* topic, const void* payload, uint16_t length, uint8_t qos, bool retain)
 {
     if (!is_mqtt_client_connected(context) || !topic)
     {
-        SYS_LOGE(s_kTag, "publish rejected: not connected or topic NULL");
+        MT_LOG_ERROR(s_kTag, "publish rejected: not connected or topic NULL");
         return NET_ERR_INVAL;
     }
 
@@ -315,7 +301,7 @@ int mqtt_client_publish(struct mqtt_client_context* context, const char* topic, 
     MQTTStatus_t status = MQTT_Publish(&context->mqtt_context, &publish_info, packet_id, NULL);
     if (status != MQTTSuccess)
     {
-        SYS_LOGE(s_kTag, "MQTT_Publish failed: %d", (int)status);
+        MT_LOG_ERROR(s_kTag, "MQTT_Publish failed: %d", (int)status);
         return NET_ERR_NOSPC;
     }
     return NET_OK;
@@ -325,14 +311,14 @@ int mqtt_client_subscribe(struct mqtt_client_context* context, const char* topic
 {
     if (!is_mqtt_client_connected(context) || !topic)
     {
-        SYS_LOGE(s_kTag, "subscribe rejected: not connected or topic NULL");
+        MT_LOG_ERROR(s_kTag, "subscribe rejected: not connected or topic NULL");
         return NET_ERR_INVAL;
     }
 
     size_t topic_length = strlen(topic);
     if (topic_length == 0 || topic_length > UINT16_MAX)
     {
-        SYS_LOGE(s_kTag, "subscribe topic len invalid: %u", (unsigned)topic_length);
+        MT_LOG_ERROR(s_kTag, "subscribe topic len invalid: %u", (unsigned)topic_length);
         return NET_ERR_INVAL;
     }
 
@@ -341,11 +327,10 @@ int mqtt_client_subscribe(struct mqtt_client_context* context, const char* topic
     subscribe_info.pTopicFilter = topic;
     subscribe_info.topicFilterLength = (uint16_t)topic_length;
 
-    MQTTStatus_t status = MQTT_Subscribe(&context->mqtt_context, &subscribe_info, 1U,
-                                         MQTT_GetPacketId(&context->mqtt_context), NULL);
+    MQTTStatus_t status = MQTT_Subscribe(&context->mqtt_context, &subscribe_info, 1U, MQTT_GetPacketId(&context->mqtt_context), NULL);
     if (status != MQTTSuccess)
     {
-        SYS_LOGE(s_kTag, "MQTT_Subscribe failed: %d", (int)status);
+        MT_LOG_ERROR(s_kTag, "MQTT_Subscribe failed: %d", (int)status);
         return NET_ERR_NOSPC;
     }
     return NET_OK;
@@ -355,7 +340,7 @@ int mqtt_client_unsubscribe(struct mqtt_client_context* context, const char* top
 {
     if (!is_mqtt_client_connected(context) || !topic)
     {
-        SYS_LOGE(s_kTag, "unsubscribe rejected: not connected or topic NULL");
+        MT_LOG_ERROR(s_kTag, "unsubscribe rejected: not connected or topic NULL");
         return NET_ERR_INVAL;
     }
 
@@ -364,11 +349,10 @@ int mqtt_client_unsubscribe(struct mqtt_client_context* context, const char* top
     subscribe_info.pTopicFilter = topic;
     subscribe_info.topicFilterLength = (uint16_t)strlen(topic);
 
-    MQTTStatus_t status = MQTT_Unsubscribe(&context->mqtt_context, &subscribe_info, 1U,
-                                           MQTT_GetPacketId(&context->mqtt_context), NULL);
+    MQTTStatus_t status = MQTT_Unsubscribe(&context->mqtt_context, &subscribe_info, 1U, MQTT_GetPacketId(&context->mqtt_context), NULL);
     if (status != MQTTSuccess)
     {
-        SYS_LOGE(s_kTag, "MQTT_Unsubscribe failed: %d", (int)status);
+        MT_LOG_ERROR(s_kTag, "MQTT_Unsubscribe failed: %d", (int)status);
         return NET_ERR_NOSPC;
     }
     return NET_OK;
@@ -387,13 +371,13 @@ int mqtt_client_process(struct mqtt_client_context* context)
     {
         if (network_transport_is_connected(&context->network_context))
         {
-            COMPAT_IGNORE_RESULT(mqtt_handshake(context));
+            MINI_IGNORE_RESULT(mqtt_handshake(context));
         }
         else if (network_transport_link_failed(&context->network_context) ||
-                 ((osal_time_ms() - context->tcp_connect_start_ms) >= MQTT_TCP_CONNECT_TIMEOUT_MS))
+                 ((mini_time_ms() - context->tcp_connect_start_ms) >= MQTT_TCP_CONNECT_TIMEOUT_MS))
         {
             /* 底层建连失败 (err 回调已置空控制块) 或超时 */
-            SYS_LOGE(s_kTag, "link connect failed/timeout");
+            MT_LOG_ERROR(s_kTag, "link connect failed/timeout");
             mqtt_reset_connection(context);
         }
     }
@@ -404,7 +388,7 @@ int mqtt_client_process(struct mqtt_client_context* context)
         MQTTStatus_t status = MQTT_ProcessLoop(&context->mqtt_context);
         if ((status != MQTTSuccess) && (status != MQTTNeedMoreBytes))
         {
-            SYS_LOGE(s_kTag, "ProcessLoop error: %d, reset connection", (int)status);
+            MT_LOG_ERROR(s_kTag, "ProcessLoop error: %d, reset connection", (int)status);
             mqtt_reset_connection(context);
         }
     }

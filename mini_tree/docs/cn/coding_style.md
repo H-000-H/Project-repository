@@ -57,7 +57,7 @@
 | 项 | 值 |
 | :--- | :--- |
 | 检查集 | `bugprone-*`、`clang-analyzer-*`、`modernize-*`、`performance-*`、`readability-*` |
-| 命名强制 | 小写（`x_task`、`x_scheduler`、`list_node`、`k_tag`、`struct event`、`mini_tree::` …） |
+| 命名强制 | 小写（`x_task`、`x_scheduler`、`list_node`、`k_tag`、`struct event` …） |
 
 命名违规在 tidy 阶段报，不是编译错——CI 会拦。
 
@@ -71,7 +71,7 @@
 | :--- | :--- |
 | 函数 / 变量 | `snake_case` |
 | 类型（`struct/typedef`） | 小写（`device`、`hal_can_config`） |
-| 命名空间（`system_cpp`） | `mini_tree::` |
+| C++ 类（`system_cmd`） | `PascalCase`（`SystemCmd`） |
 | 宏 / 枚举值 | 大写 `SNAKE_CASE`（`DEV_ID_UART0`、`MINI_ERR_*`） |
 
 `app` 层为建议，app 以下为强规定。
@@ -89,7 +89,7 @@
 
 ## 6. 日志
 
-- `SYS_LOGI/W/E` 系统级；`DRV_LOG*` 驱动级（见 [debug_monitor.md](debug_monitor.md)）
+- `MT_LOG_ERROR/WARN/INFO` 系统级；`MT_DRV_LOG_*` 驱动级（见 [debug_monitor.md](debug_monitor.md)）
 - 热路径只 `LOGD`/`LOGV`，勿刷 INFO
 - 不把日志当调试断点塞满
 
@@ -108,8 +108,8 @@
 
 | 被 poison 的 API | 替代 |
 | :--- | :--- |
-| `malloc` / `free` / `calloc` / `realloc` | 静态池 / `bufferpool` / `kalloc` |
-| `printf` / `fprintf` / `sprintf` | `SYS_LOG*` |
+| `malloc` / `free` / `calloc` / `realloc` | 静态池 / `mini_slot` / `kalloc` |
+| `printf` / `fprintf` / `sprintf` | `MT_LOG_*` |
 | 裸 `memcpy` / `memset` / `memmove` | `safe_mem*` 或显式长度校验 |
 | `strcpy` / `strcat` / `strdup` / `strndup` | `safe_str*` |
 | 文件 IO：`fopen` / `fclose` / `fread` / `fwrite` / `fseek` / `tmpfile` / `popen` / `gets` … | 走中间件/板级提供的 IO 接口 |

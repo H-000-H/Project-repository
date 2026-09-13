@@ -17,19 +17,19 @@
 extern "C"
 {
 #endif
-/** ioctl 命令基址（COMPAT_MAGIC 魔数，防跨模块冲突） */
-#define HC05_CMD_BASE COMPAT_MAGIC(HC05)
+/** ioctl 命令基址（MINI_MAGIC 魔数，防跨模块冲突） */
+#define HC05_CMD_BASE MINI_MAGIC(HC05)
 /** 发送 AT 命令（arg: struct hc05_at*） */
 #define HC05_CMD_AT_SEND (HC05_CMD_BASE + 0x01)
 /** 命令总数 */
 #define HC05_CMD_COUNT 1
 
-    /** @brief AT 命令发送参数 */
-    struct hc05_at
-    {
-        const uint8_t* tx; /**< 发送缓冲 */
-        size_t tx_len; /**< 发送长度 */
-    };
+/** @brief AT 命令发送参数 */
+struct hc05_at
+{
+    const uint8_t* tx;     /**< 发送缓冲 */
+    size_t         tx_len; /**< 发送长度 */
+};
 #ifdef __cplusplus
 }
 #endif

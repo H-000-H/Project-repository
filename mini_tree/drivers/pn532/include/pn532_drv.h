@@ -17,21 +17,21 @@
 extern "C"
 {
 #endif
-/** ioctl 命令基址（COMPAT_MAGIC 魔数，防跨模块冲突） */
-#define PN532_CMD_BASE COMPAT_MAGIC(PN532)
+/** ioctl 命令基址（MINI_MAGIC 魔数，防跨模块冲突） */
+#define PN532_CMD_BASE MINI_MAGIC(PN532)
 /** 获取固件版本（arg: struct pn532_fw*） */
 #define PN532_CMD_GET_FIRMWARE (PN532_CMD_BASE + 0x01)
 /** 命令总数 */
 #define PN532_CMD_COUNT 1
 
-    /** @brief PN532 固件版本信息 */
-    struct pn532_fw
-    {
-        uint8_t ic; /**< IC 型号 */
-        uint8_t ver; /**< 主版本 */
-        uint8_t rev; /**< 修订版本 */
-        uint8_t support; /**< 支持位图 */
-    };
+/** @brief PN532 固件版本信息 */
+struct pn532_fw
+{
+    uint8_t ic;      /**< IC 型号 */
+    uint8_t ver;     /**< 主版本 */
+    uint8_t rev;     /**< 修订版本 */
+    uint8_t support; /**< 支持位图 */
+};
 #ifdef __cplusplus
 }
 #endif

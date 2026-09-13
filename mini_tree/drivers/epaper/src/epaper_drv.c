@@ -19,7 +19,8 @@
 #include "driver.h"
 #include "dt_config_gen.h"
 #include "epaper_regs.h"
-#include "osal.h"
+#include "mini_slot.h"
+#include "mini_time.h"
 #include "status.h"
 #include "system_log.h"
 #include "vfs-gpio.h"
@@ -37,32 +38,32 @@
 /** @brief 电子纸驱动实例（嵌入 fops 与全部引脚） */
 struct epaper_device
 {
-    struct file_operations ops; /**< 挂入 device 的 fops */
-    struct device* spi_dev; /**< 所属 SPI client 设备 */
-    struct device* dc_dev; /**< DC 引脚 GPIO 设备 */
-    struct device* rst_dev; /**< RST 引脚 GPIO 设备 */
-    struct device* busy_dev; /**< BUSY 引脚 GPIO 设备 */
-    struct vfs_gpio_arg dc_gpio; /**< DC 引脚操作参数 */
-    struct vfs_gpio_arg rst_gpio; /**< RST 引脚操作参数 */
-    struct vfs_gpio_arg busy_gpio; /**< BUSY 引脚操作参数 */
+    struct file_operations ops;       /**< 挂入 device 的 fops */
+    struct device*         spi_dev;   /**< 所属 SPI client 设备 */
+    struct device*         dc_dev;    /**< DC 引脚 GPIO 设备 */
+    struct device*         rst_dev;   /**< RST 引脚 GPIO 设备 */
+    struct device*         busy_dev;  /**< BUSY 引脚 GPIO 设备 */
+    struct vfs_gpio_arg    dc_gpio;   /**< DC 引脚操作参数 */
+    struct vfs_gpio_arg    rst_gpio;  /**< RST 引脚操作参数 */
+    struct vfs_gpio_arg    busy_gpio; /**< BUSY 引脚操作参数 */
 
-    int width; /**< 面板宽（像素，DTS: width） */
-    int height; /**< 面板高（像素，DTS: height） */
+    int      width;           /**< 面板宽（像素，DTS: width） */
+    int      height;          /**< 面板高（像素，DTS: height） */
     uint32_t busy_timeout_ms; /**< BUSY 等待超时（DTS: busy-timeout-ms，可选） */
-    int hw_ready; /**< 硬件已初始化标志 */
+    int      hw_ready;        /**< 硬件已初始化标志 */
 };
 
-static struct epaper_device s_epaper_pool[EPAPER_POOL_COUNT] COMPAT_ALIGNED(4);
-static uint8_t s_epaper_used[EPAPER_POOL_COUNT] COMPAT_ALIGNED(4);
-static osal_pool_t s_epaper_pool_ctrl COMPAT_ALIGNED(4);
-static const char* const k_tag = "epaper";
+static struct epaper_device           s_epaper_pool[EPAPER_POOL_COUNT] MINI_ALIGNED(4);
+static uint8_t                        s_epaper_used[EPAPER_POOL_COUNT] MINI_ALIGNED(4);
+static mini_slot_t s_epaper_pool_ctrl MINI_ALIGNED(4);
+static const char* const              k_tag = "epaper";
 
 /**
- * @brief 驱动池启动初始化（pre_execution 阶段，创建静态对象池）
+ * @brief 驱动池启动初始化（mini_pre_execution 阶段，创建静态对象池）
  */
-pre_execution(PRE_EXEC_PRIO_DRIVER_POOL) static void epaper_pool_boot_init(void)
+mini_pre_execution(MINI_PRE_EXEC_PRIO_DRIVER_POOL) static void epaper_pool_boot_init(void)
 {
-    COMPAT_IGNORE_RESULT(osal_pool_init(&s_epaper_pool_ctrl, s_epaper_used, EPAPER_POOL_COUNT));
+    MINI_IGNORE_RESULT(mini_slot_init(&s_epaper_pool_ctrl, s_epaper_used, EPAPER_POOL_COUNT));
 }
 
 /**
@@ -70,17 +71,13 @@ pre_execution(PRE_EXEC_PRIO_DRIVER_POOL) static void epaper_pool_boot_init(void)
  * @param[in] pdev device 指针
  * @return 驱动实例指针，无效时 ERR_PTR
  */
-static struct epaper_device* epaper_get_drvdata(struct device* pdev)
-{
-    return (struct epaper_device*)device_get_priv(pdev);
-}
+static struct epaper_device* epaper_get_drvdata(struct device* pdev) { return (struct epaper_device*)device_get_priv(pdev); }
 
 /**
  * @brief SPI 全双工传输（AUTO 模式）
- * @return MINI_OK 或 VFS_ERR_*
+ * @return MINI_OK 或 MINI_ERR_*
  */
-static int epaper_spi_xfer(struct epaper_device* dev, const uint8_t* tx, uint8_t* rx, size_t len,
-                           uint32_t timeout_ms)
+static mt_err_t epaper_spi_xfer(struct epaper_device* dev, const uint8_t* tx, uint8_t* rx, size_t len, uint32_t timeout_ms)
 {
     struct spi_transfer_arg arg;
     if (!dev || !dev->spi_dev || len == 0U)
@@ -104,10 +101,10 @@ static int epaper_dc(struct epaper_device* dev, int data)
  * @brief 等待 BUSY 释放（低电平表示空闲）
  * @return MINI_OK 或 MINI_ERR_BUSY（超时）
  */
-static int epaper_wait_busy(struct epaper_device* dev, uint32_t timeout_ms)
+static mt_err_t epaper_wait_busy(struct epaper_device* dev, uint32_t timeout_ms)
 {
     uint32_t elapsed = 0;
-    int ret;
+    int      ret;
     while (elapsed <= timeout_ms)
     {
         ret = vfs_gpio_get_level(&dev->busy_gpio);
@@ -115,7 +112,7 @@ static int epaper_wait_busy(struct epaper_device* dev, uint32_t timeout_ms)
             return ret;
         if (dev->busy_gpio.level == 0)
             return MINI_OK;
-        osal_delay_ms(1);
+        mini_delay_ms(1);
         elapsed++;
     }
     return MINI_ERR_BUSY;
@@ -123,9 +120,9 @@ static int epaper_wait_busy(struct epaper_device* dev, uint32_t timeout_ms)
 
 /**
  * @brief 首次 open 时打开 SPI/DC/RST/BUSY 并绑定 GPIO 参数
- * @return MINI_OK 或 VFS_ERR_*
+ * @return MINI_OK 或 MINI_ERR_*
  */
-static int epaper_hw_create(struct epaper_device* dev)
+static mt_err_t epaper_hw_create(struct epaper_device* dev)
 {
     if (!dev)
         return MINI_ERR_INVAL;
@@ -145,15 +142,13 @@ static int epaper_hw_create(struct epaper_device* dev)
         ret = device_open(dev->rst_dev, NULL);
         if (ret != MINI_OK)
             return ret;
-        ret = device_ioctl(dev->rst_dev, GPIO_CMD_GET_LEVEL, &dev->rst_gpio, sizeof(dev->rst_gpio),
-                           0);
+        ret = device_ioctl(dev->rst_dev, GPIO_CMD_GET_LEVEL, &dev->rst_gpio, sizeof(dev->rst_gpio), 0);
         if (ret != MINI_OK)
             return ret;
         ret = device_open(dev->busy_dev, NULL);
         if (ret != MINI_OK)
             return ret;
-        ret = device_ioctl(dev->busy_dev, GPIO_CMD_GET_LEVEL, &dev->busy_gpio,
-                           sizeof(dev->busy_gpio), 0);
+        ret = device_ioctl(dev->busy_dev, GPIO_CMD_GET_LEVEL, &dev->busy_gpio, sizeof(dev->busy_gpio), 0);
         if (ret != MINI_OK)
             return ret;
     }
@@ -169,13 +164,13 @@ static void epaper_hw_destroy(struct epaper_device* dev)
     if (!dev || !dev->hw_ready)
         return;
     if (dev->spi_dev)
-        COMPAT_IGNORE_RESULT(device_close(dev->spi_dev));
+        MINI_IGNORE_RESULT(device_close(dev->spi_dev));
     if (dev->dc_dev)
-        COMPAT_IGNORE_RESULT(device_close(dev->dc_dev));
+        MINI_IGNORE_RESULT(device_close(dev->dc_dev));
     if (dev->rst_dev)
-        COMPAT_IGNORE_RESULT(device_close(dev->rst_dev));
+        MINI_IGNORE_RESULT(device_close(dev->rst_dev));
     if (dev->busy_dev)
-        COMPAT_IGNORE_RESULT(device_close(dev->busy_dev));
+        MINI_IGNORE_RESULT(device_close(dev->busy_dev));
     dev->hw_ready = 0;
 }
 
@@ -186,8 +181,8 @@ static int epaper_open(struct device* pdev, void* arg)
 {
     struct epaper_device* dev;
     struct dev_lifecycle* lc;
-    int first, ret;
-    COMPAT_IGNORE_RESULT(arg);
+    int                   first, ret;
+    MINI_IGNORE_RESULT(arg);
     if (!pdev || !pdev->ops)
         return MINI_ERR_INVAL;
     dev = epaper_get_drvdata(pdev);
@@ -220,7 +215,7 @@ static int epaper_close(struct device* pdev)
 {
     struct epaper_device* dev;
     struct dev_lifecycle* lc;
-    int last;
+    int                   last;
     if (!pdev || !pdev->ops)
         return MINI_ERR_INVAL;
     dev = epaper_get_drvdata(pdev);
@@ -241,7 +236,7 @@ static int epaper_close(struct device* pdev)
 /**
  * @brief ioctl 命令分发类型（命令处理函数由 map 绑定）
  */
-typedef int (*epaper_ioctl_fn_t)(struct epaper_device* dev, void* arg, size_t arg_len, uint32_t ms);
+typedef mt_err_t (*epaper_ioctl_fn_t)(struct epaper_device* dev, void* arg, size_t arg_len, uint32_t ms);
 struct epaper_ioctl_map
 {
     epaper_ioctl_fn_t handler;
@@ -250,12 +245,12 @@ struct epaper_ioctl_map
 /**
  * @brief DISPLAY_CMD_CLEAR 实现：写空白帧并等待刷新完成
  */
-static int epaper_cmd_clear(struct epaper_device* dev, void* arg, size_t len, uint32_t ms)
+static mt_err_t epaper_cmd_clear(struct epaper_device* dev, void* arg, size_t len, uint32_t ms)
 {
     const struct display_clear_arg* darg = (const struct display_clear_arg*)arg;
-    uint8_t blank = 0x00;
-    COMPAT_IGNORE_RESULT(darg);
-    COMPAT_IGNORE_RESULT(len);
+    uint8_t                         blank = 0x00;
+    MINI_IGNORE_RESULT(darg);
+    MINI_IGNORE_RESULT(len);
     if (!dev->hw_ready)
         return MINI_ERR_INVAL;
     epaper_dc(dev, 1);
@@ -265,27 +260,25 @@ static int epaper_cmd_clear(struct epaper_device* dev, void* arg, size_t len, ui
 /**
  * @brief DISPLAY_CMD_DRAW_AREA / FLUSH 实现：写整帧位图并等待刷新完成
  */
-static int epaper_cmd_draw(struct epaper_device* dev, void* arg, size_t len, uint32_t ms)
+static mt_err_t epaper_cmd_draw(struct epaper_device* dev, void* arg, size_t len, uint32_t ms)
 {
     const struct display_draw_arg* darg = (const struct display_draw_arg*)arg;
-    if (!dev->hw_ready || !darg || len != sizeof(*darg) || darg->format != DISPLAY_FMT_MONO_1BPP ||
-        !darg->data)
+    if (!dev->hw_ready || !darg || len != sizeof(*darg) || darg->format != DISPLAY_FMT_MONO_1BPP || !darg->data)
         return MINI_ERR_INVAL;
     if (darg->x != 0 || darg->y != 0 || darg->w != dev->width || darg->h != dev->height)
         return MINI_ERR_INVAL;
     epaper_dc(dev, 1);
-    if (epaper_spi_xfer(dev, darg->data, NULL, (size_t)dev->width * (size_t)dev->height / 8U, ms) !=
-        MINI_OK)
+    if (epaper_spi_xfer(dev, darg->data, NULL, (size_t)dev->width * (size_t)dev->height / 8U, ms) != MINI_OK)
         return MINI_ERR_IO;
     return epaper_wait_busy(dev, ms ? ms : dev->busy_timeout_ms);
 }
 /**
  * @brief DISPLAY_CMD_FILL_RECT 实现：单色屏仅支持全屏矩形
  */
-static int epaper_cmd_fill_rect(struct epaper_device* dev, void* arg, size_t len, uint32_t ms)
+static mt_err_t epaper_cmd_fill_rect(struct epaper_device* dev, void* arg, size_t len, uint32_t ms)
 {
     const struct display_rect_arg* darg = (const struct display_rect_arg*)arg;
-    struct display_clear_arg clear_arg;
+    struct display_clear_arg       clear_arg;
     if (!dev->hw_ready || !darg || len != sizeof(*darg))
         return MINI_ERR_INVAL;
     if (darg->x != 0 || darg->y != 0 || darg->w != dev->width || darg->h != dev->height)
@@ -296,11 +289,11 @@ static int epaper_cmd_fill_rect(struct epaper_device* dev, void* arg, size_t len
 /**
  * @brief DISPLAY_CMD_GET_INFO 实现：返回默认几何
  */
-static int epaper_cmd_get_info(struct epaper_device* dev, void* arg, size_t len, uint32_t ms)
+static mt_err_t epaper_cmd_get_info(struct epaper_device* dev, void* arg, size_t len, uint32_t ms)
 {
     struct display_info_arg* info = (struct display_info_arg*)arg;
-    COMPAT_IGNORE_RESULT(dev);
-    COMPAT_IGNORE_RESULT(ms);
+    MINI_IGNORE_RESULT(dev);
+    MINI_IGNORE_RESULT(ms);
     if (!info || len != sizeof(*info))
         return MINI_ERR_INVAL;
     info->width = (uint16_t)dev->width;
@@ -311,12 +304,12 @@ static int epaper_cmd_get_info(struct epaper_device* dev, void* arg, size_t len,
 /**
  * @brief DISPLAY_CMD_SET_BRIGHTNESS 实现：电子纸无背光/对比度控制
  */
-static int epaper_cmd_set_brightness(struct epaper_device* dev, void* arg, size_t len, uint32_t ms)
+static mt_err_t epaper_cmd_set_brightness(struct epaper_device* dev, void* arg, size_t len, uint32_t ms)
 {
-    COMPAT_IGNORE_RESULT(dev);
-    COMPAT_IGNORE_RESULT(arg);
-    COMPAT_IGNORE_RESULT(len);
-    COMPAT_IGNORE_RESULT(ms);
+    MINI_IGNORE_RESULT(dev);
+    MINI_IGNORE_RESULT(arg);
+    MINI_IGNORE_RESULT(len);
+    MINI_IGNORE_RESULT(ms);
     return MINI_ERR_NOTSUPP;
 }
 static const struct epaper_ioctl_map s_epaper_map[DISPLAY_CMD_COUNT] = {
@@ -331,12 +324,12 @@ static const struct epaper_ioctl_map s_epaper_map[DISPLAY_CMD_COUNT] = {
 /**
  * @brief fops.ioctl：查表分发命令，持 io 生命周期锁
  */
-static int epaper_ioctl(struct device* pdev, int cmd, void* arg, size_t arg_len, uint32_t ms)
+static mt_err_t epaper_ioctl(struct device* pdev, int cmd, void* arg, size_t arg_len, uint32_t ms)
 {
     struct epaper_device* dev;
     struct dev_lifecycle* lc;
-    int32_t off;
-    int ret;
+    int32_t               off;
+    int                   ret;
     if (!pdev || !pdev->ops)
         return MINI_ERR_INVAL;
     dev = epaper_get_drvdata(pdev);
@@ -368,20 +361,20 @@ static const struct file_operations epaper_fops = {
  *
  * width/height 为 DTS 必填属性（对齐 ST7789）；busy-timeout-ms 可选，缺省 2000。
  */
-static int epaper_probe(struct device* pdev)
+static mt_err_t epaper_probe(struct device* pdev)
 {
     struct epaper_device* dev;
-    int width = 0;
-    int height = 0;
-    int busy_to = 0;
-    int pool_idx, ret;
+    int                   width = 0;
+    int                   height = 0;
+    int                   busy_to = 0;
+    int                   pool_idx, ret;
     if (!pdev)
         return MINI_ERR_INVAL;
-    pool_idx = osal_pool_claim(&s_epaper_pool_ctrl);
+    pool_idx = mini_slot_claim(&s_epaper_pool_ctrl);
     if (pool_idx < 0)
         return MINI_ERR_NOMEM;
     dev = &s_epaper_pool[pool_idx];
-    COMPAT_MEM_SET(dev, 0, sizeof(*dev));
+    MINI_MEM_SET(dev, 0, sizeof(*dev));
     dev->spi_dev = device_get_parent(pdev);
     if (!dev->spi_dev)
     {
@@ -398,10 +391,9 @@ static int epaper_probe(struct device* pdev)
     }
 
     /* 几何参数走 DTS（必填），不依赖驱动内部默认常量 */
-    if (device_get_prop_int(pdev, "width", &width) != MINI_OK ||
-        device_get_prop_int(pdev, "height", &height) != MINI_OK || width <= 0 || height <= 0)
+    if (device_get_prop_int(pdev, "width", &width) != MINI_OK || device_get_prop_int(pdev, "height", &height) != MINI_OK || width <= 0 || height <= 0)
     {
-        SYS_LOGE(k_tag, "probe requires width/height in DTS");
+        MT_LOG_ERROR(k_tag, "probe requires width/height in DTS");
         ret = MINI_ERR_INVAL;
         goto err;
     }
@@ -418,23 +410,23 @@ static int epaper_probe(struct device* pdev)
     }
     dev->ops = epaper_fops;
     pdev->ops = &dev->ops;
-    SYS_LOGI(k_tag, "probe OK pool=%dev %dx%dev", pool_idx, width, height);
+    MT_LOG_INFO(k_tag, "probe OK pool=%dev %dx%dev", pool_idx, width, height);
     return MINI_OK;
 err:
     pdev->ops = NULL;
-    COMPAT_MEM_SET(dev, 0, sizeof(*dev));
-    COMPAT_IGNORE_RESULT(osal_pool_release(&s_epaper_pool_ctrl, pool_idx));
+    MINI_MEM_SET(dev, 0, sizeof(*dev));
+    MINI_IGNORE_RESULT(mini_slot_release(&s_epaper_pool_ctrl, pool_idx));
     return ret;
 }
 
 /**
  * @brief remove：排空在途 io、释放硬件并归还池项
  */
-static int epaper_remove(struct device* pdev)
+static mt_err_t epaper_remove(struct device* pdev)
 {
     struct epaper_device* dev;
     struct dev_lifecycle* lc;
-    int idx;
+    int                   idx;
     if (!pdev)
         return MINI_ERR_INVAL;
     dev = epaper_get_drvdata(pdev);
@@ -446,14 +438,14 @@ static int epaper_remove(struct device* pdev)
     idx = (int)(dev - s_epaper_pool);
     dev_lc_remove_start(lc);
     device_ops_unregister(pdev);
-    if (dev_lc_remove_drain(lc, OSAL_WAIT_FOREVER) != MINI_OK)
+    if (dev_lc_remove_drain(lc, MINI_WAIT_FOREVER) != MINI_OK)
     {
         dev_lc_remove_finish(lc);
         return MINI_ERR_IO;
     }
     epaper_hw_destroy(dev);
-    COMPAT_MEM_SET(dev, 0, sizeof(*dev));
-    COMPAT_IGNORE_RESULT(osal_pool_release(&s_epaper_pool_ctrl, idx));
+    MINI_MEM_SET(dev, 0, sizeof(*dev));
+    MINI_IGNORE_RESULT(mini_slot_release(&s_epaper_pool_ctrl, idx));
     dev_lc_remove_finish(lc);
     return MINI_OK;
 }

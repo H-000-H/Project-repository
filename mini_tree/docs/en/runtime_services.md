@@ -1,6 +1,6 @@
 # Runtime Services
 
-> Horizontal capabilities used after boot: event bus, VIRQ, system-language backends, buffer pools, plus optional watchdog / CRC scrubber / safe-state modules. Layer overview: [architecture.md](architecture.md).
+> Horizontal capabilities used after boot: event bus, VIRQ, the system runtime backend, plus optional watchdog / CRC scrubber / safe-state modules. Layer overview: [architecture.md](architecture.md).
 
 | Item | Content |
 | :--- | :--- |
@@ -14,8 +14,8 @@
 
 1. [EventBus](#1-eventbus)
 2. [VIRQ & Top/Bottom Halves](#2-virq-topbottom-halves)
-3. [SYSTEM_C vs SYSTEM_CPP](#3-system_c-vs-system_cpp)
-4. [BufferPool & algorithm/buffer](#4-bufferpool-algorithmbuffer)
+3. [System Runtime Backend](#3-system-runtime-backend)
+4. [Buffer (algorithm/buffer)](#4-buffer-algorithmbuffer)
 5. [Optional Safety Modules (Bricks)](#5-optional-safety-modules-bricks)
 
 ---
@@ -24,7 +24,7 @@
 
 > **Optional module (off by default)**: `CONFIG_EVENT_BUS` (depends on `SYSTEM`). When on, `core/src/event_bus.c` is compiled and the `event_bus_*` APIs work; when off (default), it is not compiled and no `EVENT_SYS_*` events are posted.
 
-Header: `core/include/event_bus.h` (plus the `event_bus.hpp` C++ wrapper).
+Header: `core/include/event_bus.h`.
 
 ### 1.1 Event IDs
 
@@ -95,37 +95,31 @@ Master switch `CONFIG_VIRQ` (on by default); when off, `interrupt/interrupt.c` i
 
 ---
 
-## 3. SYSTEM_C vs SYSTEM_CPP
+## 3. System Runtime Backend
 
-> **Optional module (default on)**: master switch `CONFIG_SYSTEM`. When off, neither `system_c/` nor `system_cpp/` is compiled (`CONFIG_SYSTEM_WDT` / `CONFIG_SYSTEM_SCRUBBER` / `CONFIG_EVENT_BUS` also depend on this switch).
+> **Optional module (default on)**: master switch `CONFIG_SYSTEM`. When off, `system_c/` is not compiled (`CONFIG_SYSTEM_WDT` / `CONFIG_SYSTEM_SCRUBBER` / `CONFIG_EVENT_BUS` also depend on this switch).
 
-When `CONFIG_SYSTEM` is on, Kconfig picks **one**: compile `system_c/` or `system_cpp/`.
+The system layer is **pure C** (`system_c/`). The former C/C++ language-backend choice is gone — it avoided maintaining two equivalent API sets.
 
-| | `SYSTEM_C` | `SYSTEM_CPP` |
-| :--- | :--- | :--- |
-| Header | `system_c/include/system_init.h` | `system_cpp/include/system_init.hpp` |
-| Phase 1 | `mini_tree_pre_os_init()` | `mini_tree::system_pre_os_init()` |
-| Phase 2 | `mini_tree_start_tasks()` | `mini_tree::system_start_tasks()` |
-| Finalize | `system_init_complete()` (shared C) | same |
-| Bare loop | `mini_tree_system_loop()` | same (C API) |
-| Deps | fewer | **ETL linked by default** (heap-free C++ base); root CMake often adds `-fno-rtti` / `-fno-exceptions` |
+| Stage | C API (`system_c/include/system_init.h`) |
+| :--- | :--- |
+| Phase 1 | `mini_tree_pre_os_init()` |
+| Phase 2 | `mini_tree_start_tasks()` |
+| Finalize | `system_init_complete()` |
+| Bare loop | `mini_tree_system_loop()` |
+| Task create | `task_manager_create()` / `task_manager_create_task()` (`system_c/include/task_manager.h`) |
 
-**How to choose:**
-
-- Firmware is mostly C, no toolchain exception → `SYSTEM_C`.
-- Existing C++ business / need `event_bus.hpp` or ETL → `SYSTEM_CPP` (the repo's default `.config` usually does).
-- Southbound HAL/VFS stays **C ABI**; switching SYSTEM backends never changes the peripheral-stack language.
+**The only C++ exception**: the command dispatch infra `SystemCmd` (`system_cpp/src/system_cmd.cpp`, `CONFIG_SYSTEM_CMD`, off by default, depends on ETL); when enabled the root CMake adds `-fno-rtti` / `-fno-exceptions` for C++. Southbound HAL/VFS stays **C ABI**, unaffected.
 
 ---
 
-## 4. BufferPool & algorithm/buffer
+## 4. Buffer (algorithm/buffer)
 
 | Component | Path | Use |
 | :--- | :--- | :--- |
-| BufferPool | `core/include/buffer_pool.h` | Fixed-size block pool; driver/protocol borrow-return |
 | Ring & double buffer | `algorithm/buffer/` | `fifo_spsc`, `double_buffer_spsc` etc. |
 
-Business code may use them directly; avoid complex allocation in ISRs (pool ISR-safety is documented per-header).
+Business code may use them directly; avoid complex allocation in ISRs (ISR-safety is documented per-header).
 
 ---
 
@@ -136,14 +130,14 @@ Business code may use them directly; avoid complex allocation in ISRs (pool ISR-
 | Module | Function | Kconfig | Notes |
 | :--- | :--- | :--- | :--- |
 | Watchdog | `system_wdt`: IWDG / WWDG / TWDT | `CONFIG_SYSTEM_WDT` | framework boot-integrated watchdog (IWDG/TWDT + auto-feed + bootloop guard); app-programmable ones go through `vfs-iwdg`/`vfs-wwdg` (DTS) |
-| CRC Scrubber | `system_scrubber`: background scan + CRC baseline | `CONFIG_SYSTEM_SCRUBBER` | bit-rot scan + CRC baseline (overwritten post-link by `post_build_crc.py`) |
+| CRC Scrubber | `system_scrubber`: background task verifying the running image partition | `CONFIG_SYSTEM_SCRUBBER` (requires `CONFIG_MINI_OTA`) | bit-flip protection; the check primitive and CRC model come from mini-ota's pure data check `image_verify_area()` (no header/meta parsing), and the baseline (CRC + length) is produced by `post_build_crc.py` |
 | Safe State | `safe_state` + `critical_data` + `hal_platform_safety` | `CONFIG_SAFETY_SHUTDOWN` | shutdown callbacks, bootloop guard, NMI stamp, dual-inverted critical storage, hardware latch + fault LED/buzzer |
 | CPU Stop | `hal_cpu_emergency_stop_all_cores` (`hal/amp`) | `CONFIG_CPU_CORES > 1` | Stop all cores on AMP |
 
 Key points:
 
 1. **Recommended**: link and enable these modules (default on for production); they are already part of the `mini_tree` library.
-2. **Optional**: with the Kconfig switches off, the core (device model / VFS / OSAL / EventBus) keeps working.
+2. **Optional**: with the Kconfig switches off, the core (device model / VFS / 统一接口 / EventBus) keeps working.
 3. Unrelated to **EventBus seal** — sealing is core runtime behavior, not an optional brick.
 
 ---

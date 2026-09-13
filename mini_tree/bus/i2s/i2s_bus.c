@@ -21,7 +21,7 @@
 #include "device.h"
 #include "hal_i2s.h"
 #include "interrupt.h"
-#include "osal.h"
+#include "mini_slot.h"
 #include "status.h"
 #include "system_log.h"
 
@@ -30,33 +30,33 @@
 /** @brief I2S host 运行时描述符 (静态池, HAL 嵌入 + atomic ref_count) */
 struct i2s_bus_host
 {
-    struct device* pdev; /**< 关联设备 */
-    struct hal_i2s_bus_host hal_host; /**< 嵌入 HAL host */
-    COMPAT_ATOMIC_INT ref_count; /**< atomic 引用计数 */
+    struct device*          pdev;      /**< 关联设备 */
+    struct hal_i2s_bus_host hal_host;  /**< 嵌入 HAL host */
+    MINI_ATOMIC_INT         ref_count; /**< atomic 引用计数 */
 };
 
 /** @brief I2S client 运行时描述符 (静态表, 按 device_id 索引) */
 struct i2s_bus_client
 {
-    struct device* pdev; /**< 关联设备 */
-    struct i2s_bus_host* host; /**< 所属 host */
-    struct hal_i2s_device_config cfg; /**< 设备配置 (DTSI 直投) */
-    struct hal_i2s_dev hal_i2s_dev; /**< HAL 设备对象 */
-    int hw_open; /**< 硬件打开计数 */
+    struct device*               pdev;        /**< 关联设备 */
+    struct i2s_bus_host*         host;        /**< 所属 host */
+    struct hal_i2s_device_config cfg;         /**< 设备配置 (DTSI 直投) */
+    struct hal_i2s_dev           hal_i2s_dev; /**< HAL 设备对象 */
+    int                          hw_open;     /**< 硬件打开计数 */
 };
 
-static struct i2s_bus_host s_hosts[I2S_BUS_HOST_MAX];
-static uint8_t s_host_used[I2S_BUS_HOST_MAX];
-static osal_pool_t s_host_pool;
+static struct i2s_bus_host   s_hosts[I2S_BUS_HOST_MAX];
+static uint8_t               s_host_used[I2S_BUS_HOST_MAX];
+static mini_slot_t           s_host_pool;
 static struct i2s_bus_client s_clients[DEV_ID_COUNT];
-static const char* k_tag = "i2s_bus";
+static const char*           k_tag = "i2s_bus";
 
 /**
  * @brief 初始化 I2S 总线 host 对象池
  */
-pre_execution(PRE_EXEC_PRIO_RES_POOL) static void i2s_bus_pool_init(void)
+mini_pre_execution(MINI_PRE_EXEC_PRIO_RES_POOL) static void i2s_bus_pool_init(void)
 {
-    COMPAT_IGNORE_RESULT(osal_pool_init(&s_host_pool, s_host_used, I2S_BUS_HOST_MAX));
+    MINI_IGNORE_RESULT(mini_slot_init(&s_host_pool, s_host_used, I2S_BUS_HOST_MAX));
 }
 
 /**
@@ -68,7 +68,7 @@ static struct i2s_bus_host* host_from_dev(struct device* pdev)
 {
     int index;
     for (index = 0; index < I2S_BUS_HOST_MAX; index++)
-        if (osal_pool_is_used(&s_host_pool, index) && s_hosts[index].pdev == pdev)
+        if (mini_slot_is_used(&s_host_pool, index) && s_hosts[index].pdev == pdev)
             return &s_hosts[index];
     return NULL;
 }
@@ -86,10 +86,10 @@ static struct i2s_bus_client* client_from_dev(struct device* pdev)
     return &s_clients[id];
 }
 
-static int i2s_host_init_impl(struct device* pdev, const void* cfg);
-static int i2s_host_deinit_impl(struct device* pdev);
-static int i2s_host_role_impl(struct device* pdev);
-static int i2s_client_register_impl(struct device* pdev, const void* cfg, void** out);
+static mt_err_t  i2s_host_init_impl(struct device* pdev, const void* cfg);
+static mt_err_t  i2s_host_deinit_impl(struct device* pdev);
+static int  i2s_host_role_impl(struct device* pdev);
+static mt_err_t  i2s_client_register_impl(struct device* pdev, const void* cfg, void** out);
 static void i2s_client_unregister_impl(struct device* pdev);
 
 static const struct bus_controller_ops s_ops = {
@@ -106,37 +106,37 @@ static const struct bus_controller_ops s_ops = {
  * @param[in] cfg host 配置 (struct hal_i2s_bus_config*)
  * @return 成功返回 MINI_OK, 失败返回负数错误码
  */
-static int i2s_host_init_impl(struct device* pdev, const void* cfg)
+static mt_err_t i2s_host_init_impl(struct device* pdev, const void* cfg)
 {
     const struct hal_i2s_bus_config* host_cfg = cfg;
-    struct i2s_bus_host* host;
-    int idx, ret;
+    struct i2s_bus_host*             host;
+    int                              idx, ret;
 
     if (!pdev || !cfg)
         return MINI_ERR_INVAL;
     if (host_from_dev(pdev))
         return MINI_OK;
-    idx = osal_pool_claim(&s_host_pool);
+    idx = mini_slot_claim(&s_host_pool);
     if (idx < 0)
         return MINI_ERR_NOMEM;
     host = &s_hosts[idx];
-    COMPAT_MEM_SET(host, 0, sizeof(*host));
+    MINI_MEM_SET(host, 0, sizeof(*host));
     host->pdev = pdev;
-    COMPAT_ATOMIC_RUNTIME_INIT(&host->ref_count, 0);
+    MINI_ATOMIC_RUNTIME_INIT(&host->ref_count, 0);
     ret = hal_i2s_bus_host_init(&host->hal_host, idx, host_cfg);
     if (ret != MINI_OK)
     {
-        COMPAT_IGNORE_RESULT(osal_pool_release(&s_host_pool, idx));
+        MINI_IGNORE_RESULT(mini_slot_release(&s_host_pool, idx));
         return ret;
     }
     ret = bus_controller_bind_full(pdev, BUS_TYPE_I2S, &s_ops, host);
     if (ret != MINI_OK)
     {
-        COMPAT_IGNORE_RESULT(hal_i2s_bus_host_deinit(&host->hal_host));
-        COMPAT_IGNORE_RESULT(osal_pool_release(&s_host_pool, idx));
+        MINI_IGNORE_RESULT(hal_i2s_bus_host_deinit(&host->hal_host));
+        MINI_IGNORE_RESULT(mini_slot_release(&s_host_pool, idx));
         return ret;
     }
-    SYS_LOGI(k_tag, "host init OK: %s", device_get_name(pdev));
+    MT_LOG_INFO(k_tag, "host init OK: %s", device_get_name(pdev));
     return MINI_OK;
 }
 
@@ -145,24 +145,24 @@ static int i2s_host_init_impl(struct device* pdev, const void* cfg)
  * @param[in] pdev host device 指针
  * @return 成功返回 MINI_OK, BUSY 返回 MINI_ERR_BUSY, 失败返回负数错误码
  */
-static int i2s_host_deinit_impl(struct device* pdev)
+static mt_err_t i2s_host_deinit_impl(struct device* pdev)
 {
     struct i2s_bus_host* host;
-    int idx, ret;
+    int                  idx, ret;
     if (!pdev)
         return MINI_ERR_INVAL;
     host = host_from_dev(pdev);
     if (!host)
         return MINI_ERR_NODEV;
-    if (COMPAT_ATOMIC_LOAD(&host->ref_count, COMPAT_MO_SEQ_CST) != 0)
+    if (MINI_ATOMIC_LOAD(&host->ref_count, MINI_SEQ_CST) != 0)
         return MINI_ERR_BUSY;
     idx = (int)(host - s_hosts);
     bus_controller_unbind(pdev);
     ret = hal_i2s_bus_host_deinit(&host->hal_host);
     if (ret == MINI_OK)
     {
-        COMPAT_MEM_SET(host, 0, sizeof(*host));
-        COMPAT_IGNORE_RESULT(osal_pool_release(&s_host_pool, idx));
+        MINI_MEM_SET(host, 0, sizeof(*host));
+        MINI_IGNORE_RESULT(mini_slot_release(&s_host_pool, idx));
     }
     return ret;
 }
@@ -175,7 +175,7 @@ static int i2s_host_deinit_impl(struct device* pdev)
 static int i2s_host_role_impl(struct device* pdev)
 {
     struct bus_controller* ctlr = NULL;
-    struct i2s_bus_host* host;
+    struct i2s_bus_host*   host;
     if (!pdev)
         return -1;
     if (bus_controller_get(pdev, &ctlr) == MINI_OK && ctlr)
@@ -196,13 +196,13 @@ static int i2s_host_role_impl(struct device* pdev)
  * @param[out] out 输出 client 私有上下文指针
  * @return 成功返回 MINI_OK, 失败返回负数错误码
  */
-static int i2s_client_register_impl(struct device* pdev, const void* cfg, void** out)
+static mt_err_t i2s_client_register_impl(struct device* pdev, const void* cfg, void** out)
 {
     const struct hal_i2s_device_config* config = cfg;
-    struct bus_controller* ctlr;
-    struct i2s_bus_host* host;
-    struct i2s_bus_client* client;
-    int id;
+    struct bus_controller*              ctlr;
+    struct i2s_bus_host*                host;
+    struct i2s_bus_client*              client;
+    int                                 id;
 
     if (!pdev || !cfg || !out)
         return MINI_ERR_INVAL;
@@ -222,11 +222,11 @@ static int i2s_client_register_impl(struct device* pdev, const void* cfg, void**
         *out = client;
         return MINI_OK;
     }
-    COMPAT_MEM_SET(client, 0, sizeof(*client));
+    MINI_MEM_SET(client, 0, sizeof(*client));
     client->pdev = pdev;
     client->host = host;
     client->cfg = *config;
-    (void)COMPAT_ATOMIC_FETCH_ADD(&host->ref_count, 1, COMPAT_MO_SEQ_CST);
+    (void)MINI_ATOMIC_FETCH_ADD(&host->ref_count, 1, MINI_SEQ_CST);
     *out = client;
     return MINI_OK;
 }
@@ -241,34 +241,30 @@ static void i2s_client_unregister_impl(struct device* pdev)
     if (!client)
         return;
     if (client->hw_open)
-        COMPAT_IGNORE_RESULT(i2s_bus_close(pdev));
+        MINI_IGNORE_RESULT(i2s_bus_close(pdev));
     if (client->host)
-        (void)COMPAT_ATOMIC_FETCH_SUB(&client->host->ref_count, 1, COMPAT_MO_SEQ_CST);
-    COMPAT_MEM_SET(client, 0, sizeof(*client));
+        (void)MINI_ATOMIC_FETCH_SUB(&client->host->ref_count, 1, MINI_SEQ_CST);
+    MINI_MEM_SET(client, 0, sizeof(*client));
 }
 
-int i2s_bus_host_init(struct device* pdev, const struct hal_i2s_bus_config* cfg)
-{
-    return i2s_host_init_impl(pdev, cfg);
-}
+mt_err_t i2s_bus_host_init(struct device* pdev, const struct hal_i2s_bus_config* cfg) { return i2s_host_init_impl(pdev, cfg); }
 
-int i2s_bus_host_deinit(struct device* pdev) { return i2s_host_deinit_impl(pdev); }
+mt_err_t i2s_bus_host_deinit(struct device* pdev) { return i2s_host_deinit_impl(pdev); }
 
 int i2s_bus_host_role(struct device* pdev) { return i2s_host_role_impl(pdev); }
 
-int i2s_bus_client_register(struct device* pdev, const struct hal_i2s_device_config* cfg,
-                            struct i2s_bus_client** out)
+mt_err_t i2s_bus_client_register(struct device* pdev, const struct hal_i2s_device_config* cfg, struct i2s_bus_client** out)
 {
     return i2s_client_register_impl(pdev, cfg, (void**)out);
 }
 
 void i2s_bus_client_unregister(struct device* pdev) { i2s_client_unregister_impl(pdev); }
 
-int i2s_bus_open(struct device* pdev)
+mt_err_t i2s_bus_open(struct device* pdev)
 {
-    struct i2s_bus_client* client = client_from_dev(pdev);
+    struct i2s_bus_client*   client = client_from_dev(pdev);
     struct hal_i2s_bus_host* host;
-    int ret;
+    int                      ret;
 
     if (!client || !client->host)
         return MINI_ERR_NODEV;
@@ -292,8 +288,7 @@ int i2s_bus_open(struct device* pdev)
      */
     if (host->cfg.it_enable)
     {
-        interrupt_virtual_register(VIRQ(i2s, host->hw_idx), hal_virtual_i2s_irq_callback,
-                                   &g_i2s_bottom_half_work, &client->hal_i2s_dev);
+        interrupt_virtual_register(VIRQ(i2s, host->hw_idx), hal_virtual_i2s_irq_callback, &g_i2s_bottom_half_work, &client->hal_i2s_dev);
         interrupt_hw_enable((int)host->cfg.irqn, host->cfg.irq_priority);
         interrupt_hw_enable((int)host->cfg.irqn_rx, host->cfg.irq_priority);
     }
@@ -303,21 +298,20 @@ int i2s_bus_open(struct device* pdev)
     return MINI_OK;
 }
 
-int i2s_bus_close(struct device* pdev)
+mt_err_t i2s_bus_close(struct device* pdev)
 {
     struct i2s_bus_client* client = client_from_dev(pdev);
     if (!client)
         return MINI_ERR_NODEV;
     if (!client->hw_open)
         return MINI_OK;
-    COMPAT_IGNORE_RESULT(hal_i2s_dev_hw_close(&client->hal_i2s_dev));
-    COMPAT_IGNORE_RESULT(hal_i2s_dev_deinit(&client->hal_i2s_dev));
+    MINI_IGNORE_RESULT(hal_i2s_dev_hw_close(&client->hal_i2s_dev));
+    MINI_IGNORE_RESULT(hal_i2s_dev_deinit(&client->hal_i2s_dev));
     client->hw_open = 0;
     return MINI_OK;
 }
 
-int i2s_bus_transfer(struct device* pdev, const uint16_t* tx, uint16_t* rx, size_t samples,
-                     uint32_t timeout_ms, uint32_t xfer_mode)
+mt_err_t i2s_bus_transfer(struct device* pdev, const uint16_t* tx, uint16_t* rx, size_t samples, uint32_t timeout_ms, uint32_t xfer_mode)
 {
     struct i2s_bus_client* client = client_from_dev(pdev);
     if (!client || !client->hw_open)
@@ -325,18 +319,18 @@ int i2s_bus_transfer(struct device* pdev, const uint16_t* tx, uint16_t* rx, size
     return hal_i2s_sync(&client->hal_i2s_dev, tx, rx, samples, timeout_ms, xfer_mode);
 }
 
-int i2s_bus_transfer_async(struct device* pdev, const uint16_t* tx, uint16_t* rx, size_t samples,
-                           void (*cb)(struct device*, const void*, void*), void* userdata)
+mt_err_t i2s_bus_transfer_async(struct device* pdev, const uint16_t* tx, uint16_t* rx, size_t samples, void (*cb)(struct device*, const void*, void*),
+                           void* userdata)
 {
     struct i2s_bus_client* client = client_from_dev(pdev);
-    COMPAT_IGNORE_RESULT(cb);
-    COMPAT_IGNORE_RESULT(userdata);
+    MINI_IGNORE_RESULT(cb);
+    MINI_IGNORE_RESULT(userdata);
     if (!client || !client->hw_open)
         return MINI_ERR_NODEV;
     return hal_i2s_transfer_async(&client->hal_i2s_dev, tx, rx, samples, NULL, NULL);
 }
 
-int i2s_bus_transfer_poll(struct device* pdev, uint32_t timeout_ms)
+mt_err_t i2s_bus_transfer_poll(struct device* pdev, uint32_t timeout_ms)
 {
     struct i2s_bus_client* client = client_from_dev(pdev);
     if (!client || !client->hw_open)
@@ -344,7 +338,7 @@ int i2s_bus_transfer_poll(struct device* pdev, uint32_t timeout_ms)
     return hal_i2s_transfer_poll(&client->hal_i2s_dev, timeout_ms);
 }
 
-int i2s_bus_set_dma_irq_mode(struct device* pdev, uint32_t irq_mode)
+mt_err_t i2s_bus_set_dma_irq_mode(struct device* pdev, uint32_t irq_mode)
 {
     struct i2s_bus_client* client = client_from_dev(pdev);
     if (!client || !client->hw_open)
@@ -352,7 +346,7 @@ int i2s_bus_set_dma_irq_mode(struct device* pdev, uint32_t irq_mode)
     return hal_i2s_set_dma_irq_mode(&client->hal_i2s_dev, irq_mode);
 }
 
-int i2s_bus_get_dma_irq_mode(struct device* pdev, uint32_t* irq_mode)
+mt_err_t i2s_bus_get_dma_irq_mode(struct device* pdev, uint32_t* irq_mode)
 {
     struct i2s_bus_client* client = client_from_dev(pdev);
     if (!client || !client->hw_open)
@@ -360,7 +354,7 @@ int i2s_bus_get_dma_irq_mode(struct device* pdev, uint32_t* irq_mode)
     return hal_i2s_get_dma_irq_mode(&client->hal_i2s_dev, irq_mode);
 }
 
-int i2s_bus_dma_circ_start(struct device* pdev, int tx_enable, int rx_enable)
+mt_err_t i2s_bus_dma_circ_start(struct device* pdev, int tx_enable, int rx_enable)
 {
     struct i2s_bus_client* client = client_from_dev(pdev);
     if (!client || !client->hw_open)
@@ -368,7 +362,7 @@ int i2s_bus_dma_circ_start(struct device* pdev, int tx_enable, int rx_enable)
     return hal_i2s_dma_circ_start(&client->hal_i2s_dev, tx_enable, rx_enable);
 }
 
-int i2s_bus_dma_circ_stop(struct device* pdev)
+mt_err_t i2s_bus_dma_circ_stop(struct device* pdev)
 {
     struct i2s_bus_client* client = client_from_dev(pdev);
     if (!client || !client->hw_open)
@@ -376,7 +370,7 @@ int i2s_bus_dma_circ_stop(struct device* pdev)
     return hal_i2s_dma_circ_stop(&client->hal_i2s_dev);
 }
 
-int i2s_bus_dma_circ_write(struct device* pdev, const uint16_t* data, uint32_t samples)
+mt_err_t i2s_bus_dma_circ_write(struct device* pdev, const uint16_t* data, uint32_t samples)
 {
     struct i2s_bus_client* client = client_from_dev(pdev);
     if (!client || !client->hw_open)
@@ -384,7 +378,7 @@ int i2s_bus_dma_circ_write(struct device* pdev, const uint16_t* data, uint32_t s
     return hal_i2s_dma_circ_write(&client->hal_i2s_dev, data, samples);
 }
 
-int i2s_bus_dma_circ_read(struct device* pdev, uint16_t* data, uint32_t samples)
+mt_err_t i2s_bus_dma_circ_read(struct device* pdev, uint16_t* data, uint32_t samples)
 {
     struct i2s_bus_client* client = client_from_dev(pdev);
     if (!client || !client->hw_open)

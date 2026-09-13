@@ -28,7 +28,7 @@
 #include "compiler_compat.h"
 #include "device.h"
 #include "hal_spi.h"
-#include "osal.h"
+#include "mini_slot.h"
 #include "status.h"
 #include "system_log.h"
 
@@ -41,33 +41,33 @@
 /** @brief SPI host 运行时描述符 (静态池, HAL 嵌入 + atomic ref_count) */
 struct spi_bus_host
 {
-    struct device* pdev; /**< 关联设备 */
-    struct hal_spi_bus_host hal_host; /**< 嵌入 HAL host (非指针, HAL 无池管理) */
-    COMPAT_ATOMIC_INT ref_count; /**< atomic 无锁计数, ISR/任务安全 */
+    struct device*          pdev;      /**< 关联设备 */
+    struct hal_spi_bus_host hal_host;  /**< 嵌入 HAL host (非指针, HAL 无池管理) */
+    MINI_ATOMIC_INT         ref_count; /**< atomic 无锁计数, ISR/任务安全 */
 };
 
 /** @brief SPI client 运行时描述符 (静态表, 按 device_id 索引) */
 struct spi_bus_client
 {
-    struct device* pdev; /**< 关联设备 */
-    struct spi_bus_host* host; /**< 所属 host */
-    struct hal_spi_device_config cfg; /**< 设备配置 (DTSI 直投) */
-    struct hal_spi_dev hal_dev; /**< HAL 设备对象 */
-    int hw_open; /**< 硬件打开计数 */
+    struct device*               pdev;    /**< 关联设备 */
+    struct spi_bus_host*         host;    /**< 所属 host */
+    struct hal_spi_device_config cfg;     /**< 设备配置 (DTSI 直投) */
+    struct hal_spi_dev           hal_dev; /**< HAL 设备对象 */
+    int                          hw_open; /**< 硬件打开计数 */
 };
 
-static struct spi_bus_host s_spi_hosts[SPI_BUS_HOST_MAX];
-static uint8_t s_spi_host_used[SPI_BUS_HOST_MAX];
-static osal_pool_t s_spi_host_pool_ctrl;
+static struct spi_bus_host   s_spi_hosts[SPI_BUS_HOST_MAX];
+static uint8_t               s_spi_host_used[SPI_BUS_HOST_MAX];
+static mini_slot_t           s_spi_host_pool_ctrl;
 static struct spi_bus_client s_spi_clients[DEV_ID_COUNT];
-static const char* const k_tag = "spi_bus";
+static const char* const     k_tag = "spi_bus";
 
 /**
  * @brief SPI Host 池启动初始化
  */
-pre_execution(PRE_EXEC_PRIO_RES_POOL) static void spi_bus_pool_init(void)
+mini_pre_execution(MINI_PRE_EXEC_PRIO_RES_POOL) static void spi_bus_pool_init(void)
 {
-    COMPAT_IGNORE_RESULT(osal_pool_init(&s_spi_host_pool_ctrl, s_spi_host_used, SPI_BUS_HOST_MAX));
+    MINI_IGNORE_RESULT(mini_slot_init(&s_spi_host_pool_ctrl, s_spi_host_used, SPI_BUS_HOST_MAX));
 }
 
 /* -------------------------------------------------------------------------- */
@@ -81,7 +81,7 @@ pre_execution(PRE_EXEC_PRIO_RES_POOL) static void spi_bus_pool_init(void)
 static struct spi_bus_host* spi_host_from_device(struct device* pdev)
 {
     for (int index = 0; index < SPI_BUS_HOST_MAX; index++)
-        if (osal_pool_is_used(&s_spi_host_pool_ctrl, index) && s_spi_hosts[index].pdev == pdev)
+        if (mini_slot_is_used(&s_spi_host_pool_ctrl, index) && s_spi_hosts[index].pdev == pdev)
             return &s_spi_hosts[index];
     return NULL;
 }
@@ -102,10 +102,10 @@ static struct spi_bus_client* spi_client_from_device(struct device* pdev)
 /* controller_ops (host 级操作) */
 /* -------------------------------------------------------------------------- */
 /* 前向声明: s_spi_controller_ops 引用 impl 函数, 但 impl 定义在 ops 表之后 */
-static int spi_host_init_impl(struct device* pdev, const void* cfg);
-static int spi_host_deinit_impl(struct device* pdev);
-static int spi_host_role_impl(struct device* pdev);
-static int spi_client_register_impl(struct device* pdev, const void* cfg, void** out);
+static mt_err_t  spi_host_init_impl(struct device* pdev, const void* cfg);
+static mt_err_t  spi_host_deinit_impl(struct device* pdev);
+static int  spi_host_role_impl(struct device* pdev);
+static mt_err_t  spi_client_register_impl(struct device* pdev, const void* cfg, void** out);
 static void spi_client_unregister_impl(struct device* pdev);
 
 static const struct bus_controller_ops s_spi_controller_ops = {
@@ -124,12 +124,12 @@ static const struct bus_controller_ops s_spi_controller_ops = {
  * @param[in] cfg host 配置 (struct hal_spi_bus_config*)
  * @return 成功返回 MINI_OK, 失败返回 MINI_ERR_INVAL/NOMEM/...
  */
-static int spi_host_init_impl(struct device* pdev, const void* cfg)
+static mt_err_t spi_host_init_impl(struct device* pdev, const void* cfg)
 {
     const struct hal_spi_bus_config* host_cfg;
-    struct spi_bus_host* host;
-    int idx;
-    int ret;
+    struct spi_bus_host*             host;
+    int                              idx;
+    int                              ret;
 
     if (!pdev || !cfg)
         return MINI_ERR_INVAL;
@@ -139,55 +139,51 @@ static int spi_host_init_impl(struct device* pdev, const void* cfg)
     if (spi_host_from_device(pdev))
         return MINI_OK;
 
-    idx = osal_pool_claim(&s_spi_host_pool_ctrl);
+    idx = mini_slot_claim(&s_spi_host_pool_ctrl);
     if (idx < 0)
         return MINI_ERR_NOMEM;
 
     host = &s_spi_hosts[idx];
-    COMPAT_MEM_SET(host, 0, sizeof(*host));
+    MINI_MEM_SET(host, 0, sizeof(*host));
     host->pdev = pdev;
-    COMPAT_ATOMIC_RUNTIME_INIT(&host->ref_count, 0);
+    MINI_ATOMIC_RUNTIME_INIT(&host->ref_count, 0);
 
     /* HAL host 嵌入 bus host, 直接传对象指针, 零翻译透传 config。
      * max_transfer_sz 的 ceiling clamp 由 HAL 层负责 (见 hal_spi_bus_host_init)。 */
     ret = hal_spi_bus_host_init(&host->hal_host, idx, host_cfg);
     if (ret != MINI_OK)
     {
-        COMPAT_MEM_SET(host, 0, sizeof(*host));
-        COMPAT_IGNORE_RESULT(osal_pool_release(&s_spi_host_pool_ctrl, idx));
+        MINI_MEM_SET(host, 0, sizeof(*host));
+        MINI_IGNORE_RESULT(mini_slot_release(&s_spi_host_pool_ctrl, idx));
         return ret;
     }
 
     ret = bus_controller_bind_full(pdev, BUS_TYPE_SPI, &s_spi_controller_ops, host);
     if (ret != MINI_OK)
     {
-        COMPAT_IGNORE_RESULT(hal_spi_bus_host_deinit(&host->hal_host));
-        COMPAT_MEM_SET(host, 0, sizeof(*host));
-        COMPAT_IGNORE_RESULT(osal_pool_release(&s_spi_host_pool_ctrl, idx));
+        MINI_IGNORE_RESULT(hal_spi_bus_host_deinit(&host->hal_host));
+        MINI_MEM_SET(host, 0, sizeof(*host));
+        MINI_IGNORE_RESULT(mini_slot_release(&s_spi_host_pool_ctrl, idx));
         return ret;
     }
 
-    SYS_LOGI(k_tag, "host init OK: %s role=%s spi=0x%lx", device_get_name(pdev),
-             host_cfg->bus_role == HAL_SPI_BUS_ROLE_SLAVE ? "slave" : "master",
+    MT_LOG_INFO(k_tag, "host init OK: %s role=%s spi=0x%lx", device_get_name(pdev), host_cfg->bus_role == HAL_SPI_BUS_ROLE_SLAVE ? "slave" : "master",
              (unsigned long)host_cfg->spi);
     return MINI_OK;
 }
 
-int spi_bus_host_init(struct device* pdev, const struct hal_spi_bus_config* cfg)
-{
-    return spi_host_init_impl(pdev, cfg);
-}
+mt_err_t spi_bus_host_init(struct device* pdev, const struct hal_spi_bus_config* cfg) { return spi_host_init_impl(pdev, cfg); }
 
 /**
  * @brief host 反初始化实现 (controller_ops.deinit): 检查 ref_count, 解绑 controller, 释放池槽位
  * @param[in] pdev controller device (host)
- * @return 成功返回 MINI_OK, BUSY 返回 MINI_ERR_BUSY, 失败返回 VFS_ERR_*
+ * @return 成功返回 MINI_OK, BUSY 返回 MINI_ERR_BUSY, 失败返回 MINI_ERR_*
  */
-static int spi_host_deinit_impl(struct device* pdev)
+static mt_err_t spi_host_deinit_impl(struct device* pdev)
 {
     struct spi_bus_host* host;
-    int idx;
-    int ret;
+    int                  idx;
+    int                  ret;
 
     if (!pdev)
         return MINI_ERR_INVAL;
@@ -197,10 +193,9 @@ static int spi_host_deinit_impl(struct device* pdev)
         return MINI_ERR_NODEV;
 
     /* atomic load: 无锁检查 ref_count, ISR/任务安全 */
-    if (COMPAT_ATOMIC_LOAD(&host->ref_count, COMPAT_MO_SEQ_CST) > 0)
+    if (MINI_ATOMIC_LOAD(&host->ref_count, MINI_SEQ_CST) > 0)
     {
-        SYS_LOGW(k_tag, "host deinit busy: ref_count=%d",
-                 COMPAT_ATOMIC_LOAD(&host->ref_count, COMPAT_MO_SEQ_CST));
+        MT_LOG_WARN(k_tag, "host deinit busy: ref_count=%d", MINI_ATOMIC_LOAD(&host->ref_count, MINI_SEQ_CST));
         return MINI_ERR_BUSY;
     }
 
@@ -212,13 +207,13 @@ static int spi_host_deinit_impl(struct device* pdev)
 
     if (ret == MINI_OK)
     {
-        COMPAT_MEM_SET(host, 0, sizeof(*host));
-        COMPAT_IGNORE_RESULT(osal_pool_release(&s_spi_host_pool_ctrl, idx));
+        MINI_MEM_SET(host, 0, sizeof(*host));
+        MINI_IGNORE_RESULT(mini_slot_release(&s_spi_host_pool_ctrl, idx));
     }
     return ret;
 }
 
-int spi_bus_host_deinit(struct device* pdev) { return spi_host_deinit_impl(pdev); }
+mt_err_t spi_bus_host_deinit(struct device* pdev) { return spi_host_deinit_impl(pdev); }
 
 /**
  * @brief 查询 host 角色 (master/slave) 实现 (controller_ops.role)
@@ -228,7 +223,7 @@ int spi_bus_host_deinit(struct device* pdev) { return spi_host_deinit_impl(pdev)
 static int spi_host_role_impl(struct device* pdev)
 {
     struct bus_controller* ctlr = NULL;
-    struct spi_bus_host* host;
+    struct spi_bus_host*   host;
 
     if (!pdev)
         return -1;
@@ -247,8 +242,7 @@ static int spi_host_role_impl(struct device* pdev)
     if (!host)
         return -1;
 
-    return host->hal_host.cfg.bus_role == HAL_SPI_BUS_ROLE_MASTER ? SPI_BUS_ROLE_MASTER :
-                                                                    SPI_BUS_ROLE_SLAVE;
+    return host->hal_host.cfg.bus_role == HAL_SPI_BUS_ROLE_MASTER ? SPI_BUS_ROLE_MASTER : SPI_BUS_ROLE_SLAVE;
 }
 
 int spi_bus_host_role(struct device* pdev) { return spi_host_role_impl(pdev); }
@@ -260,15 +254,15 @@ int spi_bus_host_role(struct device* pdev) { return spi_host_role_impl(pdev); }
  * @param[in] pdev client device
  * @param[in] cfg client 配置 (struct hal_spi_device_config*)
  * @param[out] out 输出 client 私有上下文指针
- * @return 成功返回 MINI_OK, 失败返回 VFS_ERR_*
+ * @return 成功返回 MINI_OK, 失败返回 MINI_ERR_*
  */
-static int spi_client_register_impl(struct device* pdev, const void* cfg, void** out)
+static mt_err_t spi_client_register_impl(struct device* pdev, const void* cfg, void** out)
 {
     const struct hal_spi_device_config* client_cfg;
-    struct bus_controller* ctlr;
-    struct spi_bus_host* host;
-    struct spi_bus_client* client;
-    int id;
+    struct bus_controller*              ctlr;
+    struct spi_bus_host*                host;
+    struct spi_bus_client*              client;
+    int                                 id;
 
     if (!pdev || !cfg || !out)
         return MINI_ERR_INVAL;
@@ -300,19 +294,18 @@ static int spi_client_register_impl(struct device* pdev, const void* cfg, void**
         return MINI_OK;
     }
 
-    COMPAT_MEM_SET(client, 0, sizeof(*client));
+    MINI_MEM_SET(client, 0, sizeof(*client));
     client->pdev = pdev;
     client->host = host;
     client->cfg = *client_cfg;
 
-    (void)COMPAT_ATOMIC_FETCH_ADD(&host->ref_count, 1, COMPAT_MO_SEQ_CST);
+    (void)MINI_ATOMIC_FETCH_ADD(&host->ref_count, 1, MINI_SEQ_CST);
 
     *out = client;
     return MINI_OK;
 }
 
-int spi_bus_client_register(struct device* pdev, const struct hal_spi_device_config* cfg,
-                            struct spi_bus_client** out)
+mt_err_t spi_bus_client_register(struct device* pdev, const struct hal_spi_device_config* cfg, struct spi_bus_client** out)
 {
     return spi_client_register_impl(pdev, cfg, (void**)out);
 }
@@ -324,7 +317,7 @@ int spi_bus_client_register(struct device* pdev, const struct hal_spi_device_con
 static void spi_client_unregister_impl(struct device* pdev)
 {
     struct spi_bus_client* client;
-    struct spi_bus_host* host;
+    struct spi_bus_host*   host;
 
     client = spi_client_from_device(pdev);
     if (!client)
@@ -333,15 +326,15 @@ static void spi_client_unregister_impl(struct device* pdev)
     /* 若 client 仍 hw_open, 先 close 以释放 HAL 层 ref_count 与 master spi_device_handle */
     if (client->hw_open)
     {
-        COMPAT_IGNORE_RESULT(spi_bus_close(pdev));
+        MINI_IGNORE_RESULT(spi_bus_close(pdev));
         client->hw_open = 0;
     }
 
     host = client->host;
     if (host)
-        (void)COMPAT_ATOMIC_FETCH_SUB(&host->ref_count, 1, COMPAT_MO_SEQ_CST);
+        (void)MINI_ATOMIC_FETCH_SUB(&host->ref_count, 1, MINI_SEQ_CST);
 
-    COMPAT_MEM_SET(client, 0, sizeof(*client));
+    MINI_MEM_SET(client, 0, sizeof(*client));
 }
 
 void spi_bus_client_unregister(struct device* pdev) { spi_client_unregister_impl(pdev); }
@@ -350,10 +343,10 @@ void spi_bus_client_unregister(struct device* pdev) { spi_client_unregister_impl
 
 /* Open / Close */
 /* -------------------------------------------------------------------------- */
-int spi_bus_open(struct device* pdev)
+mt_err_t spi_bus_open(struct device* pdev)
 {
     struct spi_bus_client* client;
-    int ret;
+    int                    ret;
 
     client = spi_client_from_device(pdev);
     if (!client)
@@ -363,7 +356,7 @@ int spi_bus_open(struct device* pdev)
         return MINI_OK;
 
     /* client->cfg 已是 hal_spi_device_config, 直接透传给 HAL, 零翻译 */
-    COMPAT_IGNORE_RESULT(hal_spi_dev_init(&client->hal_dev, &client->host->hal_host, &client->cfg));
+    MINI_IGNORE_RESULT(hal_spi_dev_init(&client->hal_dev, &client->host->hal_host, &client->cfg));
     ret = hal_spi_dev_hw_open(&client->hal_dev);
     if (ret != MINI_OK)
         return ret;
@@ -372,7 +365,7 @@ int spi_bus_open(struct device* pdev)
     return MINI_OK;
 }
 
-int spi_bus_close(struct device* pdev)
+mt_err_t spi_bus_close(struct device* pdev)
 {
     struct spi_bus_client* client;
 
@@ -382,7 +375,7 @@ int spi_bus_close(struct device* pdev)
 
     if (client->hw_open)
     {
-        COMPAT_IGNORE_RESULT(hal_spi_dev_hw_close(&client->hal_dev));
+        MINI_IGNORE_RESULT(hal_spi_dev_hw_close(&client->hal_dev));
         client->hw_open = 0;
     }
     return MINI_OK;
@@ -391,11 +384,10 @@ int spi_bus_close(struct device* pdev)
 
 /* Transfer API */
 /* -------------------------------------------------------------------------- */
-int spi_bus_transfer(struct device* pdev, const uint8_t* tx, uint8_t* rx, size_t len,
-                     uint32_t timeout_ms, uint32_t xfer_mode)
+mt_err_t spi_bus_transfer(struct device* pdev, const uint8_t* tx, uint8_t* rx, size_t len, uint32_t timeout_ms, uint32_t xfer_mode)
 {
     struct spi_bus_client* client;
-    int role;
+    int                    role;
 
     if (!pdev || len == 0)
         return MINI_ERR_INVAL;
@@ -428,18 +420,17 @@ static struct bus_async_bridge s_spi_bridge_pool[DEV_ID_COUNT][HAL_SPI_MAX_ASYNC
  */
 static void spi_async_hal_cb(struct hal_spi_dev* hal_dev, const void* trans, void* userdata)
 {
-    COMPAT_IGNORE_RESULT(hal_dev);
+    MINI_IGNORE_RESULT(hal_dev);
     bus_async_bridge_complete(userdata, trans);
 }
 
-int spi_bus_transfer_async(struct device* pdev, const uint8_t* tx, uint8_t* rx, size_t len,
-                           void (*cb)(struct device* pdev, const void* trans, void* userdata),
-                           void* userdata)
+mt_err_t spi_bus_transfer_async(struct device* pdev, const uint8_t* tx, uint8_t* rx, size_t len,
+                           void (*cb)(struct device* pdev, const void* trans, void* userdata), void* userdata)
 {
-    struct spi_bus_client* client;
+    struct spi_bus_client*   client;
     struct bus_async_bridge* bridge;
-    int idx;
-    int ret;
+    int                      idx;
+    int                      ret;
 
     if (!pdev || len == 0)
         return MINI_ERR_INVAL;
@@ -467,7 +458,7 @@ int spi_bus_transfer_async(struct device* pdev, const uint8_t* tx, uint8_t* rx, 
     return ret;
 }
 
-int spi_bus_transfer_poll(struct device* pdev, uint32_t timeout_ms)
+mt_err_t spi_bus_transfer_poll(struct device* pdev, uint32_t timeout_ms)
 {
     struct spi_bus_client* client;
 
@@ -484,8 +475,7 @@ int spi_bus_transfer_poll(struct device* pdev, uint32_t timeout_ms)
     return hal_spi_transfer_poll(&client->hal_dev, timeout_ms);
 }
 
-int spi_bus_slave_sync(struct device* pdev, const uint8_t* tx, uint8_t* rx, size_t len,
-                       uint32_t timeout_ms)
+mt_err_t spi_bus_slave_sync(struct device* pdev, const uint8_t* tx, uint8_t* rx, size_t len, uint32_t timeout_ms)
 {
     struct spi_bus_client* client;
 
@@ -502,8 +492,7 @@ int spi_bus_slave_sync(struct device* pdev, const uint8_t* tx, uint8_t* rx, size
     return hal_spi_slave_sync(&client->hal_dev, tx, rx, len, timeout_ms);
 }
 
-int spi_bus_slave_queue_tx(struct device* pdev, const uint8_t* data, size_t len,
-                           uint32_t timeout_ms)
+mt_err_t spi_bus_slave_queue_tx(struct device* pdev, const uint8_t* data, size_t len, uint32_t timeout_ms)
 {
     struct spi_bus_client* client;
 
@@ -520,8 +509,7 @@ int spi_bus_slave_queue_tx(struct device* pdev, const uint8_t* data, size_t len,
     return hal_spi_slave_queue_tx(&client->hal_dev, data, len, timeout_ms);
 }
 
-int spi_bus_slave_get_trans_result(struct device* pdev, uint8_t* rx_data, size_t rx_cap,
-                                   size_t* trans_len, uint32_t timeout_ms)
+mt_err_t spi_bus_slave_get_trans_result(struct device* pdev, uint8_t* rx_data, size_t rx_cap, size_t* trans_len, uint32_t timeout_ms)
 {
     struct spi_bus_client* client;
 

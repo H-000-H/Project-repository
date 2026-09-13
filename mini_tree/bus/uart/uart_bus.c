@@ -25,7 +25,7 @@
 #include "compiler_compat.h"
 #include "device.h"
 #include "driver.h"
-#include "osal.h"
+#include "mini_slot.h"
 #include "status.h"
 #include "system_log.h"
 
@@ -44,35 +44,33 @@
 /** @brief UART host 运行时描述符 (静态池, HAL 嵌入 + atomic ref_count) */
 struct uart_bus_host
 {
-    struct device* pdev; /**< 关联设备 */
-    struct hal_uart_bus_host hal_host; /**< 嵌入 HAL host (非 vtable 指针) */
-    COMPAT_ATOMIC_INT ref_count; /**< atomic 无锁计数 */
+    struct device*           pdev;      /**< 关联设备 */
+    struct hal_uart_bus_host hal_host;  /**< 嵌入 HAL host (非 vtable 指针) */
+    MINI_ATOMIC_INT          ref_count; /**< atomic 无锁计数 */
 };
 
 /** @brief UART client 运行时描述符 (静态池, 按 client_id 索引) */
 struct uart_bus_client
 {
-    struct device* pdev; /**< 关联设备 */
+    struct device*        pdev; /**< 关联设备 */
     struct uart_bus_host* host; /**< 所属 host */
 };
 
-static struct uart_bus_host s_uart_hosts[UART_BUS_HOST_MAX];
-static uint8_t s_uart_host_used[UART_BUS_HOST_MAX];
-static osal_pool_t s_uart_host_pool_ctrl;
+static struct uart_bus_host   s_uart_hosts[UART_BUS_HOST_MAX];
+static uint8_t                s_uart_host_used[UART_BUS_HOST_MAX];
+static mini_slot_t            s_uart_host_pool_ctrl;
 static struct uart_bus_client s_uart_clients[UART_BUS_CLIENT_MAX];
-static uint8_t s_uart_client_used[UART_BUS_CLIENT_MAX];
-static osal_pool_t s_uart_client_pool_ctrl;
-static const char* const k_tag = "uart_bus";
+static uint8_t                s_uart_client_used[UART_BUS_CLIENT_MAX];
+static mini_slot_t            s_uart_client_pool_ctrl;
+static const char* const      k_tag = "uart_bus";
 
 /**
  * @brief UART Host/Client 池启动初始化
  */
-pre_execution(PRE_EXEC_PRIO_RES_POOL) static void uart_bus_pool_init(void)
+mini_pre_execution(MINI_PRE_EXEC_PRIO_RES_POOL) static void uart_bus_pool_init(void)
 {
-    COMPAT_IGNORE_RESULT(
-        osal_pool_init(&s_uart_host_pool_ctrl, s_uart_host_used, UART_BUS_HOST_MAX));
-    COMPAT_IGNORE_RESULT(
-        osal_pool_init(&s_uart_client_pool_ctrl, s_uart_client_used, UART_BUS_CLIENT_MAX));
+    MINI_IGNORE_RESULT(mini_slot_init(&s_uart_host_pool_ctrl, s_uart_host_used, UART_BUS_HOST_MAX));
+    MINI_IGNORE_RESULT(mini_slot_init(&s_uart_client_pool_ctrl, s_uart_client_used, UART_BUS_CLIENT_MAX));
 }
 
 /* -------------------------------------------------------------------------- */
@@ -86,7 +84,7 @@ pre_execution(PRE_EXEC_PRIO_RES_POOL) static void uart_bus_pool_init(void)
 static struct uart_bus_host* uart_host_from_device(struct device* pdev)
 {
     for (int index = 0; index < UART_BUS_HOST_MAX; index++)
-        if (osal_pool_is_used(&s_uart_host_pool_ctrl, index) && s_uart_hosts[index].pdev == pdev)
+        if (mini_slot_is_used(&s_uart_host_pool_ctrl, index) && s_uart_hosts[index].pdev == pdev)
             return &s_uart_hosts[index];
     return NULL;
 }
@@ -102,8 +100,7 @@ static struct uart_bus_host* uart_host_from_device(struct device* pdev)
 static struct uart_bus_client* uart_client_from_device(struct device* pdev)
 {
     for (int index = 0; index < UART_BUS_CLIENT_MAX; index++)
-        if (osal_pool_is_used(&s_uart_client_pool_ctrl, index) &&
-            s_uart_clients[index].pdev == pdev)
+        if (mini_slot_is_used(&s_uart_client_pool_ctrl, index) && s_uart_clients[index].pdev == pdev)
             return &s_uart_clients[index];
     return NULL;
 }
@@ -111,10 +108,10 @@ static struct uart_bus_client* uart_client_from_device(struct device* pdev)
 /* -------------------------------------------------------------------------- */
 /*controller_ops (host 级操作)*/
 /* -------------------------------------------------------------------------- */
-static int uart_host_init_impl(struct device* pdev, const void* cfg);
-static int uart_host_deinit_impl(struct device* pdev);
-static int uart_host_role_impl(struct device* pdev);
-static int uart_client_register_impl(struct device* pdev, const void* cfg, void** out);
+static mt_err_t  uart_host_init_impl(struct device* pdev, const void* cfg);
+static mt_err_t  uart_host_deinit_impl(struct device* pdev);
+static int  uart_host_role_impl(struct device* pdev);
+static mt_err_t  uart_client_register_impl(struct device* pdev, const void* cfg, void** out);
 static void uart_client_unregister_impl(struct device* pdev);
 
 static const struct bus_controller_ops s_uart_controller_ops = {
@@ -133,14 +130,14 @@ static const struct bus_controller_ops s_uart_controller_ops = {
  * controller
  * @param[in] pdev controller device (host)
  * @param[in] cfg host 配置 (struct hal_uart_config*, VFS 从 DTSI 硬件直投填充, bus 零翻译透传)
- * @return 成功返回 MINI_OK, 失败返回 VFS_ERR_*
+ * @return 成功返回 MINI_OK, 失败返回 MINI_ERR_*
  */
-static int uart_host_init_impl(struct device* pdev, const void* cfg)
+static mt_err_t uart_host_init_impl(struct device* pdev, const void* cfg)
 {
     const struct hal_uart_config* host_cfg = (const struct hal_uart_config*)cfg;
-    struct uart_bus_host* host;
-    int idx;
-    int ret;
+    struct uart_bus_host*         host;
+    int                           idx;
+    int                           ret;
 
     if (!pdev || !host_cfg)
         return MINI_ERR_INVAL;
@@ -148,46 +145,45 @@ static int uart_host_init_impl(struct device* pdev, const void* cfg)
     if (uart_host_from_device(pdev))
         return MINI_OK;
 
-    idx = osal_pool_claim(&s_uart_host_pool_ctrl);
+    idx = mini_slot_claim(&s_uart_host_pool_ctrl);
     if (idx < 0)
         return MINI_ERR_NOMEM;
 
     host = &s_uart_hosts[idx];
-    COMPAT_MEM_SET(host, 0, sizeof(*host));
+    MINI_MEM_SET(host, 0, sizeof(*host));
     host->pdev = pdev;
-    COMPAT_ATOMIC_RUNTIME_INIT(&host->ref_count, 0);
+    MINI_ATOMIC_RUNTIME_INIT(&host->ref_count, 0);
 
     /* HAL pdev 嵌入 host, 直接传对象指针, 零翻译透传 config */
     ret = hal_uart_dev_init(&host->hal_host, host_cfg);
     if (ret != MINI_OK)
     {
-        COMPAT_MEM_SET(host, 0, sizeof(*host));
-        COMPAT_IGNORE_RESULT(osal_pool_release(&s_uart_host_pool_ctrl, idx));
+        MINI_MEM_SET(host, 0, sizeof(*host));
+        MINI_IGNORE_RESULT(mini_slot_release(&s_uart_host_pool_ctrl, idx));
         return ret;
     }
 
     ret = bus_controller_bind_full(pdev, BUS_TYPE_UART, &s_uart_controller_ops, host);
     if (ret != MINI_OK)
     {
-        COMPAT_MEM_SET(host, 0, sizeof(*host));
-        COMPAT_IGNORE_RESULT(osal_pool_release(&s_uart_host_pool_ctrl, idx));
+        MINI_MEM_SET(host, 0, sizeof(*host));
+        MINI_IGNORE_RESULT(mini_slot_release(&s_uart_host_pool_ctrl, idx));
         return ret;
     }
 
-    SYS_LOGI(k_tag, "host init OK: %s uart=%lu baud=%lu", device_get_name(pdev),
-             (unsigned long)host_cfg->uart, (unsigned long)host_cfg->baud_rate);
+    MT_LOG_INFO(k_tag, "host init OK: %s uart=%lu baud=%lu", device_get_name(pdev), (unsigned long)host_cfg->uart, (unsigned long)host_cfg->baud_rate);
     return MINI_OK;
 }
 
 /**
  * @brief host 反初始化实现 (controller_ops.deinit): 检查 ref_count, 解绑 controller, 释放池槽位
  * @param[in] pdev controller device (host)
- * @return 成功返回 MINI_OK, BUSY 返回 MINI_ERR_BUSY, 失败返回 VFS_ERR_*
+ * @return 成功返回 MINI_OK, BUSY 返回 MINI_ERR_BUSY, 失败返回 MINI_ERR_*
  */
-static int uart_host_deinit_impl(struct device* pdev)
+static mt_err_t uart_host_deinit_impl(struct device* pdev)
 {
     struct uart_bus_host* host;
-    int idx;
+    int                   idx;
 
     if (!pdev)
         return MINI_ERR_INVAL;
@@ -197,18 +193,18 @@ static int uart_host_deinit_impl(struct device* pdev)
         return MINI_ERR_NODEV;
 
     /* atomic 检查, BUSY 时不销毁 (对齐 SPI) */
-    if (COMPAT_ATOMIC_LOAD(&host->ref_count, COMPAT_MO_SEQ_CST) > 0)
+    if (MINI_ATOMIC_LOAD(&host->ref_count, MINI_SEQ_CST) > 0)
         return MINI_ERR_BUSY;
 
     bus_controller_unbind(pdev);
 
     /* HAL close: 关闭 UART (如果已 open) */
     if (host->hal_host.hw_inited)
-        COMPAT_IGNORE_RESULT(hal_uart_dev_hw_close(&host->hal_host));
+        MINI_IGNORE_RESULT(hal_uart_dev_hw_close(&host->hal_host));
 
     idx = (int)(host - s_uart_hosts);
-    COMPAT_MEM_SET(host, 0, sizeof(*host));
-    COMPAT_IGNORE_RESULT(osal_pool_release(&s_uart_host_pool_ctrl, idx));
+    MINI_MEM_SET(host, 0, sizeof(*host));
+    MINI_IGNORE_RESULT(mini_slot_release(&s_uart_host_pool_ctrl, idx));
     return MINI_OK;
 }
 
@@ -219,16 +215,13 @@ static int uart_host_deinit_impl(struct device* pdev)
  */
 static int uart_host_role_impl(struct device* pdev)
 {
-    COMPAT_IGNORE_RESULT(pdev);
+    MINI_IGNORE_RESULT(pdev);
     return 0; /* UART 无 master/slave 之分 */
 }
 
-int uart_bus_host_init(struct device* pdev, const struct hal_uart_config* cfg)
-{
-    return uart_host_init_impl(pdev, cfg);
-}
+mt_err_t uart_bus_host_init(struct device* pdev, const struct hal_uart_config* cfg) { return uart_host_init_impl(pdev, cfg); }
 
-int uart_bus_host_deinit(struct device* pdev) { return uart_host_deinit_impl(pdev); }
+mt_err_t uart_bus_host_deinit(struct device* pdev) { return uart_host_deinit_impl(pdev); }
 
 /* -------------------------------------------------------------------------- */
 /*Client API*/
@@ -239,17 +232,17 @@ int uart_bus_host_deinit(struct device* pdev) { return uart_host_deinit_impl(pde
  * @param[in] pdev client device
  * @param[in] cfg client 配置 (UART 无 per-client 配置, 此参数忽略)
  * @param[out] out 输出 client 私有上下文 (可 NULL)
- * @return 成功返回 MINI_OK, 失败返回 VFS_ERR_*
+ * @return 成功返回 MINI_OK, 失败返回 MINI_ERR_*
  */
-static int uart_client_register_impl(struct device* pdev, const void* cfg, void** out)
+static mt_err_t uart_client_register_impl(struct device* pdev, const void* cfg, void** out)
 {
-    struct bus_controller* ctlr;
-    struct uart_bus_host* host;
+    struct bus_controller*  ctlr;
+    struct uart_bus_host*   host;
     struct uart_bus_client* cli;
-    int idx;
-    int ret;
+    int                     idx;
+    int                     ret;
 
-    COMPAT_IGNORE_RESULT(cfg);
+    MINI_IGNORE_RESULT(cfg);
     if (!pdev)
         return MINI_ERR_INVAL;
 
@@ -266,12 +259,12 @@ static int uart_client_register_impl(struct device* pdev, const void* cfg, void*
     if (!host)
         return MINI_ERR_IO;
 
-    idx = osal_pool_claim(&s_uart_client_pool_ctrl);
+    idx = mini_slot_claim(&s_uart_client_pool_ctrl);
     if (idx < 0)
         return MINI_ERR_NOMEM;
 
     cli = &s_uart_clients[idx];
-    COMPAT_MEM_SET(cli, 0, sizeof(*cli));
+    MINI_MEM_SET(cli, 0, sizeof(*cli));
     cli->pdev = pdev;
     cli->host = host;
 
@@ -279,13 +272,12 @@ static int uart_client_register_impl(struct device* pdev, const void* cfg, void*
     ret = hal_uart_dev_hw_open(&host->hal_host);
     if (ret != MINI_OK)
     {
-        COMPAT_MEM_SET(cli, 0, sizeof(*cli));
-        COMPAT_IGNORE_RESULT(osal_pool_release(&s_uart_client_pool_ctrl, idx));
+        MINI_MEM_SET(cli, 0, sizeof(*cli));
+        MINI_IGNORE_RESULT(mini_slot_release(&s_uart_client_pool_ctrl, idx));
         return ret;
     }
 
-    (void)COMPAT_ATOMIC_FETCH_ADD(&host->ref_count, 1,
-                                  COMPAT_MO_SEQ_CST); /* 对齐 spi: client_register +1 */
+    (void)MINI_ATOMIC_FETCH_ADD(&host->ref_count, 1, MINI_SEQ_CST); /* 对齐 spi: client_register +1 */
 
     if (out)
         *out = cli;
@@ -299,9 +291,9 @@ static int uart_client_register_impl(struct device* pdev, const void* cfg, void*
 static void uart_client_unregister_impl(struct device* pdev)
 {
     struct uart_bus_client* cli;
-    struct uart_bus_host* host;
-    int prev;
-    int idx;
+    struct uart_bus_host*   host;
+    int                     prev;
+    int                     idx;
 
     cli = uart_client_from_device(pdev);
     if (!cli)
@@ -312,27 +304,24 @@ static void uart_client_unregister_impl(struct device* pdev)
     /* 多 client 共享同一 UART: 仅最后一个 unregister 时 hw_close */
     if (host)
     {
-        prev = COMPAT_ATOMIC_FETCH_SUB(&host->ref_count, 1, COMPAT_MO_SEQ_CST);
+        prev = MINI_ATOMIC_FETCH_SUB(&host->ref_count, 1, MINI_SEQ_CST);
         if (prev == 1 && host->hal_host.hw_inited)
-            COMPAT_IGNORE_RESULT(hal_uart_dev_hw_close(&host->hal_host));
+            MINI_IGNORE_RESULT(hal_uart_dev_hw_close(&host->hal_host));
     }
 
     idx = (int)(cli - s_uart_clients);
-    COMPAT_MEM_SET(cli, 0, sizeof(*cli));
-    COMPAT_IGNORE_RESULT(osal_pool_release(&s_uart_client_pool_ctrl, idx));
+    MINI_MEM_SET(cli, 0, sizeof(*cli));
+    MINI_IGNORE_RESULT(mini_slot_release(&s_uart_client_pool_ctrl, idx));
 }
 
-int uart_bus_client_register(struct device* pdev)
-{
-    return uart_client_register_impl(pdev, NULL, NULL);
-}
+mt_err_t uart_bus_client_register(struct device* pdev) { return uart_client_register_impl(pdev, NULL, NULL); }
 
 void uart_bus_client_unregister(struct device* pdev) { uart_client_unregister_impl(pdev); }
 
 /* -------------------------------------------------------------------------- */
 /*I/O API (VFS 层调用)*/
 /* -------------------------------------------------------------------------- */
-int uart_bus_open(struct device* pdev)
+mt_err_t uart_bus_open(struct device* pdev)
 {
     struct uart_bus_client* cli = uart_client_from_device(pdev);
     if (!cli || !cli->host)
@@ -340,7 +329,7 @@ int uart_bus_open(struct device* pdev)
     return MINI_OK; /* ref_count 在 client_register/unregister 维护 */
 }
 
-int uart_bus_close(struct device* pdev)
+mt_err_t uart_bus_close(struct device* pdev)
 {
     struct uart_bus_client* cli = uart_client_from_device(pdev);
     if (!cli || !cli->host)
@@ -348,28 +337,27 @@ int uart_bus_close(struct device* pdev)
     return MINI_OK; /* ref_count 在 client_register/unregister 维护 */
 }
 
-int uart_bus_write(struct device* pdev, const uint8_t* data, size_t len, uint32_t timeout_ms)
+mt_err_t uart_bus_write(struct device* pdev, const uint8_t* data, size_t len, uint32_t timeout_ms)
 {
     struct uart_bus_client* cli = uart_client_from_device(pdev);
-    struct hal_uart_dev hal_dev;
+    struct hal_uart_dev     hal_dev;
     if (!cli || !cli->host || !data || len == 0)
         return MINI_ERR_INVAL;
     hal_dev.ctlr = &cli->host->hal_host;
     return hal_uart_write(&hal_dev, data, len, timeout_ms);
 }
 
-int uart_bus_read(struct device* pdev, uint8_t* data, size_t len, uint32_t timeout_ms)
+mt_err_t uart_bus_read(struct device* pdev, uint8_t* data, size_t len, uint32_t timeout_ms)
 {
     struct uart_bus_client* cli = uart_client_from_device(pdev);
-    struct hal_uart_dev hal_dev;
+    struct hal_uart_dev     hal_dev;
     if (!cli || !cli->host || !data || len == 0)
         return MINI_ERR_INVAL;
     hal_dev.ctlr = &cli->host->hal_host;
     return hal_uart_read(&hal_dev, data, len, timeout_ms);
 }
 
-int uart_bus_transfer(struct device* pdev, const uint8_t* tx, uint8_t* rx, size_t tx_len,
-                      size_t rx_len, uint32_t timeout_ms)
+mt_err_t uart_bus_transfer(struct device* pdev, const uint8_t* tx, uint8_t* rx, size_t tx_len, size_t rx_len, uint32_t timeout_ms)
 {
     int ret = MINI_OK;
 

@@ -64,23 +64,21 @@ Also: `hal/amp`, `hal/storage`, `hal/system`, `hal/hal_if_dummy.c` (HAL weak emp
 
 ---
 
-## core / osal / interrupt / system
+## core / interrupt / system
 
 | Path | Description |
 | :--- | :--- |
 | `core/include/status.h` | `MINI_ERR_*`, `ERR_PTR` |
 | `core/include/compiler_compat.h` | portable attributes & mem API |
 | `core/include/compiler_compat_poison.h` | poison layer |
-| `core/include/event_bus.h` · `event_bus.hpp` | event bus |
-| `core/include/buffer_pool.h` | buffer pool |
-| `core/include/system_log.h` · `production_log.h` | logging |
+| `core/include/event_bus.h` | event bus |
+| `core/include/system_log.h` | logging |
 | `core/src/*.c` | implementations above |
-| `osal/include/osal.h` | OSAL master header |
-| `osal/include/osal_null.h` | bare-metal helper header + C++ task overload declaration |
-| `osal/src/osal_{null,freertos,rtthread}.c` | three backends |
-| `osal/src/osal_task.cpp` | bare-metal C++ task wrapper |
+| `core/include/mini_backend.h` | the unified interface master header |
+| `core/src/mini_backend_{bare,mini_os,freertos,rtthread}.c` | four backends |
 | `interrupt/interrupt.{c,h}` | VIRQ |
-| `system_c/` · `system_cpp/` | init, wdt, scrubber, safe_state, task_manager, cmd (C or C++ via Kconfig) |
+| `system_c/` | init, wdt, scrubber, safe_state, task_manager (system layer, pure C) |
+| `system_cpp/` | cmd only (`SystemCmd`, C++, `CONFIG_SYSTEM_CMD`, off by default) |
 | `time_slice/task/xtask*.{c,h}` | bare-metal scheduler |
 
 ---
@@ -125,7 +123,7 @@ Also: `hal/amp`, `hal/storage`, `hal/system`, `hal/hal_if_dummy.c` (HAL weak emp
 | :--- | :--- |
 | `display/display_ui_bridge.h` | Entry point for UI library callbacks (LVGL flush / u8g2 SendBuffer), goes through `DISPLAY_CMD_*`, zero third-party library dependencies |
 
-> `lib/` status: only **FreeRTOS, RT-Thread, ETL** are vendored; **TinyUSB / lwIP** are fetched at config time, all other bricks at link time.
+> `lib/` status: only **mini-os, FreeRTOS, RT-Thread, ETL** are vendored, plus the in-tree **mini-ota** OTA/bootloader (`CONFIG_MINI_OTA`); **TinyUSB / lwIP** are fetched at config time, all other bricks at link time.
 
 ---
 

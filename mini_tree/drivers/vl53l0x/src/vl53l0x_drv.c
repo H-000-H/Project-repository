@@ -17,7 +17,8 @@
 #include "device.h"
 #include "driver.h"
 #include "dt_config_gen.h"
-#include "osal.h"
+#include "mini_slot.h"
+#include "mini_time.h"
 #include "status.h"
 #include "system_log.h"
 #include "vfs-i2c.h"
@@ -34,23 +35,23 @@
 /** @brief VL53L0X 驱动实例（嵌入 fops 与测距状态） */
 struct vl53l0x_device
 {
-    struct file_operations ops; /**< 挂入 device 的 fops */
-    struct device* i2c_dev; /**< 所属 I2C client 设备 */
-    uint8_t stop_variable; /**< dataInit 阶段保存的 stop_variable */
-    int hw_ready; /**< 硬件已初始化标志 */
+    struct file_operations ops;           /**< 挂入 device 的 fops */
+    struct device*         i2c_dev;       /**< 所属 I2C client 设备 */
+    uint8_t                stop_variable; /**< dataInit 阶段保存的 stop_variable */
+    int                    hw_ready;      /**< 硬件已初始化标志 */
 };
 
-static struct vl53l0x_device s_vl53l0x_pool[VL53L0X_POOL_COUNT] COMPAT_ALIGNED(4);
-static uint8_t s_vl53l0x_used[VL53L0X_POOL_COUNT] COMPAT_ALIGNED(4);
-static osal_pool_t s_vl53l0x_pool_ctrl COMPAT_ALIGNED(4);
-static const char* const k_tag = "vl53l0x";
+static struct vl53l0x_device           s_vl53l0x_pool[VL53L0X_POOL_COUNT] MINI_ALIGNED(4);
+static uint8_t                         s_vl53l0x_used[VL53L0X_POOL_COUNT] MINI_ALIGNED(4);
+static mini_slot_t s_vl53l0x_pool_ctrl MINI_ALIGNED(4);
+static const char* const               k_tag = "vl53l0x";
 
 /**
- * @brief 驱动池启动初始化（pre_execution 阶段，创建静态对象池）
+ * @brief 驱动池启动初始化（mini_pre_execution 阶段，创建静态对象池）
  */
-pre_execution(PRE_EXEC_PRIO_DRIVER_POOL) static void vl53l0x_pool_boot_init(void)
+mini_pre_execution(MINI_PRE_EXEC_PRIO_DRIVER_POOL) static void vl53l0x_pool_boot_init(void)
 {
-    COMPAT_IGNORE_RESULT(osal_pool_init(&s_vl53l0x_pool_ctrl, s_vl53l0x_used, VL53L0X_POOL_COUNT));
+    MINI_IGNORE_RESULT(mini_slot_init(&s_vl53l0x_pool_ctrl, s_vl53l0x_used, VL53L0X_POOL_COUNT));
 }
 
 /**
@@ -58,17 +59,13 @@ pre_execution(PRE_EXEC_PRIO_DRIVER_POOL) static void vl53l0x_pool_boot_init(void
  * @param[in] pdev device 指针
  * @return 驱动实例指针，无效时 ERR_PTR
  */
-static struct vl53l0x_device* vl53l0x_get_drvdata(struct device* pdev)
-{
-    return (struct vl53l0x_device*)device_get_priv(pdev);
-}
+static struct vl53l0x_device* vl53l0x_get_drvdata(struct device* pdev) { return (struct vl53l0x_device*)device_get_priv(pdev); }
 
 /**
  * @brief 向 I2C 总线写数据
- * @return MINI_OK 或 VFS_ERR_*
+ * @return MINI_OK 或 MINI_ERR_*
  */
-static int vl53l0x_i2c_wr(struct vl53l0x_device* dev, const uint8_t* tx, size_t len,
-                          uint32_t timeout_ms)
+static mt_err_t vl53l0x_i2c_wr(struct vl53l0x_device* dev, const uint8_t* tx, size_t len, uint32_t timeout_ms)
 {
     if (!dev || !dev->i2c_dev || !tx || len == 0U)
         return MINI_ERR_INVAL;
@@ -76,9 +73,9 @@ static int vl53l0x_i2c_wr(struct vl53l0x_device* dev, const uint8_t* tx, size_t 
 }
 /**
  * @brief 从 I2C 总线读数据
- * @return MINI_OK 或 VFS_ERR_*
+ * @return MINI_OK 或 MINI_ERR_*
  */
-static int vl53l0x_i2c_rd(struct vl53l0x_device* dev, uint8_t* rx, size_t len, uint32_t timeout_ms)
+static mt_err_t vl53l0x_i2c_rd(struct vl53l0x_device* dev, uint8_t* rx, size_t len, uint32_t timeout_ms)
 {
     if (!dev || !dev->i2c_dev || !rx || len == 0U)
         return MINI_ERR_INVAL;
@@ -110,10 +107,10 @@ static int vl53l0x_rd8(struct vl53l0x_device* dev, uint8_t reg, uint8_t* val, ui
  * @brief 读 16bit 大端寄存器
  * @param[in] val 输出寄存器值
  */
-static int vl53l0x_rd16(struct vl53l0x_device* dev, uint8_t reg, uint16_t* val, uint32_t timeout_ms)
+static mt_err_t vl53l0x_rd16(struct vl53l0x_device* dev, uint8_t reg, uint16_t* val, uint32_t timeout_ms)
 {
     uint8_t raw[2];
-    int ret = vl53l0x_i2c_wr(dev, &reg, 1, timeout_ms);
+    int     ret = vl53l0x_i2c_wr(dev, &reg, 1, timeout_ms);
     if (ret != MINI_OK)
         return ret;
     ret = vl53l0x_i2c_rd(dev, raw, 2, timeout_ms);
@@ -125,12 +122,12 @@ static int vl53l0x_rd16(struct vl53l0x_device* dev, uint8_t reg, uint16_t* val, 
 
 /**
  * @brief 首次 open 时初始化硬件：软复位 + 模型校验 + dataInit 片段
- * @return MINI_OK 或 VFS_ERR_*
+ * @return MINI_OK 或 MINI_ERR_*
  */
-static int vl53l0x_hw_create(struct vl53l0x_device* dev)
+static mt_err_t vl53l0x_hw_create(struct vl53l0x_device* dev)
 {
     uint8_t model = 0;
-    int ret;
+    int     ret;
     if (!dev)
         return MINI_ERR_INVAL;
     if (dev->hw_ready)
@@ -142,17 +139,17 @@ static int vl53l0x_hw_create(struct vl53l0x_device* dev)
     ret = vl53l0x_wr8(dev, 0xBF, 0x00, 100);
     if (ret != MINI_OK)
         goto fail;
-    osal_delay_ms(1);
+    mini_delay_ms(1);
     ret = vl53l0x_wr8(dev, 0xBF, 0x01, 100);
     if (ret != MINI_OK)
         goto fail;
-    osal_delay_ms(10);
+    mini_delay_ms(10);
     ret = vl53l0x_rd8(dev, 0xC0, &model, 100);
     if (ret != MINI_OK)
         goto fail;
     if (model != 0xEE)
     {
-        SYS_LOGE(k_tag, "bad model id 0x%02x", model);
+        MT_LOG_ERROR(k_tag, "bad model id 0x%02x", model);
         ret = MINI_ERR_NODEV;
         goto fail;
     }
@@ -187,7 +184,7 @@ static int vl53l0x_hw_create(struct vl53l0x_device* dev)
     dev->hw_ready = 1;
     return MINI_OK;
 fail:
-    COMPAT_IGNORE_RESULT(device_close(dev->i2c_dev));
+    MINI_IGNORE_RESULT(device_close(dev->i2c_dev));
     return ret;
 }
 
@@ -200,7 +197,7 @@ static void vl53l0x_hw_destroy(struct vl53l0x_device* dev)
         return;
 
     if (dev->i2c_dev)
-        COMPAT_IGNORE_RESULT(device_close(dev->i2c_dev));
+        MINI_IGNORE_RESULT(device_close(dev->i2c_dev));
     dev->hw_ready = 0;
 }
 
@@ -210,9 +207,9 @@ static void vl53l0x_hw_destroy(struct vl53l0x_device* dev)
 static int vl53l0x_open(struct device* pdev, void* arg)
 {
     struct vl53l0x_device* dev;
-    struct dev_lifecycle* lc;
-    int first, ret;
-    COMPAT_IGNORE_RESULT(arg);
+    struct dev_lifecycle*  lc;
+    int                    first, ret;
+    MINI_IGNORE_RESULT(arg);
     if (!pdev || !pdev->ops)
         return MINI_ERR_INVAL;
     dev = vl53l0x_get_drvdata(pdev);
@@ -244,8 +241,8 @@ static int vl53l0x_open(struct device* pdev, void* arg)
 static int vl53l0x_close(struct device* pdev)
 {
     struct vl53l0x_device* dev;
-    struct dev_lifecycle* lc;
-    int last;
+    struct dev_lifecycle*  lc;
+    int                    last;
     if (!pdev || !pdev->ops)
         return MINI_ERR_INVAL;
     dev = vl53l0x_get_drvdata(pdev);
@@ -266,8 +263,7 @@ static int vl53l0x_close(struct device* pdev)
 /**
  * @brief ioctl 命令分发类型（命令处理函数由 map 绑定）
  */
-typedef int (*vl53l0x_ioctl_fn_t)(struct vl53l0x_device* dev, void* arg, size_t arg_len,
-                                  uint32_t ms);
+typedef mt_err_t (*vl53l0x_ioctl_fn_t)(struct vl53l0x_device* dev, void* arg, size_t arg_len, uint32_t ms);
 struct vl53l0x_ioctl_map
 {
     vl53l0x_ioctl_fn_t handler;
@@ -276,13 +272,13 @@ struct vl53l0x_ioctl_map
 /**
  * @brief VL53L0X_CMD_READ_DISTANCE 实现：单次测距启动 → 等待完成 → 读毫米值
  */
-static int vl53l0x_cmd_read(struct vl53l0x_device* dev, void* arg, size_t len, uint32_t timeout_ms)
+static mt_err_t vl53l0x_cmd_read(struct vl53l0x_device* dev, void* arg, size_t len, uint32_t timeout_ms)
 {
     struct vl53l0x_sample* sample = (struct vl53l0x_sample*)arg;
-    uint8_t st = 0;
-    uint16_t mm = 0;
-    int index;
-    int ret;
+    uint8_t                st = 0;
+    uint16_t               mm = 0;
+    int                    index;
+    int                    ret;
     if (!dev->hw_ready || !sample || len != sizeof(*sample))
         return MINI_ERR_INVAL;
     /* 单次测距启动序列（对齐常见开源 VL53L0X 驱动，非完整 ST API 校准） */
@@ -317,7 +313,7 @@ static int vl53l0x_cmd_read(struct vl53l0x_device* dev, void* arg, size_t len, u
             return ret;
         if ((st & 0x01) == 0)
             break;
-        osal_delay_ms(1);
+        mini_delay_ms(1);
     }
     for (index = 0; index < 100; index++)
     {
@@ -326,14 +322,14 @@ static int vl53l0x_cmd_read(struct vl53l0x_device* dev, void* arg, size_t len, u
             return ret;
         if (st & 0x07)
             break;
-        osal_delay_ms(1);
+        mini_delay_ms(1);
     }
     if ((st & 0x07) == 0)
         return MINI_ERR_TIMEOUT;
     ret = vl53l0x_rd16(dev, 0x1E, &mm, timeout_ms); /* RESULT_RANGE_MILLIMETER */
     if (ret != MINI_OK)
         return ret;
-    COMPAT_IGNORE_RESULT(vl53l0x_wr8(dev, 0x0B, 0x01, timeout_ms)); /* clear interrupt */
+    MINI_IGNORE_RESULT(vl53l0x_wr8(dev, 0x0B, 0x01, timeout_ms)); /* clear interrupt */
     sample->mm = mm;
     return MINI_OK;
 }
@@ -345,12 +341,12 @@ static const struct vl53l0x_ioctl_map s_vl53l0x_map[VL53L0X_CMD_COUNT] = {
 /**
  * @brief fops.ioctl：查表分发命令，持 io 生命周期锁
  */
-static int vl53l0x_ioctl(struct device* pdev, int cmd, void* arg, size_t arg_len, uint32_t ms)
+static mt_err_t vl53l0x_ioctl(struct device* pdev, int cmd, void* arg, size_t arg_len, uint32_t ms)
 {
     struct vl53l0x_device* dev;
-    struct dev_lifecycle* lc;
-    int32_t off;
-    int ret;
+    struct dev_lifecycle*  lc;
+    int32_t                off;
+    int                    ret;
     if (!pdev || !pdev->ops)
         return MINI_ERR_INVAL;
     dev = vl53l0x_get_drvdata(pdev);
@@ -380,17 +376,17 @@ static const struct file_operations vl53l0x_fops = {
 /**
  * @brief probe：claim 池项、绑定父 I2C 设备并挂 fops
  */
-static int vl53l0x_probe(struct device* pdev)
+static mt_err_t vl53l0x_probe(struct device* pdev)
 {
     struct vl53l0x_device* dev;
-    int pool_idx, ret;
+    int                    pool_idx, ret;
     if (!pdev)
         return MINI_ERR_INVAL;
-    pool_idx = osal_pool_claim(&s_vl53l0x_pool_ctrl);
+    pool_idx = mini_slot_claim(&s_vl53l0x_pool_ctrl);
     if (pool_idx < 0)
         return MINI_ERR_NOMEM;
     dev = &s_vl53l0x_pool[pool_idx];
-    COMPAT_MEM_SET(dev, 0, sizeof(*dev));
+    MINI_MEM_SET(dev, 0, sizeof(*dev));
     dev->i2c_dev = device_get_parent(pdev);
     if (!dev->i2c_dev)
     {
@@ -405,23 +401,23 @@ static int vl53l0x_probe(struct device* pdev)
     }
     dev->ops = vl53l0x_fops;
     pdev->ops = &dev->ops;
-    SYS_LOGI(k_tag, "probe OK pool=%dev", pool_idx);
+    MT_LOG_INFO(k_tag, "probe OK pool=%dev", pool_idx);
     return MINI_OK;
 err:
     pdev->ops = NULL;
-    COMPAT_MEM_SET(dev, 0, sizeof(*dev));
-    COMPAT_IGNORE_RESULT(osal_pool_release(&s_vl53l0x_pool_ctrl, pool_idx));
+    MINI_MEM_SET(dev, 0, sizeof(*dev));
+    MINI_IGNORE_RESULT(mini_slot_release(&s_vl53l0x_pool_ctrl, pool_idx));
     return ret;
 }
 
 /**
  * @brief remove：排空在途 io、释放硬件并归还池项
  */
-static int vl53l0x_remove(struct device* pdev)
+static mt_err_t vl53l0x_remove(struct device* pdev)
 {
     struct vl53l0x_device* dev;
-    struct dev_lifecycle* lc;
-    int idx;
+    struct dev_lifecycle*  lc;
+    int                    idx;
     if (!pdev)
         return MINI_ERR_INVAL;
     dev = vl53l0x_get_drvdata(pdev);
@@ -433,14 +429,14 @@ static int vl53l0x_remove(struct device* pdev)
     idx = (int)(dev - s_vl53l0x_pool);
     dev_lc_remove_start(lc);
     device_ops_unregister(pdev);
-    if (dev_lc_remove_drain(lc, OSAL_WAIT_FOREVER) != MINI_OK)
+    if (dev_lc_remove_drain(lc, MINI_WAIT_FOREVER) != MINI_OK)
     {
         dev_lc_remove_finish(lc);
         return MINI_ERR_IO;
     }
     vl53l0x_hw_destroy(dev);
-    COMPAT_MEM_SET(dev, 0, sizeof(*dev));
-    COMPAT_IGNORE_RESULT(osal_pool_release(&s_vl53l0x_pool_ctrl, idx));
+    MINI_MEM_SET(dev, 0, sizeof(*dev));
+    MINI_IGNORE_RESULT(mini_slot_release(&s_vl53l0x_pool_ctrl, idx));
     dev_lc_remove_finish(lc);
     return MINI_OK;
 }

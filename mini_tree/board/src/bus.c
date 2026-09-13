@@ -22,8 +22,8 @@
 #include <stddef.h>
 #include <string.h>
 
-static struct bus_controller s_controllers[DEV_ID_COUNT] COMPAT_ALIGNED(4);
-static uint8_t s_controller_used[DEV_ID_COUNT] COMPAT_ALIGNED(4);
+static struct bus_controller s_controllers[DEV_ID_COUNT] MINI_ALIGNED(4);
+static uint8_t               s_controller_used[DEV_ID_COUNT] MINI_ALIGNED(4);
 
 /**
  * @brief 将 device 转换为 device_id (通过 board_dev_find 线性扫描)
@@ -45,8 +45,7 @@ static device_id_t device_to_id(const struct device* pdev)
  * @param[in] hw_ctx 硬件上下文指针
  * @return 成功返回 MINI_OK, 失败返回负数错误码
  */
-int bus_controller_bind_full(struct device* pdev, bus_type_t type,
-                             const struct bus_controller_ops* ctlr_ops, void* hw_ctx)
+mt_err_t bus_controller_bind_full(struct device* pdev, bus_type_t type, const struct bus_controller_ops* ctlr_ops, void* hw_ctx)
 {
     device_id_t id;
 
@@ -70,7 +69,7 @@ int bus_controller_bind_full(struct device* pdev, bus_type_t type,
  * @param[out] out 输出 bus_controller 指针
  * @return 成功返回 MINI_OK, 失败返回负数错误码
  */
-int bus_controller_get(const struct device* pdev, struct bus_controller** out)
+mt_err_t bus_controller_get(const struct device* pdev, struct bus_controller** out)
 {
     device_id_t id;
 
@@ -94,10 +93,10 @@ int bus_controller_get(const struct device* pdev, struct bus_controller** out)
  * @param[out] out 输出 bus_controller 指针
  * @return 成功返回 MINI_OK, 失败返回负数错误码
  */
-int bus_controller_of(const struct device* pdev, struct bus_controller** out)
+mt_err_t bus_controller_of(const struct device* pdev, struct bus_controller** out)
 {
     struct device* parent;
-    device_id_t id;
+    device_id_t    id;
 
     if (!out)
         return MINI_ERR_INVAL;
@@ -134,7 +133,7 @@ void bus_controller_unbind(struct device* pdev)
         return;
 
     s_controller_used[id] = 0;
-    COMPAT_MEM_SET(&s_controllers[id], 0, sizeof(s_controllers[id]));
+    MINI_MEM_SET(&s_controllers[id], 0, sizeof(s_controllers[id]));
 }
 
 /* -------------------------------------------------------------------------- */
@@ -171,8 +170,7 @@ struct bus_async_bridge* bus_async_bridge_claim(struct bus_async_bridge* slots, 
  * @param[in] cb 用户完成回调
  * @param[in] userdata 回调用户数据
  */
-void bus_async_bridge_bind(struct bus_async_bridge* bridge, struct device* pdev,
-                           bus_async_user_cb_t cb, void* userdata)
+void bus_async_bridge_bind(struct bus_async_bridge* bridge, struct device* pdev, bus_async_user_cb_t cb, void* userdata)
 {
     if (!bridge)
         return;
