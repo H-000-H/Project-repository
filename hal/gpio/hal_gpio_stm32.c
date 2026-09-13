@@ -1,4 +1,4 @@
-/**
+﻿/**
  * SPDX-License-Identifier: Apache-2.0
  * @brief STM32 GPIO 硬件直投实现
  * @note 设计理念：尽量使用ll库函数，减少代码量，提高代码可读性，减少错误率，不是不得已不使用寄存器操作
@@ -244,7 +244,7 @@ int hal_gpio_set_mode(hal_gpio_dev_t* pdev, uint32_t mode)
          return MINI_ERR_INVAL;
  
      GPIO_TypeDef* GPIOx = (GPIO_TypeDef*)pdev->port;
-     uint32_t pin_pos = (uint32_t)COMPAT_CTZ(pdev->pin);
+     uint32_t pin_pos = (uint32_t)MINI_CTZ(pdev->pin);
      uint32_t shift = (pin_pos & 0x07U) * 4U;
  
      /**< 清空目标引脚所在的4位AFR空间，并写入新的AF值 */
@@ -265,7 +265,7 @@ int hal_gpio_set_mode(hal_gpio_dev_t* pdev, uint32_t mode)
          return MINI_ERR_INVAL;
  
      GPIO_TypeDef* GPIOx = (GPIO_TypeDef*)pdev->port;
-     uint32_t pin_pos = (uint32_t)COMPAT_CTZ(pdev->pin);
+     uint32_t pin_pos = (uint32_t)MINI_CTZ(pdev->pin);
  
      /**< 零分支直读：右移并清空高位，提取出目标引脚对应的 4-bit AF 寄存器值 */
      *af = (GPIOx->AFR[pin_pos >> 3U] >> ((pin_pos & 0x07U) * 4U)) & 0x0FU;
@@ -414,7 +414,7 @@ int hal_gpio_irq_enable(hal_gpio_dev_t* pdev)
     if (pdev->virq_idx >= VIRTUAL_IRQ_BLOCK_SIZE)
         return MINI_ERR_INVAL;
 
-    line = (uint32_t)COMPAT_CTZ(pdev->pin);
+    line = (uint32_t)MINI_CTZ(pdev->pin);
     if (line >= HAL_GPIO_EXTI_LINES)
         return MINI_ERR_INVAL;
 
@@ -451,7 +451,7 @@ int hal_gpio_irq_disable(hal_gpio_dev_t* pdev)
     if (!pdev)
         return MINI_ERR_INVAL;
 
-    line = (uint32_t)COMPAT_CTZ(pdev->pin);
+    line = (uint32_t)MINI_CTZ(pdev->pin);
     if (line >= HAL_GPIO_EXTI_LINES)
         return MINI_ERR_INVAL;
 

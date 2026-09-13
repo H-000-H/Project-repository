@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Apache-2.0 */
+﻿/* SPDX-License-Identifier: Apache-2.0 */
 /*
  * SPI HAL — STM32F4 实现 (Master only)
  *
@@ -9,7 +9,6 @@
  */
 #include "hal_spi.h"
 #include "status.h"
-#include "osal.h"
 #include "compiler_compat.h"
 
 #include "stm32f4xx.h"
@@ -49,15 +48,15 @@ struct bottom_half_work g_spi_bottom_half_work;
  * - s_dummy_tx 填 0xFF: 用户只收时, DMA 仍需往 SPI->DR 写驱动 SCLK
  * - s_dummy_rx 丢弃区:  用户只发时, DMA 仍需从 SPI->DR 读避免 OVR
  * 32 字节对齐适配 DMA cache line; per-host 索引防多 host 并发踩踏。 */
-static uint8_t s_dummy_tx[HAL_SPI_HOST_MAX][HAL_SPI_MAX_XFER] COMPAT_ALIGNED(32);
-static uint8_t s_dummy_rx[HAL_SPI_HOST_MAX][HAL_SPI_MAX_XFER] COMPAT_ALIGNED(32);
+static uint8_t s_dummy_tx[HAL_SPI_HOST_MAX][HAL_SPI_MAX_XFER] MINI_ALIGNED(32);
+static uint8_t s_dummy_rx[HAL_SPI_HOST_MAX][HAL_SPI_MAX_XFER] MINI_ALIGNED(32);
 
 /* 纯 LL 库调用, 非抽象层 */
 /**
  * @brief 配置 SPI 复用引脚: 时钟使能 + AF 模式 + 推挽高速 (LL 库直投)
  * @param pin 引脚配置 (含 port/pin/clk_bus/af)
  */
-COMPAT_STATIC_INLINE void hal_spi_config_af_pin(const struct hal_spi_pin_cfg* pin)
+MINI_STATIC_INLINE void hal_spi_config_af_pin(const struct hal_spi_pin_cfg* pin)
 {
     GPIO_TypeDef* port = (GPIO_TypeDef*)pin->port;
     LL_GPIO_InitTypeDef GPIO_InitStruct = {0};
@@ -201,7 +200,7 @@ int hal_spi_bus_host_init(struct hal_spi_bus_host* host, int hw_idx, const struc
     if (!cfg->spi)
         return MINI_ERR_NODEV;
 
-    COMPAT_MEM_SET(host, 0, sizeof(*host));
+    MINI_MEM_SET(host, 0, sizeof(*host));
     host->cfg = *cfg;
 
  if (host->cfg.bus_role != HAL_SPI_BUS_ROLE_MASTER && host->cfg.bus_role != HAL_SPI_BUS_ROLE_SLAVE)
@@ -268,7 +267,7 @@ int hal_spi_dev_init(struct hal_spi_dev* dev,struct hal_spi_bus_host* host,const
     if (!dev || !host || !dev_cfg)
         return MINI_ERR_INVAL;
 
-    COMPAT_MEM_SET(dev, 0, sizeof(*dev));
+    MINI_MEM_SET(dev, 0, sizeof(*dev));
     dev->ctlr     = host;
     dev->cfg      = *dev_cfg;
     return MINI_OK;
@@ -446,7 +445,7 @@ static int stm32_spi_transfer_poll(struct hal_spi_bus_host* host, const struct h
             if (rx)
                 rx[i] = LL_SPI_ReceiveData8(spi);
             else
-                COMPAT_IGNORE_RESULT(LL_SPI_ReceiveData8(spi));
+                MINI_IGNORE_RESULT(LL_SPI_ReceiveData8(spi));
         }
     }
 
@@ -660,7 +659,7 @@ int hal_spi_transfer_dma_stm32(struct hal_spi_bus_host* host, const uint8_t* tx,
 
     if (use_tx && !tx_buf)
     {
-        COMPAT_MEM_SET(s_dummy_tx[host->hw_idx], 0xFF, len);
+        MINI_MEM_SET(s_dummy_tx[host->hw_idx], 0xFF, len);
         tx_buf = s_dummy_tx[host->hw_idx];
     }
     if (use_rx && !rx_buf)
@@ -763,7 +762,7 @@ void hal_spi_abort_stm32(struct hal_spi_bus_host* host)
  */
 int hal_virtual_spi_irq_callback(void* arg, uint16_t irq_num)
 {
-    COMPAT_IGNORE_RESULT(irq_num);
+    MINI_IGNORE_RESULT(irq_num);
     struct hal_spi_dev* dev = (struct hal_spi_dev*)arg;
 
     if (!dev || !dev->ctlr)
@@ -800,12 +799,12 @@ int hal_virtual_spi_irq_callback(void* arg, uint16_t irq_num)
  */
 int hal_spi_transfer_async(struct hal_spi_dev* dev,const uint8_t* tx, uint8_t* rx,size_t len, hal_spi_callback_t cb,void* userdata)
 {
-    COMPAT_IGNORE_RESULT(dev);
-    COMPAT_IGNORE_RESULT(tx);
-    COMPAT_IGNORE_RESULT(rx);
-    COMPAT_IGNORE_RESULT(len);
-    COMPAT_IGNORE_RESULT(cb);
-    COMPAT_IGNORE_RESULT(userdata);
+    MINI_IGNORE_RESULT(dev);
+    MINI_IGNORE_RESULT(tx);
+    MINI_IGNORE_RESULT(rx);
+    MINI_IGNORE_RESULT(len);
+    MINI_IGNORE_RESULT(cb);
+    MINI_IGNORE_RESULT(userdata);
     return MINI_ERR_NOTSUPP;
 }
 
@@ -817,8 +816,8 @@ int hal_spi_transfer_async(struct hal_spi_dev* dev,const uint8_t* tx, uint8_t* r
  */
 int hal_spi_transfer_poll(struct hal_spi_dev* dev, uint32_t timeout_ms)
 {
-    COMPAT_IGNORE_RESULT(dev);
-    COMPAT_IGNORE_RESULT(timeout_ms);
+    MINI_IGNORE_RESULT(dev);
+    MINI_IGNORE_RESULT(timeout_ms);
     return MINI_ERR_NOTSUPP;
 }
 
@@ -833,11 +832,11 @@ int hal_spi_transfer_poll(struct hal_spi_dev* dev, uint32_t timeout_ms)
  */
 int hal_spi_get_trans_result(struct hal_spi_dev* dev, uint8_t* rx_data, size_t rx_cap, size_t* trans_len, uint32_t timeout_ms)
 {
-    COMPAT_IGNORE_RESULT(dev);
-    COMPAT_IGNORE_RESULT(rx_data);
-    COMPAT_IGNORE_RESULT(rx_cap);
-    COMPAT_IGNORE_RESULT(trans_len);
-    COMPAT_IGNORE_RESULT(timeout_ms);
+    MINI_IGNORE_RESULT(dev);
+    MINI_IGNORE_RESULT(rx_data);
+    MINI_IGNORE_RESULT(rx_cap);
+    MINI_IGNORE_RESULT(trans_len);
+    MINI_IGNORE_RESULT(timeout_ms);
     return MINI_ERR_NOTSUPP;
 }
 
@@ -855,11 +854,11 @@ int hal_spi_get_trans_result(struct hal_spi_dev* dev, uint8_t* rx_data, size_t r
  */
 int hal_spi_slave_sync(struct hal_spi_dev* dev, const uint8_t* tx, uint8_t* rx, size_t len, uint32_t timeout_ms)
 {
-    COMPAT_IGNORE_RESULT(dev);
-    COMPAT_IGNORE_RESULT(tx);
-    COMPAT_IGNORE_RESULT(rx);
-    COMPAT_IGNORE_RESULT(len);
-    COMPAT_IGNORE_RESULT(timeout_ms);
+    MINI_IGNORE_RESULT(dev);
+    MINI_IGNORE_RESULT(tx);
+    MINI_IGNORE_RESULT(rx);
+    MINI_IGNORE_RESULT(len);
+    MINI_IGNORE_RESULT(timeout_ms);
     return MINI_ERR_NOTSUPP;
 }
 
@@ -873,9 +872,9 @@ int hal_spi_slave_sync(struct hal_spi_dev* dev, const uint8_t* tx, uint8_t* rx, 
  */
 int hal_spi_slave_queue_tx(struct hal_spi_dev* dev, const uint8_t* data, size_t len,uint32_t timeout_ms)
 {
-    COMPAT_IGNORE_RESULT(dev);
-    COMPAT_IGNORE_RESULT(data);
-    COMPAT_IGNORE_RESULT(len);
-    COMPAT_IGNORE_RESULT(timeout_ms);
+    MINI_IGNORE_RESULT(dev);
+    MINI_IGNORE_RESULT(data);
+    MINI_IGNORE_RESULT(len);
+    MINI_IGNORE_RESULT(timeout_ms);
     return MINI_ERR_NOTSUPP;
 }

@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Apache-2.0 */
+﻿/* SPDX-License-Identifier: Apache-2.0 */
 /**
  * @file        hal_iwdg.c
  * @brief       STM32F4 IWDG HAL 实现 (KR/PR/RLR, LSI≈32kHz)
@@ -60,7 +60,7 @@ int hal_iwdg_init(struct hal_iwdg_dev* pdev, const struct hal_iwdg_config* cfg)
 {
     if (!pdev || !cfg || cfg->timeout_ms == 0)
         return MINI_ERR_INVAL;
-    COMPAT_MEM_SET(pdev, 0, sizeof(*pdev));
+    MINI_MEM_SET(pdev, 0, sizeof(*pdev));
     pdev->cfg = *cfg;
     pdev->normal_timeout_ms = cfg->timeout_ms;
     if (cfg->prer == 0xFFFFFFFFU || cfg->rlr == 0xFFFFFFFFU)

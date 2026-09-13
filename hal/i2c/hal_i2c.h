@@ -122,31 +122,31 @@ struct hal_i2c_dev
     int                          hw_open; /**< 硬件打开计数 */
 };
 
-int hal_i2c_bus_host_init(struct hal_i2c_bus_host* host, int hw_idx, const struct hal_i2c_bus_config* cfg) COMPAT_WARN_UNUSED_RESULT;
-int hal_i2c_bus_host_deinit(struct hal_i2c_bus_host* host) COMPAT_WARN_UNUSED_RESULT;
-int hal_i2c_dev_hw_open(struct hal_i2c_dev* dev) COMPAT_WARN_UNUSED_RESULT;
-int hal_i2c_dev_hw_close(struct hal_i2c_dev* pdev) COMPAT_WARN_UNUSED_RESULT;
-int hal_i2c_dev_init(struct hal_i2c_dev* pdev, struct hal_i2c_bus_host* host, const struct hal_i2c_device_config* dev_cfg) COMPAT_WARN_UNUSED_RESULT;
-int hal_i2c_dev_deinit(struct hal_i2c_dev* pdev) COMPAT_WARN_UNUSED_RESULT;
+int hal_i2c_bus_host_init(struct hal_i2c_bus_host* host, int hw_idx, const struct hal_i2c_bus_config* cfg) MINI_WARN_UNUSED_RESULT;
+int hal_i2c_bus_host_deinit(struct hal_i2c_bus_host* host) MINI_WARN_UNUSED_RESULT;
+int hal_i2c_dev_hw_open(struct hal_i2c_dev* dev) MINI_WARN_UNUSED_RESULT;
+int hal_i2c_dev_hw_close(struct hal_i2c_dev* pdev) MINI_WARN_UNUSED_RESULT;
+int hal_i2c_dev_init(struct hal_i2c_dev* pdev, struct hal_i2c_bus_host* host, const struct hal_i2c_device_config* dev_cfg) MINI_WARN_UNUSED_RESULT;
+int hal_i2c_dev_deinit(struct hal_i2c_dev* pdev) MINI_WARN_UNUSED_RESULT;
 
 /**
  * @brief 主机同步传输 (组合: 先写后读 / 或分派到 write/read)
  * @note  tx 非空 rx 空 → 纯写; tx 空 rx 非空 → 纯读;
  *        两者都非空 → 先写后读 (Repeated START), 长度均为 len
  */
-int hal_i2c_sync(struct hal_i2c_dev* pdev, const uint8_t* tx, uint8_t* rx, size_t len, uint32_t timeout_ms) COMPAT_WARN_UNUSED_RESULT;
+int hal_i2c_sync(struct hal_i2c_dev* pdev, const uint8_t* tx, uint8_t* rx, size_t len, uint32_t timeout_ms) MINI_WARN_UNUSED_RESULT;
 /**
  * @brief 主机同步写 (直接走 master write, 不经 sync 绕路)
  */
-int hal_i2c_write(struct hal_i2c_dev* pdev, const uint8_t* tx, size_t len, uint32_t timeout_ms) COMPAT_WARN_UNUSED_RESULT;
+int hal_i2c_write(struct hal_i2c_dev* pdev, const uint8_t* tx, size_t len, uint32_t timeout_ms) MINI_WARN_UNUSED_RESULT;
 /**
  * @brief 主机同步读 (直接走 master read, 不经 sync 绕路)
  */
-int hal_i2c_read(struct hal_i2c_dev* pdev, uint8_t* rx, size_t len, uint32_t timeout_ms) COMPAT_WARN_UNUSED_RESULT;
-int hal_i2c_dma_write(struct hal_i2c_dev* pdev, const uint8_t* tx, size_t len, uint32_t timeout_ms) COMPAT_WARN_UNUSED_RESULT;
-int hal_i2c_dma_read(struct hal_i2c_dev* pdev, uint8_t* rx, size_t len, uint32_t timeout_ms) COMPAT_WARN_UNUSED_RESULT;
+int hal_i2c_read(struct hal_i2c_dev* pdev, uint8_t* rx, size_t len, uint32_t timeout_ms) MINI_WARN_UNUSED_RESULT;
+int hal_i2c_dma_write(struct hal_i2c_dev* pdev, const uint8_t* tx, size_t len, uint32_t timeout_ms) MINI_WARN_UNUSED_RESULT;
+int hal_i2c_dma_read(struct hal_i2c_dev* pdev, uint8_t* rx, size_t len, uint32_t timeout_ms) MINI_WARN_UNUSED_RESULT;
 /** DMA 先写后读 (中间 Repeated START, 无 STOP) */
-int hal_i2c_dma_write_then_read(struct hal_i2c_dev* pdev, const uint8_t* tx, uint8_t* rx, size_t len, uint32_t timeout_ms) COMPAT_WARN_UNUSED_RESULT;
+int hal_i2c_dma_write_then_read(struct hal_i2c_dev* pdev, const uint8_t* tx, uint8_t* rx, size_t len, uint32_t timeout_ms) MINI_WARN_UNUSED_RESULT;
 
 #ifdef __cplusplus
 }

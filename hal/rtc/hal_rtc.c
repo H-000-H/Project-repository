@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Apache-2.0 */
+﻿/* SPDX-License-Identifier: Apache-2.0 */
 /**
  * @file        hal_rtc.c
  * @brief       STM32F4 RTC HAL 实现 (日历/闹钟寄存器; alarm ISR 派发待补)
@@ -49,7 +49,7 @@ int hal_rtc_init(struct hal_rtc_dev* pdev, const struct hal_rtc_config* cfg)
 {
     if (!pdev || !cfg || !cfg->rtc)
         return MINI_ERR_INVAL;
-    COMPAT_MEM_SET(pdev, 0, sizeof(*pdev));
+    MINI_MEM_SET(pdev, 0, sizeof(*pdev));
     pdev->cfg = *cfg;
     return MINI_OK;
 }
@@ -65,7 +65,7 @@ int hal_rtc_deinit(struct hal_rtc_dev* pdev)
         return MINI_ERR_INVAL;
     if (pdev->hw_open)
         (void)hal_rtc_close(pdev);
-    COMPAT_MEM_SET(pdev, 0, sizeof(*pdev));
+    MINI_MEM_SET(pdev, 0, sizeof(*pdev));
     return MINI_OK;
 }
 

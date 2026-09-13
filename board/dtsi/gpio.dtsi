@@ -16,7 +16,7 @@
 	 * GPIO 输出脚模板；板级用 &led { } 继承覆盖 port/pin/clk
 	 */
 	led: gpios-pin@13 {
-		compatible = "heterogeneous,gpios";
+		compatible = "mt-gpios";
 		reg = <13>;
 		gpio-mode = <LL_GPIO_MODE_OUTPUT>;
 		gpio-pull = <LL_GPIO_PULL_NO>;
@@ -26,12 +26,4 @@
 		default-level = <1>; /* 常见 PC13 LED 低电平亮，默认灭 */
 		status = "disabled";
 	};
-};
-
-/* 继承 &led 模板 → GPIOC.13 板载 LED */
-&led {
-	gpio-port = <GPIOC_BASE>;
-	gpio-pin = <LL_GPIO_PIN_13>;
-	gpio-clk = <LL_AHB1_GRP1_PERIPH_GPIOC>;
-	status = "okay";
 };

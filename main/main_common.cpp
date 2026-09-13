@@ -1,42 +1,10 @@
 /**
- *@file main.cpp
- *@brief STM32F407ZGT6 节点入口
  *@copyright SPDX-License-Identifier: Apache-2.0
+ *@file main_common.cpp
+ *@brief boot(app image_2) 与 app(image_1) 两个入口共用的系统级实现
  *@author H-000-H
- *@details 点火流程：HAL_Init → SystemClock_Config → mini_tree 两段式
  */
-
-#include "main.h"
-#include "system_init.h"
-#include "driver.h"
-#include "xtask.h"
-#include "led.hpp"
-
-void SystemClock_Config(void);
-/**
- * @brief 应用入口
- */
-extern "C" __attribute__((used)) int stm32f407zgt6_node_main(void)
-{
-    HAL_Init();
-
-    /* 系统时钟：HSI + PLL → 96MHz（见 SystemClock_Config） */
-    SystemClock_Config();
-
-    /* mini_tree 两段式点火：时钟已配；外设由 board.dts probe 注册（无 CubeMX MX_*） */
-    mini_tree_pre_os_init();
-    board_register_all_drivers();
-    mini_tree_start_tasks();
-
-    /* 裸机时间片调度器启动 */
-    xscheduler_start();
-    system_init_complete();
-    App_Led::Led::instance().register_task();
-    while (1)
-    {
-        mini_tree_system_loop();
-    }
-}
+#include "main_common.h"
 
 /**
  * @brief 系统时钟配置：HSI 16MHz → PLL(M16/N192/P2) → SYSCLK 96MHz

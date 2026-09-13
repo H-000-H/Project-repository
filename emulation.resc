@@ -1,0 +1,20 @@
+mach create "stm32f407_platform"
+machine LoadPlatformDescription @platforms/boards/stm32f4_discovery.repl
+
+# 动态挂载 PC13 LED
+machine LoadPlatformDescriptionFromString "led_pc13: Miscellaneous.LED @ sysbus; gpioPortC: { 13 -> led_pc13@0 }"
+# LED 电平变化日志是 Noisy 级别, 必须显式开启才能在 Renode 控制台看到
+logLevel -1 led_pc13
+logLevel -1 led_pc13
+
+# 串口配置
+emulation CreateServerSocketTerminal 9090 "terminal_uart"
+connector Connect sysbus.usart2 terminal_uart
+
+# 载入 ELF 固件
+sysbus LoadELF @build/Debug/STM32F407ZGT6.elf
+
+# 开启 GDB Server，监听 3333 端口（注意：先不要加 start，让 GDB 挂载后再运行）
+machine StartGdbServer 3333
+
+# start gdb不主动start

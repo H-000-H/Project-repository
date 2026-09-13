@@ -22,7 +22,7 @@
 
 ## 2. 板级端口步骤
 
-1. 板级 `dtsi/` 加 USB 控制器节点（`compatible = "mini-tree,usb"`，含中断号 / 端点数）。
+1. 板级 `dtsi/` 加 USB 控制器节点（`compatible = "mt-usb-otg-host"`，含中断号 / 端点数）。
 2. 写 `drivers/<chip>/` 产品驱动（`DRIVER_REGISTER` + dtc-lite 探针），实现 `hal/usb` 回调。
 3. `vfs/usb/vfs-usb.{c,h}` 经 `vfs/usb` 暴露设备/主机接口。
 4. 平台 CMake 注入 `BOARD_DTSI_DIR` 指向板级 dtsi。

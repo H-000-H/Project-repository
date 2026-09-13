@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Apache-2.0 */
+﻿/* SPDX-License-Identifier: Apache-2.0 */
 /*
  * ADC HAL — STM32F4 实现 (LL 库直投)
  *
@@ -36,7 +36,7 @@ static ADC_TypeDef *g_adc_fast_tbl[DTS_HAL_ADC_INSTANCE_MAX] = {NULL};
  * @param gpio GPIO配置结构体
  * @return MINI_OK 成功, MINI_ERR_INVAL 参数错误
  */
-COMPAT_STATIC_INLINE int hal_adc_config_gpio_pin(hal_adc_gpio_config* gpio)
+MINI_STATIC_INLINE int hal_adc_config_gpio_pin(hal_adc_gpio_config* gpio)
 {
     if (!gpio)
         return MINI_ERR_INVAL;
@@ -410,9 +410,9 @@ int hal_adc_dma_start(hal_adc_device *pdev)
      /**< 一次性绑定全局下半部 work (fn/arg/原子位) — 全局变量由 interrupt.c 定义 */
      g_adc_dma_bottom_half_work.fn  = hal_adc_dma_bottom_half_handler;
      g_adc_dma_bottom_half_work.arg = pdev;
-     COMPAT_ATOMIC_STORE(&g_adc_dma_bottom_half_work.pending,   false, COMPAT_MO_SEQ_CST);
-     COMPAT_ATOMIC_STORE(&g_adc_dma_bottom_half_work.executing, false, COMPAT_MO_SEQ_CST);
-     COMPAT_ATOMIC_STORE(&g_adc_dma_bottom_half_work.rerun,     false, COMPAT_MO_SEQ_CST);
+     MINI_ATOMIC_STORE(&g_adc_dma_bottom_half_work.pending,   false, MINI_SEQ_CST);
+     MINI_ATOMIC_STORE(&g_adc_dma_bottom_half_work.executing, false, MINI_SEQ_CST);
+     MINI_ATOMIC_STORE(&g_adc_dma_bottom_half_work.rerun,     false, MINI_SEQ_CST);
 
      LL_DMA_EnableStream(dma, stream);
      LL_DMA_EnableIT_TC(dma, stream);
@@ -434,7 +434,7 @@ int hal_adc_dma_start(hal_adc_device *pdev)
  */
  int hal_adc_read_value(hal_adc_device *pdev, uint32_t channel_num, uint16_t *out_val)
  {
-    COMPAT_IGNORE_RESULT(channel_num);
+    MINI_IGNORE_RESULT(channel_num);
      if (!pdev || !pdev->host->adc_handle || !out_val)
          return MINI_ERR_INVAL;
  
@@ -586,7 +586,7 @@ int hal_adc_dma_it_read_value(hal_adc_device *pdev, uint16_t *out_val)
  */
 int hal_virtual_adc_irq_callback(void* arg, uint16_t irq_num)
 {
-    COMPAT_IGNORE_RESULT(irq_num);
+    MINI_IGNORE_RESULT(irq_num);
     hal_adc_device* pdev = (hal_adc_device*)arg;
 
     if (!pdev || !pdev->host || !pdev->host->private_cfg)
@@ -613,5 +613,5 @@ void hal_adc_dma_bottom_half_handler(void* arg)
         written++;
     }
     if (written == DMA_BUFFER_SIZE)
-        SYS_LOGE("DMA_ADC", "dma_it_trans_err_fill_up_buff");
+        MT_LOG_WARN("DMA_ADC", "dma_it_trans_err_fill_up_buff");
 }

@@ -10,6 +10,10 @@ set(MINI_TREE_MBEDTLS_CMAKE_LOADED ON)
 set(MINI_TREE_MBEDTLS_VERSION "mbedtls-2.28.9" CACHE STRING "Mbed TLS git tag")
 message(STATUS "mini_tree mbedtls: ${MINI_TREE_MBEDTLS_VERSION} (local-or-fetch on link)")
 
+# 注意: 函数内 CMAKE_CURRENT_LIST_DIR 指向的是**调用者**目录(mini-ota/CMakeLists.txt),
+# 会把本地路径算成不存在的 lib/lib/mbedtls → 本地依赖永不命中, 故下面用
+# CMAKE_CURRENT_FUNCTION_LIST_DIR(定义该函数的文件目录)。
+
 function(mini_tree_link_mbedtls target)
     if(${ARGC} LESS 2)
         message(FATAL_ERROR "mini_tree_link_mbedtls(<target> <port_dir>)")
@@ -22,7 +26,7 @@ function(mini_tree_link_mbedtls target)
     if(NOT TARGET mini_tree_mbedtls_mbedtls)
         mini_tree_dep_get(_mbedtls_dir
             NAME mbedtls
-            LOCAL_DIR "${CMAKE_CURRENT_LIST_DIR}/../lib/mbedtls"
+            LOCAL_DIR "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../lib/mbedtls"
             MARKER "include/mbedtls"
             GIT_REPOSITORY https://github.com/Mbed-TLS/mbedtls.git
             GIT_TAG ${MINI_TREE_MBEDTLS_VERSION}

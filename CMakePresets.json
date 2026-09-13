@@ -8,6 +8,7 @@
             "binaryDir": "${sourceDir}/build/${presetName}",
 		    "toolchainFile": "${sourceDir}/cmake/gcc-arm-none-eabi.cmake",
             "cacheVariables": {
+                "CMAKE_MAKE_PROGRAM": "C:/Users/18514/AppData/Local/Microsoft/WinGet/Packages/Ninja-build.Ninja_Microsoft.Winget.Source_8wekyb3d8bbwe/ninja.exe"
             }
         },
         {
@@ -23,6 +24,42 @@
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release"
             }
+        },
+        {
+            "name": "Debug-Boot",
+            "displayName": "Bootloader Debug",
+            "inherits": "default",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "BOOT_BUILD": "ON"
+            }
+        },
+        {
+            "name": "Release-Boot",
+            "displayName": "Bootloader Release",
+            "inherits": "default",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "BOOT_BUILD": "ON"
+            }
+        },
+        {
+            "name": "Debug-Img2",
+            "displayName": "App image2 (0x08080000, OTA 下发)",
+            "inherits": "default",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "APP_IMAGE": "image2"
+            }
+        },
+        {
+            "name": "Release-Img2",
+            "displayName": "App image2 (0x08080000, OTA 下发) Release",
+            "inherits": "default",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "APP_IMAGE": "image2"
+            }
         }
     ],
     "buildPresets": [
@@ -33,6 +70,22 @@
         {
             "name": "Release",
             "configurePreset": "Release"
+        },
+        {
+            "name": "Debug-Boot",
+            "configurePreset": "Debug-Boot"
+        },
+        {
+            "name": "Release-Boot",
+            "configurePreset": "Release-Boot"
+        },
+        {
+            "name": "Debug-Img2",
+            "configurePreset": "Debug-Img2"
+        },
+        {
+            "name": "Release-Img2",
+            "configurePreset": "Release-Img2"
         }
     ]
 }

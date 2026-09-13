@@ -73,7 +73,6 @@ int _read(int file, char* ptr, int len)
     return 0;
 }
 
-/* 控制台设备缓存: 首次使用时按 DTS label "console" 懒查找 + 打开 */
 static struct device* s_console_dev;
 
 /**

@@ -12,7 +12,10 @@
 
 #include "tim.dtsi"
 #include "gpio.dtsi"
-#include "usb.dtsi"
+#include "uart.dtsi"
+
+#include <stm32f4xx_ll_gpio.h>
+#include <stm32f4xx_ll_bus.h>
 
 /chosen {
 	tick-rate = <1000>;
@@ -34,8 +37,6 @@
 			device_type = "cpu";
 			compatible = "arm,cortex-m4";
 			reg = <0>;
-			/* 实际 SYSCLK: HSI + PLL(M16/N192/P2) = 96MHz
-			 * disabled: 不进驱动匹配表, 仅供 dtc-lite 读 clock-frequency 生成主频宏 */
 			clock-frequency = <96000000>;
 			status = "disabled";
 		};
@@ -46,4 +47,35 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 	};
+};
+
+/* -------------------------------------------------------------------------- */
+/* 外设使能收口: dtsi 只提供 disabled 模板, 全部状态开关统一在本文件控制            */
+/* -------------------------------------------------------------------------- */
+
+/* 调度 tick: TIM7 */
+&tim7 {
+	status = "okay";
+};
+
+/* 板载 LED: GPIOC.13 (低电平亮) */
+&led {
+	gpio-port = <GPIOC_BASE>;
+	gpio-pin = <LL_GPIO_PIN_13>;
+	gpio-clk = <LL_AHB1_GRP1_PERIPH_GPIOC>;
+	status = "okay";
+};
+
+/* console 日志口: USART2 (PA2=TX/PA3=RX, Renode 9090 终端接 sysbus.usart2) */
+&console_uart {
+	status = "okay";
+};
+
+&console {
+	status = "okay";
+};
+
+/* OTA 固件流口: USART3 (PB10=TX / PB11=RX, 115200) — 独立于 console 日志口 */
+&ota_uart {
+	status = "okay";
 };

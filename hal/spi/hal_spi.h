@@ -194,14 +194,14 @@ struct hal_spi_dev
  * @param hw_idx dummy buffer / HW slot 索引
  * @param cfg 总线配置
  */
-int hal_spi_bus_host_init(struct hal_spi_bus_host* host, int hw_idx,const struct hal_spi_bus_config* cfg) COMPAT_WARN_UNUSED_RESULT;
+int hal_spi_bus_host_init(struct hal_spi_bus_host* host, int hw_idx,const struct hal_spi_bus_config* cfg) MINI_WARN_UNUSED_RESULT;
 
 /**
  * @brief 释放 SPI 总线主机
  * @param host 总线主机对象指针
  * @return 成功返回 MINI_OK, 失败返回 MINI_ERR_INVAL
  */
-int hal_spi_bus_host_deinit(struct hal_spi_bus_host* host) COMPAT_WARN_UNUSED_RESULT;
+int hal_spi_bus_host_deinit(struct hal_spi_bus_host* host) MINI_WARN_UNUSED_RESULT;
 
 /**
  * @brief 初始化 SPI 设备
@@ -209,21 +209,21 @@ int hal_spi_bus_host_deinit(struct hal_spi_bus_host* host) COMPAT_WARN_UNUSED_RE
  * @param host 总线控制器对象指针
  * @param dev_cfg 设备配置
  */
-int hal_spi_dev_init(struct hal_spi_dev* dev,struct hal_spi_bus_host* host,const struct hal_spi_device_config* dev_cfg) COMPAT_WARN_UNUSED_RESULT;
+int hal_spi_dev_init(struct hal_spi_dev* dev,struct hal_spi_bus_host* host,const struct hal_spi_device_config* dev_cfg) MINI_WARN_UNUSED_RESULT;
 
 /**
  * @brief 打开 SPI 设备
  * @param dev 设备对象指针
  * @return 成功返回 MINI_OK, 失败返回 MINI_ERR_INVAL
  */
-int hal_spi_dev_hw_open(struct hal_spi_dev* dev) COMPAT_WARN_UNUSED_RESULT;
+int hal_spi_dev_hw_open(struct hal_spi_dev* dev) MINI_WARN_UNUSED_RESULT;
 
 /**
  * @brief 关闭 SPI 设备
  * @param dev 设备对象指针
  * @return 成功返回 MINI_OK, 失败返回 MINI_ERR_INVAL
  */
-int hal_spi_dev_hw_close(struct hal_spi_dev* dev) COMPAT_WARN_UNUSED_RESULT;
+int hal_spi_dev_hw_close(struct hal_spi_dev* dev) MINI_WARN_UNUSED_RESULT;
 
 /**
  * @brief SPI 同步传输
@@ -235,7 +235,7 @@ int hal_spi_dev_hw_close(struct hal_spi_dev* dev) COMPAT_WARN_UNUSED_RESULT;
  * @param xfer_mode HAL_SPI_XFER_AUTO / POLL / DMA
  * @return 成功返回 MINI_OK, 失败返回 VFS_ERR_*
  */
-int hal_spi_sync(struct hal_spi_dev* dev, const uint8_t* tx, uint8_t* rx, size_t len, uint32_t timeout_ms, uint32_t xfer_mode) COMPAT_WARN_UNUSED_RESULT;
+int hal_spi_sync(struct hal_spi_dev* dev, const uint8_t* tx, uint8_t* rx, size_t len, uint32_t timeout_ms, uint32_t xfer_mode) MINI_WARN_UNUSED_RESULT;
 
 /**
  * @brief SPI 异步传输
@@ -247,7 +247,7 @@ int hal_spi_sync(struct hal_spi_dev* dev, const uint8_t* tx, uint8_t* rx, size_t
  * @param userdata 用户数据指针
  * @return 成功返回 MINI_OK, 失败返回 MINI_ERR_INVAL
  */
-int hal_spi_transfer_async(struct hal_spi_dev* dev,const uint8_t* tx, uint8_t* rx,size_t len, hal_spi_callback_t cb,void* userdata) COMPAT_WARN_UNUSED_RESULT;
+int hal_spi_transfer_async(struct hal_spi_dev* dev,const uint8_t* tx, uint8_t* rx,size_t len, hal_spi_callback_t cb,void* userdata) MINI_WARN_UNUSED_RESULT;
 
 /**
  * @brief SPI 异步传输轮询
@@ -255,7 +255,7 @@ int hal_spi_transfer_async(struct hal_spi_dev* dev,const uint8_t* tx, uint8_t* r
  * @param timeout_ms 超时 (ms)
  * @return 成功返回 MINI_OK, 失败返回 MINI_ERR_INVAL
  */
-int hal_spi_transfer_poll(struct hal_spi_dev* dev, uint32_t timeout_ms) COMPAT_WARN_UNUSED_RESULT;
+int hal_spi_transfer_poll(struct hal_spi_dev* dev, uint32_t timeout_ms) MINI_WARN_UNUSED_RESULT;
 
 /**
  * @brief SPI 获取传输结果
@@ -277,7 +277,7 @@ int hal_spi_get_trans_result(struct hal_spi_dev* dev, uint8_t* rx_data, size_t r
  * @param timeout_ms 超时 (ms)
  * @return 成功返回 MINI_OK, 失败返回 MINI_ERR_INVAL
  */
-int hal_spi_slave_sync(struct hal_spi_dev* dev, const uint8_t* tx, uint8_t* rx,size_t len, uint32_t timeout_ms) COMPAT_WARN_UNUSED_RESULT;
+int hal_spi_slave_sync(struct hal_spi_dev* dev, const uint8_t* tx, uint8_t* rx,size_t len, uint32_t timeout_ms) MINI_WARN_UNUSED_RESULT;
 
 /**
  * @brief SPI 从机队列传输
@@ -287,7 +287,7 @@ int hal_spi_slave_sync(struct hal_spi_dev* dev, const uint8_t* tx, uint8_t* rx,s
  * @param timeout_ms 超时 (ms)
  * @return 成功返回 MINI_OK, 失败返回 MINI_ERR_INVAL
  */
-int hal_spi_slave_queue_tx(struct hal_spi_dev* dev, const uint8_t* data, size_t len,uint32_t timeout_ms) COMPAT_WARN_UNUSED_RESULT;
+int hal_spi_slave_queue_tx(struct hal_spi_dev* dev, const uint8_t* data, size_t len,uint32_t timeout_ms) MINI_WARN_UNUSED_RESULT;
 
 /**
  * @brief SPI 虚拟中断上半部回调 (ISR 内执行)

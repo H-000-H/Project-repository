@@ -278,11 +278,11 @@ typedef struct hal_tim_device
 /*===========================================================================================================================================================*/
 /* 硬件直投层核心 API                                                                                                                                        */
 /*===========================================================================================================================================================*/
-int COMPAT_WARN_UNUSED_RESULT hal_tim_device_init(hal_tim_device* pdev, hal_tim_platform_unique_config* unique, hal_tim_host_config* host);
-int COMPAT_WARN_UNUSED_RESULT hal_tim_device_deinit(hal_tim_device* pdev);
+int MINI_WARN_UNUSED_RESULT hal_tim_device_init(hal_tim_device* pdev, hal_tim_platform_unique_config* unique, hal_tim_host_config* host);
+int MINI_WARN_UNUSED_RESULT hal_tim_device_deinit(hal_tim_device* pdev);
  
- int COMPAT_WARN_UNUSED_RESULT hal_tim_open(hal_tim_device* pdev);
- int COMPAT_WARN_UNUSED_RESULT hal_tim_close(hal_tim_device* pdev);
+ int MINI_WARN_UNUSED_RESULT hal_tim_open(hal_tim_device* pdev);
+ int MINI_WARN_UNUSED_RESULT hal_tim_close(hal_tim_device* pdev);
  
  /**
   * @brief 定时器占空比/重装载同步更新接口（热路径核心）
@@ -291,76 +291,76 @@ int COMPAT_WARN_UNUSED_RESULT hal_tim_device_deinit(hal_tim_device* pdev);
   * @param frequency 目标频率 (Hz)
   * @param duty 占空比值 (或者是直接对应的 Compare 寄存器数值，依底层设计而定)
   */
- int COMPAT_WARN_UNUSED_RESULT hal_tim_pwm_update(hal_tim_device* pdev, uint32_t channel, uint32_t frequency, uint32_t duty);
+ int MINI_WARN_UNUSED_RESULT hal_tim_pwm_update(hal_tim_device* pdev, uint32_t channel, uint32_t frequency, uint32_t duty);
  
  /**
   * @brief 定时器中断配置接口
   * @param pdev 定时器设备句柄
   * @param interrupt_config 中断配置
  */
- int COMPAT_WARN_UNUSED_RESULT hal_tim_interrupt_config(hal_tim_device* pdev, uint32_t interrupt_config);
+ int MINI_WARN_UNUSED_RESULT hal_tim_interrupt_config(hal_tim_device* pdev, uint32_t interrupt_config);
  /**
   * @brief 获取定时器计数值接口
   * @param pdev 定时器设备句柄
   * @param value 计数值指针
   */
- int COMPAT_WARN_UNUSED_RESULT hal_tim_get_counter(const hal_tim_device* pdev, uint32_t* value);
+ int MINI_WARN_UNUSED_RESULT hal_tim_get_counter(const hal_tim_device* pdev, uint32_t* value);
  /**
   * @brief 获取定时器捕获值接口
   * @param pdev 定时器设备句柄
   * @param channel 通道号
   * @param value 捕获值指针
   */
- int COMPAT_WARN_UNUSED_RESULT hal_tim_get_capture_value(const hal_tim_device* pdev, uint32_t channel, uint32_t* value);
+ int MINI_WARN_UNUSED_RESULT hal_tim_get_capture_value(const hal_tim_device* pdev, uint32_t channel, uint32_t* value);
  /**
   * @brief 获取定时器编码器值接口
   * @param pdev 定时器设备句柄
   * @param value 编码器值指针
   */
- int COMPAT_WARN_UNUSED_RESULT hal_tim_get_encoder_value(const hal_tim_device* pdev, uint32_t* value);
+ int MINI_WARN_UNUSED_RESULT hal_tim_get_encoder_value(const hal_tim_device* pdev, uint32_t* value);
  /**
   * @brief 获取定时器霍尔值接口
   * @param pdev 定时器设备句柄
   * @param value 霍尔值指针
   */
- int COMPAT_WARN_UNUSED_RESULT hal_tim_get_hall_value(const hal_tim_device* pdev, uint32_t* value);
+ int MINI_WARN_UNUSED_RESULT hal_tim_get_hall_value(const hal_tim_device* pdev, uint32_t* value);
  /**
   * @brief 强制停止定时器接口
   * @param pdev 定时器设备句柄
   */
- int COMPAT_WARN_UNUSED_RESULT hal_tim_force_stop(hal_tim_device* pdev);
+ int MINI_WARN_UNUSED_RESULT hal_tim_force_stop(hal_tim_device* pdev);
  
  /**
   * @brief 启动编码器接口
   * @param pdev 定时器设备句柄
   * @param encoder_mode 编码器倍频模式（如：1, 2, 4 倍频）
   */
- int COMPAT_WARN_UNUSED_RESULT hal_tim_encoder_start(hal_tim_device* pdev, uint32_t encoder_mode);
+ int MINI_WARN_UNUSED_RESULT hal_tim_encoder_start(hal_tim_device* pdev, uint32_t encoder_mode);
  
  /**
   * @brief 启动霍尔接口换向捕获模式
   * @param pdev 定时器设备句柄
   */
- int COMPAT_WARN_UNUSED_RESULT hal_tim_hall_start(hal_tim_device* pdev);
+ int MINI_WARN_UNUSED_RESULT hal_tim_hall_start(hal_tim_device* pdev);
 
- int COMPAT_WARN_UNUSED_RESULT hal_tim_set_counter(hal_tim_device* pdev, uint32_t value);
- int COMPAT_WARN_UNUSED_RESULT hal_tim_set_autoreload(hal_tim_device* pdev, uint32_t value);
- int COMPAT_WARN_UNUSED_RESULT hal_tim_get_autoreload(const hal_tim_device* pdev, uint32_t* value);
- int COMPAT_WARN_UNUSED_RESULT hal_tim_set_prescaler(hal_tim_device* pdev, uint32_t value);
- int COMPAT_WARN_UNUSED_RESULT hal_tim_get_prescaler(const hal_tim_device* pdev, uint32_t* value);
- int COMPAT_WARN_UNUSED_RESULT hal_tim_set_clock_division(hal_tim_device* pdev, uint32_t value);
- int COMPAT_WARN_UNUSED_RESULT hal_tim_get_clock_division(const hal_tim_device* pdev, uint32_t* value);
- int COMPAT_WARN_UNUSED_RESULT hal_tim_set_counter_mode(hal_tim_device* pdev, uint32_t value);
- int COMPAT_WARN_UNUSED_RESULT hal_tim_get_counter_mode(const hal_tim_device* pdev, uint32_t* value);
- int COMPAT_WARN_UNUSED_RESULT hal_tim_enable_arr_preload(hal_tim_device* pdev);
- int COMPAT_WARN_UNUSED_RESULT hal_tim_disable_arr_preload(hal_tim_device* pdev);
- int COMPAT_WARN_UNUSED_RESULT hal_tim_base_start(hal_tim_device*pdev);
- int COMPAT_WARN_UNUSED_RESULT hal_tim_base_stop(hal_tim_device*pdev);
+ int MINI_WARN_UNUSED_RESULT hal_tim_set_counter(hal_tim_device* pdev, uint32_t value);
+ int MINI_WARN_UNUSED_RESULT hal_tim_set_autoreload(hal_tim_device* pdev, uint32_t value);
+ int MINI_WARN_UNUSED_RESULT hal_tim_get_autoreload(const hal_tim_device* pdev, uint32_t* value);
+ int MINI_WARN_UNUSED_RESULT hal_tim_set_prescaler(hal_tim_device* pdev, uint32_t value);
+ int MINI_WARN_UNUSED_RESULT hal_tim_get_prescaler(const hal_tim_device* pdev, uint32_t* value);
+ int MINI_WARN_UNUSED_RESULT hal_tim_set_clock_division(hal_tim_device* pdev, uint32_t value);
+ int MINI_WARN_UNUSED_RESULT hal_tim_get_clock_division(const hal_tim_device* pdev, uint32_t* value);
+ int MINI_WARN_UNUSED_RESULT hal_tim_set_counter_mode(hal_tim_device* pdev, uint32_t value);
+ int MINI_WARN_UNUSED_RESULT hal_tim_get_counter_mode(const hal_tim_device* pdev, uint32_t* value);
+ int MINI_WARN_UNUSED_RESULT hal_tim_enable_arr_preload(hal_tim_device* pdev);
+ int MINI_WARN_UNUSED_RESULT hal_tim_disable_arr_preload(hal_tim_device* pdev);
+ int MINI_WARN_UNUSED_RESULT hal_tim_base_start(hal_tim_device*pdev);
+ int MINI_WARN_UNUSED_RESULT hal_tim_base_stop(hal_tim_device*pdev);
 
  /** 清除 TIM update flag, 供 ISR top_half 调用 (避免中断子系统依赖 LL_TIM)
   * @return MINI_OK 已清除; MINI_ERR_IO 无 update flag (spurious IRQ); MINI_ERR_INVAL 非法参数
   */
- int COMPAT_WARN_UNUSED_RESULT hal_tim_clear_update_flag(hal_tim_device* pdev);
+ int MINI_WARN_UNUSED_RESULT hal_tim_clear_update_flag(hal_tim_device* pdev);
 
  /**
   * @brief TIM 虚拟中断上半部回调 (ISR 内执行)

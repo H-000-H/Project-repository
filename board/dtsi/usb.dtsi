@@ -13,9 +13,9 @@
 
 
 &soc {
-	/* OTG_FS 全速 Device: vfs/usb "usb-otg-host" 解析并初始化总线 */
+	/* OTG_FS 全速 Device: vfs/usb "mt-usb-otg-host" 解析并初始化总线 */
 	usb_otg_fs: usb@50000000 {
-		compatible = "usb-otg-host";
+		compatible = "mt-usb-otg-host";
 		reg = <0x50000000>;
 		usb-base = <USB_OTG_FS_PERIPH_BASE>;
 		rhport = <0>;
@@ -33,7 +33,7 @@
 
 	/* CDC ACM 虚拟串口客户端: 主机默认枚举 Config0 (CDC+HID) */
 	console: usb-cdc@0 {
-		compatible = "heterogeneous,usb-cdc-acm";
+		compatible = "mt-usb-cdc-acm";
 		reg = <0>;
 		status = "okay";
 	};

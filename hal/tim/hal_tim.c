@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Apache-2.0 */
+﻿/* SPDX-License-Identifier: Apache-2.0 */
 /*
  * TIM HAL — STM32F4 实现 (LL 库直投)
  *
@@ -39,7 +39,7 @@ typedef struct tim_driver
  * @param gpio GPIO配置结构体
  * @return MINI_OK 成功, MINI_ERR_INVAL 参数错误
  */
-COMPAT_STATIC_INLINE int hal_tim_config_af_pin(hal_tim_pin_config* gpio)
+MINI_STATIC_INLINE int hal_tim_config_af_pin(hal_tim_pin_config* gpio)
 {
     if (!gpio || !gpio->af)
         return MINI_ERR_INVAL;
@@ -65,10 +65,10 @@ COMPAT_STATIC_INLINE int hal_tim_config_af_pin(hal_tim_pin_config* gpio)
  * @param pdev 定时器设备指针
  * @return MINI_OK 成功, MINI_ERR_INVAL 失败
  */
-COMPAT_STATIC_INLINE int _init_base(void* tim_handle, void* cfg_ptr, hal_tim_device* pdev)
+MINI_STATIC_INLINE int _init_base(void* tim_handle, void* cfg_ptr, hal_tim_device* pdev)
 {
     /**< 此处空操作因为定时器寄存器已经在 open中映射了本函数仅仅站位符 */
-    COMPAT_IGNORE_RESULT(cfg_ptr); COMPAT_IGNORE_RESULT(pdev); COMPAT_IGNORE_RESULT(tim_handle);    
+    MINI_IGNORE_RESULT(cfg_ptr); MINI_IGNORE_RESULT(pdev); MINI_IGNORE_RESULT(tim_handle);    
     return MINI_OK;
 }
 /**
@@ -91,7 +91,7 @@ COMPAT_STATIC_INLINE int _init_base(void* tim_handle, void* cfg_ptr, hal_tim_dev
         return MINI_ERR_IO;
  
     LL_TIM_ENCODER_InitTypeDef* ENCODER_HANDLE = (LL_TIM_ENCODER_InitTypeDef*)cfg_ptr;
-    COMPAT_MEM_SET(ENCODER_HANDLE, 0, sizeof(LL_TIM_ENCODER_InitTypeDef));
+    MINI_MEM_SET(ENCODER_HANDLE, 0, sizeof(LL_TIM_ENCODER_InitTypeDef));
     /**<A相 (Channel 1) 调理电路配置*/
     ENCODER_HANDLE->EncoderMode     = pdev->host->encoder_mode.config.hw_cfg.mode;/**< 编码器模式 */
     ENCODER_HANDLE->IC1ActiveInput  = pdev->host->encoder_mode.config.hw_cfg.ic1_active_input;/**< A相输入源 */
@@ -132,7 +132,7 @@ static int _init_oc(void* tim_handle, void* cfg_ptr, hal_tim_device* pdev)
         if (!(mask & (1 << i))) 
             continue;
 
-        COMPAT_MEM_SET(OC_INIT_HANDLE, 0, sizeof(LL_TIM_OC_InitTypeDef));
+        MINI_MEM_SET(OC_INIT_HANDLE, 0, sizeof(LL_TIM_OC_InitTypeDef));
         
         if(hal_tim_config_af_pin(&pdev->host->oc_mode.pin[i]) != MINI_OK)
             return MINI_ERR_IO;
@@ -175,7 +175,7 @@ static int _init_oc(void* tim_handle, void* cfg_ptr, hal_tim_device* pdev)
          if(hal_tim_config_af_pin(&pdev->host->ic_mode.pin[i]) != MINI_OK)
              return MINI_ERR_IO;
  
-         COMPAT_MEM_SET(IC_INIT_HANDLE, 0, sizeof(LL_TIM_IC_InitTypeDef));
+         MINI_MEM_SET(IC_INIT_HANDLE, 0, sizeof(LL_TIM_IC_InitTypeDef));
  
          /**< 填充当前通道的专属输入调理配置 */
          IC_INIT_HANDLE->ICActiveInput = pdev->host->ic_mode.config[i].active_input;
@@ -285,12 +285,12 @@ static int _init_hall(void* tim_handle, void* cfg_ptr,hal_tim_device* pdev)
  * @param pdev 定时器设备指针
  * @return MINI_OK 成功, MINI_ERR_INVAL 失败
  */
- COMPAT_STATIC_INLINE int _close_base(void* tim_handle, struct hal_tim_device* pdev)
+ MINI_STATIC_INLINE int _close_base(void* tim_handle, struct hal_tim_device* pdev)
  {
      if (!pdev || !tim_handle) 
          return MINI_ERR_INVAL;
  
-    COMPAT_IGNORE_RESULT(pdev);
+    MINI_IGNORE_RESULT(pdev);
      TIM_TypeDef* TIMx = (TIM_TypeDef*)tim_handle;
  
      /**< 关闭全局更新中断 */
@@ -484,7 +484,7 @@ int hal_tim_device_init(hal_tim_device* pdev, hal_tim_platform_unique_config* un
     if (!pdev || !unique || !host)
         return MINI_ERR_INVAL;
 
-    COMPAT_MEM_SET(pdev, 0, sizeof(*pdev));
+    MINI_MEM_SET(pdev, 0, sizeof(*pdev));
     pdev->host   = host;
     pdev->unique = unique;
     return MINI_OK;
@@ -607,7 +607,7 @@ int hal_tim_close(hal_tim_device *pdev)
  * @param channel 通道号 (1..4)
  * @return 对应 CCR 寄存器指针
  */
-COMPAT_STATIC_INLINE __IO uint32_t* hal_tim_get_ccr_ptr(TIM_TypeDef* tim, uint32_t channel)
+MINI_STATIC_INLINE __IO uint32_t* hal_tim_get_ccr_ptr(TIM_TypeDef* tim, uint32_t channel)
 {
     /**<CCR1~CCR4 的寄存器地址在内存中是严格连续的，每个寄存器占用 4 字节*/
     return (__IO uint32_t*)((uintptr_t)&tim->CCR1 + ((channel - 1U) * 4U));
@@ -619,7 +619,7 @@ COMPAT_STATIC_INLINE __IO uint32_t* hal_tim_get_ccr_ptr(TIM_TypeDef* tim, uint32
  * @param channel 通道号 (1..4)
  * @return 对应 CCR 寄存器 const 指针
  */
-COMPAT_STATIC_INLINE const __IO uint32_t* hal_tim_get_ccr_ptr_const(const TIM_TypeDef* tim, uint32_t channel)
+MINI_STATIC_INLINE const __IO uint32_t* hal_tim_get_ccr_ptr_const(const TIM_TypeDef* tim, uint32_t channel)
 {
     /**<CCR1~CCR4 的寄存器地址在内存中是严格连续的，每个寄存器占用 4 字节*/
     return (const __IO uint32_t*)((uintptr_t)&tim->CCR1 + ((channel - 1U) * 4U));
@@ -1067,7 +1067,7 @@ int hal_tim_hall_start(hal_tim_device* pdev)
  */
 int hal_virtual_tim_irq_callback(void* arg, uint16_t irq_num)
 {
-    COMPAT_IGNORE_RESULT(irq_num);
+    MINI_IGNORE_RESULT(irq_num);
     hal_tim_device* pdev = (hal_tim_device*)arg;
 
     if (!pdev || !pdev->host)

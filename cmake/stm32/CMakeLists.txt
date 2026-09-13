@@ -20,17 +20,29 @@ set(STM32_INCLUDE_DIRS
     "${STM32_ROOT}/main"
     "${STM32_ROOT}/app/stm-unique"
     "${STM32_ROOT}/app/led"
+    "${STM32_ROOT}/app/ota"
     "${STM32_ROOT}/Drivers/STM32F4xx_HAL_Driver/Inc"
     "${STM32_ROOT}/Drivers/STM32F4xx_HAL_Driver/Inc/Legacy"
     "${STM32_ROOT}/Drivers/CMSIS/Device/ST/STM32F4xx/Include"
     "${STM32_ROOT}/Drivers/CMSIS/Include"
 )
 
-set(STM32_APP_SRCS
-    "${STM32_ROOT}/main/main.cpp"
-    "${STM32_ROOT}/startup_stm32f407xx.s"
-    "${STM32_ROOT}/app/led/led.cpp"
-)
+# 入口源按目标切换: boot 编 main_iamge2.cpp(bootloader 引导), app 编 main_iamge1.cpp
+# main_common.cpp(SystemClock_Config/Error_Handler) 为两个固件共用
+if(BOOT_BUILD)
+    set(STM32_APP_SRCS
+        "${STM32_ROOT}/main/main_iamge2.cpp"
+        "${STM32_ROOT}/main/main_common.cpp"
+        "${STM32_ROOT}/startup_stm32f407xx.s"
+    )
+else()
+    set(STM32_APP_SRCS
+        "${STM32_ROOT}/main/main_iamge1.cpp"
+        "${STM32_ROOT}/main/main_common.cpp"
+        "${STM32_ROOT}/startup_stm32f407xx.s"
+        "${STM32_ROOT}/app/led/led.cpp"
+    )
+endif()
 
 set(STM32_Drivers_Src
     "${STM32_ROOT}/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_gpio.c"

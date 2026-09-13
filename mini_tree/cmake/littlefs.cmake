@@ -1,4 +1,4 @@
-# littlefs — local lib/littlefs or FetchContent (v2.11.3). Link on demand.
+ # littlefs — local lib/littlefs or FetchContent (v2.11.3). Link on demand.
 include("${CMAKE_CURRENT_LIST_DIR}/dep_fetch.cmake")
 
 if(DEFINED MINI_TREE_LITTLEFS_CMAKE_LOADED)
@@ -13,7 +13,7 @@ function(mini_tree_link_littlefs target)
     if(NOT TARGET mini_tree_littlefs)
         mini_tree_dep_get(_lfs_dir
             NAME littlefs
-            LOCAL_DIR "${CMAKE_CURRENT_LIST_DIR}/../lib/littlefs"
+            LOCAL_DIR "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../lib/littlefs"
             MARKER "lfs.h"
             GIT_REPOSITORY https://github.com/littlefs-project/littlefs.git
             GIT_TAG ${MINI_TREE_LITTLEFS_VERSION}

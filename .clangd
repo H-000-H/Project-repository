@@ -1,0 +1,50 @@
+Diagnostics:
+  UnusedIncludes: None
+  Suppress:
+    - drive_mode_mismatch
+---
+# C 源文件：gcc 驱动模拟（clangd 按扩展名保留 C 语言，-std=gnu11/gnu17 合法）
+If:
+  PathMatch: .*\.c$
+CompileFlags:
+  Compiler: arm-none-eabi-gcc
+  # clang 不预定义 __WCHAR_MIN__（GCC 预定义）；newlib 头引用它，补上与 GCC 一致
+  Add:
+    - -D__WCHAR_MIN__=0U
+---
+# C++ 源文件：g++ 驱动模拟 + 显式补交叉工具链 C++ 标准库头（cstdint 等）
+If:
+  PathMatch: .*\.cpp$
+CompileFlags:
+  Compiler: arm-none-eabi-g++
+  Add:
+    - '-IC:/Program Files (x86)/Arm GNU Toolchain arm-none-eabi/13.3 rel1/arm-none-eabi/include/c++/13.3.1'
+    - '-IC:/Program Files (x86)/Arm GNU Toolchain arm-none-eabi/13.3 rel1/arm-none-eabi/include/c++/13.3.1/arm-none-eabi'
+    - '-IC:/Program Files (x86)/Arm GNU Toolchain arm-none-eabi/13.3 rel1/lib/gcc/arm-none-eabi/13.3.1/include'
+    - '-IC:/Program Files (x86)/Arm GNU Toolchain arm-none-eabi/13.3 rel1/lib/gcc/arm-none-eabi/13.3.1/include-fixed'
+    - '-IC:/Program Files (x86)/Arm GNU Toolchain arm-none-eabi/13.3 rel1/arm-none-eabi/include'
+    - -D__WCHAR_MIN__=0U
+---
+# C 头文件（根层 hal/app/main/Drivers/board/ota-stm32f4）：单独打开时不在编译数据库中，
+# 且不匹配上面 .c$ 规则，驱动模拟会失效 → 复用 gcc 模拟。
+# 分隔符同时兼容 / 与 \（clangd 内部路径分隔符在 Windows 上可能任一）。
+# 刻意限定目录：mini_tree/lib/etl 下的 .h 是 C++ 模板头，走默认推断，不套 C 规则。
+If:
+  PathMatch: '.*(hal|app|main|Drivers|board|ota-stm32f4)[/\\].*\.h$'
+CompileFlags:
+  Compiler: arm-none-eabi-gcc
+  Add:
+    - -D__WCHAR_MIN__=0U
+---
+# C++ 头文件（.hpp，如 app/led/led.hpp、system_cpp）：同 .cpp 段
+If:
+  PathMatch: .*\.hpp$
+CompileFlags:
+  Compiler: arm-none-eabi-g++
+  Add:
+    - '-IC:/Program Files (x86)/Arm GNU Toolchain arm-none-eabi/13.3 rel1/arm-none-eabi/include/c++/13.3.1'
+    - '-IC:/Program Files (x86)/Arm GNU Toolchain arm-none-eabi/13.3 rel1/arm-none-eabi/include/c++/13.3.1/arm-none-eabi'
+    - '-IC:/Program Files (x86)/Arm GNU Toolchain arm-none-eabi/13.3 rel1/lib/gcc/arm-none-eabi/13.3.1/include'
+    - '-IC:/Program Files (x86)/Arm GNU Toolchain arm-none-eabi/13.3 rel1/lib/gcc/arm-none-eabi/13.3.1/include-fixed'
+    - '-IC:/Program Files (x86)/Arm GNU Toolchain arm-none-eabi/13.3 rel1/arm-none-eabi/include'
+    - -D__WCHAR_MIN__=0U

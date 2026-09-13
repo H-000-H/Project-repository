@@ -156,28 +156,28 @@ struct hal_i2s_dev
 extern struct bottom_half_work g_i2s_bottom_half_work;
 
 
-int hal_i2s_bus_host_init(struct hal_i2s_bus_host* host, int hw_idx, const struct hal_i2s_bus_config* cfg) COMPAT_WARN_UNUSED_RESULT;
-int hal_i2s_bus_host_deinit(struct hal_i2s_bus_host* host) COMPAT_WARN_UNUSED_RESULT;
-int hal_i2s_dev_init(struct hal_i2s_dev* pdev, struct hal_i2s_bus_host* host, const struct hal_i2s_device_config* cfg) COMPAT_WARN_UNUSED_RESULT;
-int hal_i2s_dev_deinit(struct hal_i2s_dev* pdev) COMPAT_WARN_UNUSED_RESULT;
-int hal_i2s_dev_hw_open(struct hal_i2s_dev* pdev) COMPAT_WARN_UNUSED_RESULT;
-int hal_i2s_dev_hw_close(struct hal_i2s_dev* pdev) COMPAT_WARN_UNUSED_RESULT;
-int hal_i2s_sync(struct hal_i2s_dev* pdev, const uint16_t* tx, uint16_t* rx, size_t samples, uint32_t timeout_ms, uint32_t xfer_mode) COMPAT_WARN_UNUSED_RESULT;
+int hal_i2s_bus_host_init(struct hal_i2s_bus_host* host, int hw_idx, const struct hal_i2s_bus_config* cfg) MINI_WARN_UNUSED_RESULT;
+int hal_i2s_bus_host_deinit(struct hal_i2s_bus_host* host) MINI_WARN_UNUSED_RESULT;
+int hal_i2s_dev_init(struct hal_i2s_dev* pdev, struct hal_i2s_bus_host* host, const struct hal_i2s_device_config* cfg) MINI_WARN_UNUSED_RESULT;
+int hal_i2s_dev_deinit(struct hal_i2s_dev* pdev) MINI_WARN_UNUSED_RESULT;
+int hal_i2s_dev_hw_open(struct hal_i2s_dev* pdev) MINI_WARN_UNUSED_RESULT;
+int hal_i2s_dev_hw_close(struct hal_i2s_dev* pdev) MINI_WARN_UNUSED_RESULT;
+int hal_i2s_sync(struct hal_i2s_dev* pdev, const uint16_t* tx, uint16_t* rx, size_t samples, uint32_t timeout_ms, uint32_t xfer_mode) MINI_WARN_UNUSED_RESULT;
 
 /** @brief 设置 DMA HT/TC 中断模式 (ioctl; circular 运行中返回 BUSY) */
-int hal_i2s_set_dma_irq_mode(struct hal_i2s_dev* pdev, uint32_t irq_mode) COMPAT_WARN_UNUSED_RESULT;
+int hal_i2s_set_dma_irq_mode(struct hal_i2s_dev* pdev, uint32_t irq_mode) MINI_WARN_UNUSED_RESULT;
 /** @brief 查询 DMA HT/TC 中断模式 */
-int hal_i2s_get_dma_irq_mode(struct hal_i2s_dev* pdev, uint32_t* irq_mode) COMPAT_WARN_UNUSED_RESULT;
+int hal_i2s_get_dma_irq_mode(struct hal_i2s_dev* pdev, uint32_t* irq_mode) MINI_WARN_UNUSED_RESULT;
 
-int hal_i2s_dma_circ_start(struct hal_i2s_dev* pdev, int tx_enable, int rx_enable) COMPAT_WARN_UNUSED_RESULT;
-int hal_i2s_dma_circ_stop(struct hal_i2s_dev* pdev) COMPAT_WARN_UNUSED_RESULT;
-int hal_i2s_dma_circ_write(struct hal_i2s_dev* pdev, const uint16_t* data, uint32_t samples) COMPAT_WARN_UNUSED_RESULT;
-int hal_i2s_dma_circ_read(struct hal_i2s_dev* pdev, uint16_t* data, uint32_t samples) COMPAT_WARN_UNUSED_RESULT;
+int hal_i2s_dma_circ_start(struct hal_i2s_dev* pdev, int tx_enable, int rx_enable) MINI_WARN_UNUSED_RESULT;
+int hal_i2s_dma_circ_stop(struct hal_i2s_dev* pdev) MINI_WARN_UNUSED_RESULT;
+int hal_i2s_dma_circ_write(struct hal_i2s_dev* pdev, const uint16_t* data, uint32_t samples) MINI_WARN_UNUSED_RESULT;
+int hal_i2s_dma_circ_read(struct hal_i2s_dev* pdev, uint16_t* data, uint32_t samples) MINI_WARN_UNUSED_RESULT;
 
 /** @brief 异步传输 — 参数存档占位; DMA+IT 启动后续补 */
-int hal_i2s_transfer_async(struct hal_i2s_dev* pdev, const uint16_t* tx, uint16_t* rx, size_t samples, hal_i2s_callback_t cb, void* userdata) COMPAT_WARN_UNUSED_RESULT;
+int hal_i2s_transfer_async(struct hal_i2s_dev* pdev, const uint16_t* tx, uint16_t* rx, size_t samples, hal_i2s_callback_t cb, void* userdata) MINI_WARN_UNUSED_RESULT;
 /** @brief 轮询异步完成 — 占位 */
-int hal_i2s_transfer_poll(struct hal_i2s_dev* pdev, uint32_t timeout_ms) COMPAT_WARN_UNUSED_RESULT;
+int hal_i2s_transfer_poll(struct hal_i2s_dev* pdev, uint32_t timeout_ms) MINI_WARN_UNUSED_RESULT;
 
 /**
  * @brief 虚拟上半部 (ISR 上下文, 经 interrupt_virtual_dispatch 调用)

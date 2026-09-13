@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Apache-2.0 */
+﻿/* SPDX-License-Identifier: Apache-2.0 */
 /*
  * CAN HAL — STM32F4 实现 (bxCAN via HAL_CAN + LL GPIO)
  *
@@ -25,7 +25,7 @@ _Static_assert(_Alignof(CAN_HandleTypeDef) <= 8,
  * @param hcan 厂商句柄 (指向 host->hcan_storage)
  * @return host 指针; hcan 为空返回 NULL
  */
-COMPAT_UNUSED static struct hal_can_bus_host *hal_can_host_from_hcan(CAN_HandleTypeDef *hcan)
+MINI_UNUSED static struct hal_can_bus_host *hal_can_host_from_hcan(CAN_HandleTypeDef *hcan)
 {
     if (!hcan)
         return NULL;
@@ -95,7 +95,7 @@ int hal_can_bus_host_init(struct hal_can_bus_host* host, int hw_idx, const struc
     if (!host || !cfg || !cfg->can)
         return MINI_ERR_INVAL;
 
-    COMPAT_MEM_SET(host, 0, sizeof(*host));
+    MINI_MEM_SET(host, 0, sizeof(*host));
     host->cfg    = *cfg;
     host->can    = cfg->can;
     host->hw_idx = hw_idx;
@@ -115,7 +115,7 @@ int hal_can_bus_host_init(struct hal_can_bus_host* host, int hw_idx, const struc
         LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_CAN1);
 
     hcan = (CAN_HandleTypeDef *)(void *)(&(host)->hcan_storage);
-    COMPAT_MEM_SET(hcan, 0, sizeof(*hcan));
+    MINI_MEM_SET(hcan, 0, sizeof(*hcan));
     hcan->Instance = (CAN_TypeDef*)cfg->can;
 
     hcan->Init.Prescaler            = cfg->prescaler;
@@ -139,7 +139,7 @@ int hal_can_bus_host_init(struct hal_can_bus_host* host, int hw_idx, const struc
 
     if (HAL_CAN_Start(hcan) != HAL_OK)
     {
-        COMPAT_IGNORE_RESULT(HAL_CAN_DeInit(hcan));
+        MINI_IGNORE_RESULT(HAL_CAN_DeInit(hcan));
         hal_can_gpio_reset(&cfg->tx);
        hal_can_gpio_reset(&cfg->rx);
         return MINI_ERR_IO;
@@ -158,8 +158,8 @@ int hal_can_bus_host_init(struct hal_can_bus_host* host, int hw_idx, const struc
         };
         if (hal_can_filter_config(host, &accept_all) != MINI_OK)
         {
-            COMPAT_IGNORE_RESULT(HAL_CAN_Stop(hcan));
-            COMPAT_IGNORE_RESULT(HAL_CAN_DeInit(hcan));
+            MINI_IGNORE_RESULT(HAL_CAN_Stop(hcan));
+            MINI_IGNORE_RESULT(HAL_CAN_DeInit(hcan));
            hal_can_gpio_reset(&cfg->tx);
            hal_can_gpio_reset(&cfg->rx);
             return MINI_ERR_IO;
@@ -190,8 +190,8 @@ int hal_can_bus_host_deinit(struct hal_can_bus_host* host)
     if (host->cfg.it_enable && host->cfg.irqn >= 0)
         NVIC_DisableIRQ((IRQn_Type)host->cfg.irqn);
 
-    COMPAT_IGNORE_RESULT(HAL_CAN_Stop((CAN_HandleTypeDef *)(void *)(&(host)->hcan_storage)));
-    COMPAT_IGNORE_RESULT(HAL_CAN_DeInit((CAN_HandleTypeDef *)(void *)(&(host)->hcan_storage)));
+    MINI_IGNORE_RESULT(HAL_CAN_Stop((CAN_HandleTypeDef *)(void *)(&(host)->hcan_storage)));
+    MINI_IGNORE_RESULT(HAL_CAN_DeInit((CAN_HandleTypeDef *)(void *)(&(host)->hcan_storage)));
     LL_APB1_GRP1_DisableClock(host->cfg.can_clk_periph);
    hal_can_gpio_reset(&host->cfg.tx);
    hal_can_gpio_reset(&host->cfg.rx);
@@ -211,7 +211,7 @@ int hal_can_dev_init(struct hal_can_dev*dev, struct hal_can_bus_host* host)
 {
     if (!dev || !host)
         return MINI_ERR_INVAL;
-    COMPAT_MEM_SET(dev, 0, sizeof(*dev));
+    MINI_MEM_SET(dev, 0, sizeof(*dev));
    dev->ctlr = host;
     return MINI_OK;
 }
@@ -225,7 +225,7 @@ int hal_can_dev_deinit(struct hal_can_dev*dev)
 {
     if (!dev)
         return MINI_ERR_INVAL;
-    COMPAT_MEM_SET(dev, 0, sizeof(*dev));
+    MINI_MEM_SET(dev, 0, sizeof(*dev));
     return MINI_OK;
 }
 
@@ -290,7 +290,7 @@ int hal_can_transmit(struct hal_can_dev*dev, const struct can_frame* frame, uint
             return MINI_ERR_TIMEOUT;
     }
 
-    COMPAT_MEM_SET(&header, 0, sizeof(header));
+    MINI_MEM_SET(&header, 0, sizeof(header));
     if (frame->can_id & CAN_EFF_FLAG)
     {
         header.IDE = CAN_ID_EXT;
@@ -341,7 +341,7 @@ int hal_can_receive(struct hal_can_dev*dev, struct can_frame* frame, uint32_t fi
             return MINI_ERR_TIMEOUT;
     }
 
-    COMPAT_MEM_SET(frame, 0, sizeof(*frame));
+    MINI_MEM_SET(frame, 0, sizeof(*frame));
     if (HAL_CAN_GetRxMessage(hcan, rx_fifo, &header, frame->data) != HAL_OK)
         return MINI_ERR_IO;
 
@@ -372,7 +372,7 @@ int hal_can_filter_config(struct hal_can_bus_host* host, const struct hal_can_fi
     if (filter->bank >= HAL_CAN_FILTER_MAX || filter->fifo > 1U)
         return MINI_ERR_INVAL;
 
-    COMPAT_MEM_SET(&hal_filter, 0, sizeof(hal_filter));
+    MINI_MEM_SET(&hal_filter, 0, sizeof(hal_filter));
    hal_filter.FilterBank = filter->bank;
    hal_filter.FilterFIFOAssignment = (filter->fifo == 0U) ? CAN_FILTER_FIFO0 : CAN_FILTER_FIFO1;
    hal_filter.FilterMode = (filter->mode == HAL_CAN_FILTER_MODE_LIST)
@@ -465,7 +465,7 @@ int hal_can_get_state(struct hal_can_bus_host* host, uint32_t* out_state)
  */
 int hal_virtual_can_irq_callback(void* arg, uint16_t irq_num)
 {
-    COMPAT_IGNORE_RESULT(arg);
-    COMPAT_IGNORE_RESULT(irq_num);
+    MINI_IGNORE_RESULT(arg);
+    MINI_IGNORE_RESULT(irq_num);
     return MINI_IRQ_ENTRY_NOBOTTOM;
 }

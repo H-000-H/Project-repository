@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Apache-2.0 */
+﻿/* SPDX-License-Identifier: Apache-2.0 */
 /*
  * hal_stm32f407.c — STM32F407 mini_tree HAL 移植
  *
@@ -55,7 +55,7 @@ bool hal_flash_read(uint32_t addr, uint8_t* buf, size_t len)
     if (addr < STM32F407_APP_FLASH_BASE) return false;
     if ((addr + len) > (STM32F407_APP_FLASH_BASE + STM32F407_APP_FLASH_SIZE)) return false;
 
-    COMPAT_MEM_COPY(buf, (const void*)addr, len);
+    MINI_MEM_COPY(buf, (const void*)addr, len);
     return true;
 }
 
@@ -115,3 +115,25 @@ void SystemInit(void)
 
 const uint8_t AHBPrescTable[16] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 6, 7, 8, 9};
 const uint8_t APBPrescTable[8]  = {0, 0, 0, 0, 1, 2, 3, 4};
+
+/**
+ * @brief 判断当前是否处于中断上下文
+ * @return 非零表示在 ISR 中, 0 表示线程/主上下文
+ * @note 实现自 hal_amp.h (原 inline 版), 此处提供外部定义供 mini_tree 链接
+ */
+int hal_is_in_isr(void)
+{
+#if defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7EM__) || \
+    defined(__ARM_ARCH_6M__) || defined(__ARM_ARCH_8M_BASE__) || \
+    defined(__ARM_ARCH_8M_MAIN__)
+    int ipsr;
+    __asm__ volatile("mrs %0, ipsr" : "=r"(ipsr));
+    return ipsr;
+#elif defined(__riscv)
+    int mcause;
+    __asm__ volatile("csrr %0, mcause" : "=r"(mcause));
+    return mcause;
+#else
+    return 0;
+#endif
+}

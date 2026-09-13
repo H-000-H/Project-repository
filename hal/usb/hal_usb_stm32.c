@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Apache-2.0 */
+﻿/* SPDX-License-Identifier: Apache-2.0 */
 /**
  * @file  hal_usb_stm32.c
  * @brief USB HAL — STM32F4 实现 (HAL GPIO/RCC/NVIC, 无 LL, 无 HAL_PCD)
@@ -116,7 +116,7 @@ int hal_usb_bus_host_init(struct hal_usb_bus_host* host,
     if (!host || !cfg || !cfg->usb_base)
         return MINI_ERR_INVAL;
 
-    COMPAT_MEM_SET(host, 0, sizeof(*host));
+    MINI_MEM_SET(host, 0, sizeof(*host));
     host->cfg = *cfg;
 
     ret = hal_usb_config_af_pin(&cfg->dp);
@@ -151,7 +151,7 @@ int hal_usb_bus_host_deinit(struct hal_usb_bus_host* host)
     hal_usb_periph_clk_disable(host->cfg.usb_base);
     hal_usb_reset_pin(&host->cfg.dp);
     hal_usb_reset_pin(&host->cfg.dm);
-    COMPAT_MEM_SET(host, 0, sizeof(*host));
+    MINI_MEM_SET(host, 0, sizeof(*host));
     return MINI_OK;
 }
 

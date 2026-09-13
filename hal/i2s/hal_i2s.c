@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Apache-2.0 */
+﻿/* SPDX-License-Identifier: Apache-2.0 */
 /*
  * I2S HAL — STM32F4 (SPI I2S 模式)
  * sync: poll / DMA NORMAL(TC 轮询) / AUTO; circular+fifo_spsc;
@@ -23,8 +23,8 @@ int hal_i2s_dma_circ_stop(struct hal_i2s_dev* pdev);
 /* I2S 下半部工作槽由中间件 interrupt.c 提供（interrupt.h extern）；本文件仅绑定 fn/arg */
 
 /* per-host dummy: TX-only / RX-only 时防 OVR / 驱动时钟 */
-static uint16_t s_dummy_tx[HAL_I2S_HOST_MAX][HAL_I2S_MAX_XFER] COMPAT_ALIGNED(32);
-static uint16_t s_dummy_rx[HAL_I2S_HOST_MAX][HAL_I2S_MAX_XFER] COMPAT_ALIGNED(32);
+static uint16_t s_dummy_tx[HAL_I2S_HOST_MAX][HAL_I2S_MAX_XFER] MINI_ALIGNED(32);
+static uint16_t s_dummy_rx[HAL_I2S_HOST_MAX][HAL_I2S_MAX_XFER] MINI_ALIGNED(32);
 
 /**
  * @brief 配置 I2S 引脚为复用功能
@@ -116,9 +116,9 @@ static void i2s_bind_bottom_half(struct hal_i2s_dev* pdev)
 {
     g_i2s_bottom_half_work.fn  = hal_i2s_dma_bottom_half_handler;
     g_i2s_bottom_half_work.arg = pdev;
-    COMPAT_ATOMIC_STORE(&g_i2s_bottom_half_work.pending,   false, COMPAT_MO_SEQ_CST);
-    COMPAT_ATOMIC_STORE(&g_i2s_bottom_half_work.executing, false, COMPAT_MO_SEQ_CST);
-    COMPAT_ATOMIC_STORE(&g_i2s_bottom_half_work.rerun,     false, COMPAT_MO_SEQ_CST);
+    MINI_ATOMIC_STORE(&g_i2s_bottom_half_work.pending,   false, MINI_SEQ_CST);
+    MINI_ATOMIC_STORE(&g_i2s_bottom_half_work.executing, false, MINI_SEQ_CST);
+    MINI_ATOMIC_STORE(&g_i2s_bottom_half_work.rerun,     false, MINI_SEQ_CST);
 }
 
 
@@ -236,7 +236,7 @@ static int i2s_transfer_dma(struct hal_i2s_bus_host* host, const uint16_t* tx, u
 
     if (use_tx && !tx_buf)
     {
-        COMPAT_MEM_SET(s_dummy_tx[host->hw_idx], 0, samples * sizeof(uint16_t));
+        MINI_MEM_SET(s_dummy_tx[host->hw_idx], 0, samples * sizeof(uint16_t));
         tx_buf = s_dummy_tx[host->hw_idx];
     }
     if (use_rx && !rx_buf)
@@ -360,7 +360,7 @@ int hal_i2s_bus_host_init(struct hal_i2s_bus_host* host, int hw_idx, const struc
         return MINI_ERR_INVAL;
     if (host->bus_ready)
         return MINI_OK;
-    COMPAT_MEM_SET(host, 0, sizeof(*host));
+    MINI_MEM_SET(host, 0, sizeof(*host));
     host->cfg = *cfg;
     if (host->cfg.max_transfer_sz == 0 || host->cfg.max_transfer_sz > HAL_I2S_MAX_XFER)
         host->cfg.max_transfer_sz = HAL_I2S_MAX_XFER;
@@ -433,7 +433,7 @@ int hal_i2s_bus_host_deinit(struct hal_i2s_bus_host* host)
 int hal_i2s_dev_init(struct hal_i2s_dev* pdev, struct hal_i2s_bus_host* host, const struct hal_i2s_device_config* cfg)
 {
     if (!pdev || !host || !cfg) return MINI_ERR_INVAL;
-    COMPAT_MEM_SET(pdev, 0, sizeof(*pdev));
+    MINI_MEM_SET(pdev, 0, sizeof(*pdev));
     pdev->ctlr = host;
     pdev->cfg = *cfg;
     return MINI_OK;
@@ -449,7 +449,7 @@ int hal_i2s_dev_deinit(struct hal_i2s_dev* pdev)
     if (!pdev) return MINI_ERR_INVAL;
     if (pdev->hw_open)
         (void)hal_i2s_dev_hw_close(pdev);
-    COMPAT_MEM_SET(pdev, 0, sizeof(*pdev));
+    MINI_MEM_SET(pdev, 0, sizeof(*pdev));
     return MINI_OK;
 }
 
@@ -796,7 +796,7 @@ int hal_i2s_transfer_poll(struct hal_i2s_dev* pdev, uint32_t timeout_ms)
      * 占位: 本应轮询 async 完成或等下半部清 pending。
      * 当前未真正启动 DMA, 直接返回 NOTSUPP 避免假完成。
      */
-    COMPAT_IGNORE_RESULT(timeout_ms);
+    MINI_IGNORE_RESULT(timeout_ms);
     return MINI_ERR_NOTSUPP;
 }
 
@@ -814,7 +814,7 @@ int hal_virtual_i2s_irq_callback(void* arg, uint16_t irq_num)
 {
     struct hal_i2s_dev* pdev = (struct hal_i2s_dev*)arg;
 
-    COMPAT_IGNORE_RESULT(irq_num);
+    MINI_IGNORE_RESULT(irq_num);
 
     if (!pdev || !pdev->ctlr)
         return MINI_IRQ_ENTRY_NOBOTTOM;
@@ -842,5 +842,5 @@ void hal_i2s_dma_bottom_half_handler(void* arg)
      *   - HT: 填/取环形缓冲半区
      *   - TC: 另一半; async 路径调 async_cb 并清 async_pending
      */
-    COMPAT_IGNORE_RESULT(pdev);
+    MINI_IGNORE_RESULT(pdev);
 }

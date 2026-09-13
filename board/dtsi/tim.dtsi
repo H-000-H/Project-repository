@@ -18,7 +18,7 @@
 &soc {
 	/* 裸机时间片调度器 tick */
 	tim7: tim@7 {
-		compatible = "tim";
+		compatible = "mt-tim";
 		reg = <7>;
 		tim-mode = <HAL_TIM_MODE_BASE>;
 		prescaler = <47>;
@@ -31,6 +31,6 @@
 		irqn = <TIM7_IRQn>;
 		interrupt-mask = <LL_TIM_DIER_UIE>;
 		nvic-priority = <5>;
-		status = "okay";
+		status = "disabled";
 	};
 };

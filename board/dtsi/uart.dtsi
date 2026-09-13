@@ -1,0 +1,69 @@
+// SPDX-License-Identifier: Apache-2.0
+/*
+ * STM32F407 UART 板级片段 — USART2 (PA2=TX, PA3=RX, AF7) console 日志口
+ *
+ * 用法: board/dts/board.dts 中 #include "uart.dtsi"
+ * label=console (client) 供 hal/system/syscalls.c _write 按 label 查找输出日志
+ *
+ * 数值宏直投 LL_InitTypeDef (DataWidth/StopBits/Parity 等由 hal_uart_stm32.c
+ * 零翻译透传), 必须使用 LL 库宏而非裸数字。
+ *
+ * 厂商宏经 VENDOR_INC_DIRS / dtc-lite -I 解析（见根 CMakeLists.txt）
+ */
+#include <stm32f4xx_ll_gpio.h>
+#include <stm32f4xx_ll_usart.h>
+#include <stm32f4xx_ll_bus.h>
+
+&soc {
+	console_uart: uart@2 {
+		compatible = "mt-uart";
+		reg = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		uart-base  = <USART2_BASE>;
+		uart-clk   = <LL_APB1_GRP1_PERIPH_USART2>;
+		uart-baud  = <115200>;
+		data-width = <LL_USART_DATAWIDTH_8B>;
+		parity     = <LL_USART_PARITY_NONE>;
+		stop-bits  = <LL_USART_STOPBITS_1>;
+		tx-port = <GPIOA_BASE>;
+		tx-pin  = <LL_GPIO_PIN_2>;
+		tx-clk  = <LL_AHB1_GRP1_PERIPH_GPIOA>;
+		tx-af   = <LL_GPIO_AF_7>;
+		rx-port = <GPIOA_BASE>;
+		rx-pin  = <LL_GPIO_PIN_3>;
+		rx-clk  = <LL_AHB1_GRP1_PERIPH_GPIOA>;
+		rx-af   = <LL_GPIO_AF_7>;
+		status = "disabled";
+
+		console: uart-client@0 {
+			compatible = "mt-uart-client";
+			reg = <0>;
+			status = "disabled";
+		};
+	};
+
+	/* OTA 固件流口: USART3 (PB10=TX, PB11=RX, AF7) — 与 console(USART2) 分流,
+	 * 避免日志字节混进固件流。label=ota_uart 供 Ota 任务按标签查找。 */
+	ota_uart: uart@3 {
+		compatible = "mt-uart";
+		reg = <3>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		uart-base  = <USART3_BASE>;
+		uart-clk   = <LL_APB1_GRP1_PERIPH_USART3>;
+		uart-baud  = <115200>;
+		data-width = <LL_USART_DATAWIDTH_8B>;
+		parity     = <LL_USART_PARITY_NONE>;
+		stop-bits  = <LL_USART_STOPBITS_1>;
+		tx-port = <GPIOB_BASE>;
+		tx-pin  = <LL_GPIO_PIN_10>;
+		tx-clk  = <LL_AHB1_GRP1_PERIPH_GPIOB>;
+		tx-af   = <LL_GPIO_AF_7>;
+		rx-port = <GPIOB_BASE>;
+		rx-pin  = <LL_GPIO_PIN_11>;
+		rx-clk  = <LL_AHB1_GRP1_PERIPH_GPIOB>;
+		rx-af   = <LL_GPIO_AF_7>;
+		status = "disabled";
+	};
+};

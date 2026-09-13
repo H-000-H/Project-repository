@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license: SPDX-License-Identifier: Apache-2.0 
  * @file hal_dac.c
  * @brief DAC HAL 层 — 硬件抽象接口,硬件直投层
@@ -45,7 +45,7 @@ static void hal_dac_dma_clear_tc(DMA_TypeDef* dma, uint32_t stream)
  * @param gpio GPIO 配置
  * @return 成功返回 MINI_OK, 失败返回 MINI_ERR_INVAL
  */
-COMPAT_STATIC_INLINE int hal_dac_config_af_pin(hal_dac_gpio_config* gpio)
+MINI_STATIC_INLINE int hal_dac_config_af_pin(hal_dac_gpio_config* gpio)
 {
     if (!gpio)
         return MINI_ERR_INVAL;
@@ -549,7 +549,7 @@ int hal_dac_force_stop(hal_dac_device* pdev)
  */
 int hal_virtual_dac_irq_callback(void* arg, uint16_t irq_num)
 {
-    COMPAT_IGNORE_RESULT(irq_num);
+    MINI_IGNORE_RESULT(irq_num);
     hal_dac_device* pdev = (hal_dac_device*)arg;
 
     if (!pdev || !pdev->host || !pdev->host->dac_handle)

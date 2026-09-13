@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license: SPDX-License-Identifier: Apache-2.0
  * @file: hal_can.h
  * @brief: CAN HAL 层 — 硬件抽象接口,硬件直投层
@@ -57,7 +57,7 @@ struct can_frame
     uint8_t  __pad;                                /**< 对齐填充 */
     uint8_t  __res0;                               /**< 保留 */
     uint8_t  __res1;                               /**< 保留 */
-    uint8_t  data[CAN_MAX_DLEN] COMPAT_ALIGNED(8); /**< 载荷 */
+    uint8_t  data[CAN_MAX_DLEN] MINI_ALIGNED(8); /**< 载荷 */
 };
 
 /** 过滤器模式 / 宽度 */
@@ -148,7 +148,7 @@ struct hal_can_hcan_blob
 struct hal_can_bus_host
 {
     struct hal_can_bus_config cfg;                            /**< 总线配置 (DTSI 直投) */
-    struct hal_can_hcan_blob  hcan_storage COMPAT_ALIGNED(8); /**< 厂商句柄存储 */
+    struct hal_can_hcan_blob  hcan_storage MINI_ALIGNED(8); /**< 厂商句柄存储 */
     uintptr_t                 can;                            /**< 缓存 cfg.can, fast path */
     int                       hw_idx;                         /**< host 池下标 */
     int                       ref_count;                      /**< 引用计数 */
@@ -165,35 +165,35 @@ struct hal_can_dev
     int                      hw_open; /**< 硬件打开计数 */
 };
 
-int hal_can_bus_host_init(struct hal_can_bus_host* host, int hw_idx, const struct hal_can_bus_config* cfg) COMPAT_WARN_UNUSED_RESULT;
-int hal_can_bus_host_deinit(struct hal_can_bus_host* host) COMPAT_WARN_UNUSED_RESULT;
-int hal_can_dev_hw_open(struct hal_can_dev* dev) COMPAT_WARN_UNUSED_RESULT;
-int hal_can_dev_hw_close(struct hal_can_dev* dev) COMPAT_WARN_UNUSED_RESULT;
-int hal_can_dev_init(struct hal_can_dev* dev, struct hal_can_bus_host* host) COMPAT_WARN_UNUSED_RESULT;
-int hal_can_dev_deinit(struct hal_can_dev* dev) COMPAT_WARN_UNUSED_RESULT;
+int hal_can_bus_host_init(struct hal_can_bus_host* host, int hw_idx, const struct hal_can_bus_config* cfg) MINI_WARN_UNUSED_RESULT;
+int hal_can_bus_host_deinit(struct hal_can_bus_host* host) MINI_WARN_UNUSED_RESULT;
+int hal_can_dev_hw_open(struct hal_can_dev* dev) MINI_WARN_UNUSED_RESULT;
+int hal_can_dev_hw_close(struct hal_can_dev* dev) MINI_WARN_UNUSED_RESULT;
+int hal_can_dev_init(struct hal_can_dev* dev, struct hal_can_bus_host* host) MINI_WARN_UNUSED_RESULT;
+int hal_can_dev_deinit(struct hal_can_dev* dev) MINI_WARN_UNUSED_RESULT;
 
 /**
  * @brief 发送一帧 (经典 CAN)
  * @note 拒绝 CAN_ERR_FLAG；等待空闲邮箱超时返回 MINI_ERR_TIMEOUT
  */
-int hal_can_transmit(struct hal_can_dev* dev, const struct can_frame* frame, uint32_t timeout_ms) COMPAT_WARN_UNUSED_RESULT;
+int hal_can_transmit(struct hal_can_dev* dev, const struct can_frame* frame, uint32_t timeout_ms) MINI_WARN_UNUSED_RESULT;
 
 /**
  * @brief 从指定 FIFO 接收一帧
  * @param fifo RX FIFO 编号 (0 / 1)
  */
-int hal_can_receive(struct hal_can_dev* dev, struct can_frame* frame, uint32_t fifo, uint32_t timeout_ms) COMPAT_WARN_UNUSED_RESULT;
+int hal_can_receive(struct hal_can_dev* dev, struct can_frame* frame, uint32_t fifo, uint32_t timeout_ms) MINI_WARN_UNUSED_RESULT;
 
 /**
  * @brief 配置硬件过滤器 (作用于 host/控制器)
  */
-int hal_can_filter_config(struct hal_can_bus_host* host, const struct hal_can_filter_config* filter) COMPAT_WARN_UNUSED_RESULT;
+int hal_can_filter_config(struct hal_can_bus_host* host, const struct hal_can_filter_config* filter) MINI_WARN_UNUSED_RESULT;
 
 /**
  * @brief 查询控制器状态
  * @param out_state 输出 HAL_CAN_STATE_*
  */
-int hal_can_get_state(struct hal_can_bus_host* host, uint32_t* out_state) COMPAT_WARN_UNUSED_RESULT;
+int hal_can_get_state(struct hal_can_bus_host* host, uint32_t* out_state) MINI_WARN_UNUSED_RESULT;
 
 /**
  * @brief 虚拟/平台 CAN 中断入口 (由中断框架回调)

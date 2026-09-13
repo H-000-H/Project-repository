@@ -16,7 +16,7 @@ namespace App_Led
     class Led
     {
     public:
-        static Led& instance();
+        static Led& get_instance();
 
         // 禁止拷贝和移动
         Led(const Led&) = delete;
@@ -24,8 +24,8 @@ namespace App_Led
         Led(Led&&) = delete;
         Led& operator=(Led&&) = delete;
 
-        void task_cb(x_task* self);  // 协程回调：翻转 LED
-        bool register_task(void);    // 注册任务到调度器
+        void thread(x_task* self);   // 协程回调：翻转 LED
+        bool thread_register(void);  // 注册任务到调度器
 
     private:
         Led();

@@ -65,20 +65,20 @@ struct hal_rtc_dev
 /**
  * @brief 初始化 RTC 软件对象
  */
-int hal_rtc_init(struct hal_rtc_dev* pdev, const struct hal_rtc_config* cfg) COMPAT_WARN_UNUSED_RESULT;
-int hal_rtc_deinit(struct hal_rtc_dev* pdev) COMPAT_WARN_UNUSED_RESULT;
-int hal_rtc_open(struct hal_rtc_dev* pdev) COMPAT_WARN_UNUSED_RESULT;
-int hal_rtc_close(struct hal_rtc_dev* pdev) COMPAT_WARN_UNUSED_RESULT;
-int hal_rtc_set_time(struct hal_rtc_dev* pdev, const struct hal_rtc_time* time) COMPAT_WARN_UNUSED_RESULT;
-int hal_rtc_get_time(struct hal_rtc_dev* pdev, struct hal_rtc_time* time) COMPAT_WARN_UNUSED_RESULT;
+int hal_rtc_init(struct hal_rtc_dev* pdev, const struct hal_rtc_config* cfg) MINI_WARN_UNUSED_RESULT;
+int hal_rtc_deinit(struct hal_rtc_dev* pdev) MINI_WARN_UNUSED_RESULT;
+int hal_rtc_open(struct hal_rtc_dev* pdev) MINI_WARN_UNUSED_RESULT;
+int hal_rtc_close(struct hal_rtc_dev* pdev) MINI_WARN_UNUSED_RESULT;
+int hal_rtc_set_time(struct hal_rtc_dev* pdev, const struct hal_rtc_time* time) MINI_WARN_UNUSED_RESULT;
+int hal_rtc_get_time(struct hal_rtc_dev* pdev, struct hal_rtc_time* time) MINI_WARN_UNUSED_RESULT;
 /**
  * @brief 配置闹钟 A 并使能中断位; callback 暂存但当前无完整 ISR 派发
  */
 int hal_rtc_set_alarm(struct hal_rtc_dev* pdev, const struct hal_rtc_time* alarm,
-                         hal_rtc_alarm_cb_t cb, void* user) COMPAT_WARN_UNUSED_RESULT;
-int hal_rtc_cancel_alarm(struct hal_rtc_dev* pdev) COMPAT_WARN_UNUSED_RESULT;
-int hal_rtc_set_wakeup_timer(struct hal_rtc_dev* pdev, uint32_t seconds) COMPAT_WARN_UNUSED_RESULT;
-int hal_rtc_cancel_wakeup_timer(struct hal_rtc_dev* pdev) COMPAT_WARN_UNUSED_RESULT;
+                         hal_rtc_alarm_cb_t cb, void* user) MINI_WARN_UNUSED_RESULT;
+int hal_rtc_cancel_alarm(struct hal_rtc_dev* pdev) MINI_WARN_UNUSED_RESULT;
+int hal_rtc_set_wakeup_timer(struct hal_rtc_dev* pdev, uint32_t seconds) MINI_WARN_UNUSED_RESULT;
+int hal_rtc_cancel_wakeup_timer(struct hal_rtc_dev* pdev) MINI_WARN_UNUSED_RESULT;
 void hal_rtc_force_stop(void);
 
 #ifdef __cplusplus

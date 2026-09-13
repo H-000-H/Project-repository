@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Apache-2.0 */
+﻿/* SPDX-License-Identifier: Apache-2.0 */
 /*
  * I2C HAL — STM32F4 实现
  *
@@ -334,7 +334,7 @@ int hal_i2c_dev_init(struct hal_i2c_dev* pdev, struct hal_i2c_bus_host* host, co
     if (!pdev || !host || !dev_cfg)
         return MINI_ERR_INVAL;
 
-    COMPAT_MEM_SET(pdev, 0, sizeof(*pdev));
+    MINI_MEM_SET(pdev, 0, sizeof(*pdev));
     pdev->ctlr = host;
     pdev->cfg  = *dev_cfg;
     return MINI_OK;
@@ -354,7 +354,7 @@ int hal_i2c_dev_deinit(struct hal_i2c_dev* pdev)
         (void)hal_i2c_dev_hw_close(pdev);
 
     pdev->ctlr = NULL;
-    COMPAT_MEM_SET(&pdev->cfg, 0, sizeof(pdev->cfg));
+    MINI_MEM_SET(&pdev->cfg, 0, sizeof(pdev->cfg));
     return MINI_OK;
 }
 
@@ -376,7 +376,7 @@ int hal_i2c_bus_host_init(struct hal_i2c_bus_host* host, int hw_idx, const struc
     if (!cfg->i2c)
         return MINI_ERR_NODEV;
 
-    COMPAT_MEM_SET(host, 0, sizeof(*host));
+    MINI_MEM_SET(host, 0, sizeof(*host));
     host->cfg = *cfg;
     if (host->cfg.max_transfer_sz == 0)
         host->cfg.max_transfer_sz = HAL_I2C_MAX_XFER;
@@ -535,7 +535,7 @@ static int hal_i2c_prepare(struct hal_i2c_dev* pdev, size_t len)
     if (len == 0 || len > pdev->ctlr->cfg.max_transfer_sz || len > HAL_I2C_MAX_XFER)
         return MINI_ERR_INVAL;
 
-    if (COMPAT_MEM_COPY(&pdev->ctlr->active_cfg, &pdev->cfg, sizeof(pdev->cfg)) != 0)
+    if (MINI_MEM_COPY(&pdev->ctlr->active_cfg, &pdev->cfg, sizeof(pdev->cfg)) != 0)
     {
         ret = hal_i2c_apply_dev_cfg(pdev->ctlr, &pdev->cfg);
         if (ret != MINI_OK)

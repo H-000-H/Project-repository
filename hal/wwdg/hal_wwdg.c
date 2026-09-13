@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Apache-2.0 */
+﻿/* SPDX-License-Identifier: Apache-2.0 */
 /**
  * @file        hal_wwdg.c
  * @brief       STM32F4 WWDG HAL 实现 (CFR/CR, APB1)
@@ -22,7 +22,7 @@ int hal_wwdg_init(struct hal_wwdg_dev* pdev, const struct hal_wwdg_config* cfg)
         return MINI_ERR_INVAL;
     if (cfg->window > 0x7FU)
         return MINI_ERR_INVAL;
-    COMPAT_MEM_SET(pdev, 0, sizeof(*pdev));
+    MINI_MEM_SET(pdev, 0, sizeof(*pdev));
     pdev->cfg = *cfg;
     return MINI_OK;
 }

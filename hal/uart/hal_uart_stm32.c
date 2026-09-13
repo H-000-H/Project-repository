@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Apache-2.0 */
+﻿/* SPDX-License-Identifier: Apache-2.0 */
 /*
  * UART HAL — STM32F4 实现
  *
@@ -8,7 +8,6 @@
  */
 #include "hal_uart.h"
 #include "status.h"
-#include "osal.h"
 #include "compiler_compat.h"
 
 #include "stm32f4xx.h"
@@ -39,7 +38,7 @@ struct bottom_half_work g_uart_bottom_half_work;
  * @param timeout_ms 调用方超时 (ms)
  * @return 有效超时毫秒数
  */
-COMPAT_STATIC_INLINE uint32_t stm32_uart_timeout(uint32_t timeout_ms)
+MINI_STATIC_INLINE uint32_t stm32_uart_timeout(uint32_t timeout_ms)
 {
     return timeout_ms ? timeout_ms : STM32_UART_READ_TIMEOUT_MS;
 }
@@ -52,7 +51,7 @@ COMPAT_STATIC_INLINE uint32_t stm32_uart_timeout(uint32_t timeout_ms)
  * @brief 配置 UART 复用引脚: 时钟使能 + AF 模式 + 推挽高速 (LL 库直投)
  * @param pin 引脚配置 (含 port/pin/clk_bus/af)
  */
-COMPAT_STATIC_INLINE void hal_uart_config_af_pin(const struct hal_uart_pin_cfg* pin)
+MINI_STATIC_INLINE void hal_uart_config_af_pin(const struct hal_uart_pin_cfg* pin)
 {
     GPIO_TypeDef* port = (GPIO_TypeDef*)pin->port;
     LL_GPIO_InitTypeDef GPIO_InitStruct = {0};
@@ -449,7 +448,7 @@ int hal_uart_dma_abort(struct hal_uart_dev* dev)
  */
 int hal_virtual_uart_irq_callback(void* arg, uint16_t irq_num)
 {
-    COMPAT_IGNORE_RESULT(irq_num);
+    MINI_IGNORE_RESULT(irq_num);
     struct hal_uart_dev* dev = (struct hal_uart_dev*)arg;
 
     if (!dev || !dev->ctlr)

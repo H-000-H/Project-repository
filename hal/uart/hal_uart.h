@@ -135,23 +135,23 @@ struct hal_uart_dev
 /*============================================================================*/
 /*                              Device 管理 API                               */
 /*============================================================================*/
-int  hal_uart_dev_init(struct hal_uart_bus_host* host,const struct hal_uart_config* cfg) COMPAT_WARN_UNUSED_RESULT;
-int  hal_uart_dev_hw_open(struct hal_uart_bus_host* host) COMPAT_WARN_UNUSED_RESULT;
-int  hal_uart_dev_hw_close(struct hal_uart_bus_host* host) COMPAT_WARN_UNUSED_RESULT;
+int  hal_uart_dev_init(struct hal_uart_bus_host* host,const struct hal_uart_config* cfg) MINI_WARN_UNUSED_RESULT;
+int  hal_uart_dev_hw_open(struct hal_uart_bus_host* host) MINI_WARN_UNUSED_RESULT;
+int  hal_uart_dev_hw_close(struct hal_uart_bus_host* host) MINI_WARN_UNUSED_RESULT;
 
 /*============================================================================*/
 /*                              同步传输                                       */
 /*============================================================================*/
-int hal_uart_write(struct hal_uart_dev* dev, const uint8_t* data, size_t len, uint32_t timeout_ms) COMPAT_WARN_UNUSED_RESULT;
-int hal_uart_read(struct hal_uart_dev* dev, uint8_t* data, size_t len, uint32_t timeout_ms) COMPAT_WARN_UNUSED_RESULT;
+int hal_uart_write(struct hal_uart_dev* dev, const uint8_t* data, size_t len, uint32_t timeout_ms) MINI_WARN_UNUSED_RESULT;
+int hal_uart_read(struct hal_uart_dev* dev, uint8_t* data, size_t len, uint32_t timeout_ms) MINI_WARN_UNUSED_RESULT;
 
 /*============================================================================*/
 /*                              DMA 传输 (STM32/WCH 支持, ESP32 返回 NOTSUPP)  */
 /*============================================================================*/
 /* DMA 配置由 host->cfg.dma_cfg 提供 (硬件直投, 仿 ADC), 无需外部传入通道句柄。
  * dma_enable=0 时返回 MINI_ERR_NOTSUPP。 */
-int  hal_uart_write_dma(struct hal_uart_dev* dev, const uint8_t* data, size_t len, uint32_t timeout_ms) COMPAT_WARN_UNUSED_RESULT;
-int  hal_uart_dma_abort(struct hal_uart_dev* dev) COMPAT_WARN_UNUSED_RESULT;
+int  hal_uart_write_dma(struct hal_uart_dev* dev, const uint8_t* data, size_t len, uint32_t timeout_ms) MINI_WARN_UNUSED_RESULT;
+int  hal_uart_dma_abort(struct hal_uart_dev* dev) MINI_WARN_UNUSED_RESULT;
 
 /**
  * @brief UART 虚拟中断上半部回调 (ISR 内执行)
