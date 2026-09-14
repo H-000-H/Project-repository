@@ -1,0 +1,69 @@
+Checks: '-*,readability-identifier-naming'
+
+CheckOptions:
+  # ── C++ class: Google 风格 PascalCase（clang-tidy 写作 CamelCase）──
+  - key: readability-identifier-naming.ClassCase
+    value: CamelCase
+  # ── C 中间件类型: 小写（struct event_bus / event_callback_t）──
+  - key: readability-identifier-naming.StructCase
+    value: lower_case
+  - key: readability-identifier-naming.UnionCase
+    value: lower_case
+  - key: readability-identifier-naming.EnumCase
+    value: lower_case
+  - key: readability-identifier-naming.TypedefCase
+    value: lower_case
+  # ── C++ using 别名: Google 风格 PascalCase（CamelCase）──
+  - key: readability-identifier-naming.TypeAliasCase
+    value: CamelCase
+  # ── 枚举值: 大写（Google 允许枚举值用 ALL_CAPS，与现有代码一致）──
+  - key: readability-identifier-naming.EnumConstantCase
+    value: UPPER_CASE
+  # ── namespace: Google 风格小写 ──
+  - key: readability-identifier-naming.NamespaceCase
+    value: lower_case
+
+  # ── 函数: 小写（内核风格 API 名 / HAL 强制名例外）──
+  - key: readability-identifier-naming.FunctionCase
+    value: lower_case
+  - key: readability-identifier-naming.FunctionIgnoredRegexp
+    value: '^(ERR_PTR|PTR_ERR|IS_ERR|IS_ERR_OR_NULL|COMPAT_[A-Z0-9_]+|HAL_[A-Za-z0-9_]*|SystemClock_Config|Error_Handler|assert_failed|MX_[A-Za-z0-9_]+|SystemInit)$'
+
+  # ── 变量: 全内核风格 仅小写, 无前缀要求 ──
+  - key: readability-identifier-naming.GlobalVariableCase
+    value: lower_case
+  - key: readability-identifier-naming.GlobalVariableIgnoredRegexp
+    value: '^(SystemCoreClock)$'
+  - key: readability-identifier-naming.StaticVariableCase
+    value: lower_case
+  - key: readability-identifier-naming.LocalVariableCase
+    value: lower_case
+  - key: readability-identifier-naming.MemberVariableCase
+    value: lower_case
+  - key: readability-identifier-naming.FunctionParameterCase
+    value: lower_case
+  - key: readability-identifier-naming.VariableCase
+    value: lower_case
+
+  # ── 常量: 全内核风格 仅小写, 无 k_ 前缀要求 ──
+  - key: readability-identifier-naming.GlobalConstantCase
+    value: lower_case
+  # 链接脚本导出符号（PROVIDE(__app_partition_base = ...)）: 双下划线前缀不可改名
+  - key: readability-identifier-naming.GlobalConstantIgnoredRegexp
+    value: '^__'
+  - key: readability-identifier-naming.StaticConstantCase
+    value: lower_case
+  - key: readability-identifier-naming.MemberConstantCase
+    value: lower_case
+  - key: readability-identifier-naming.LocalConstantCase
+    value: lower_case
+  - key: readability-identifier-naming.ConstantParameterCase
+    value: lower_case
+  - key: readability-identifier-naming.ConstantCase
+    value: lower_case
+
+  # ── 宏: 全大写，container_of / likely / 头文件卫士等内核风格宏例外 ──
+  - key: readability-identifier-naming.MacroDefinitionCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.MacroDefinitionIgnoredRegexp
+    value: '^(container_of|container_of_const|offsetof|typeof_member|likely|unlikely|mini_pre_execution|__[A-Z0-9_]+__)$'

@@ -190,6 +190,9 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 
 target_link_options(${CMAKE_PROJECT_NAME} PRIVATE
     -T "${CMAKE_CURRENT_SOURCE_DIR}/mini_tree/error_symbols.ld"
+    # 链接脚本里的 INCLUDE 以项目根为基准解析 (mini-os-heap.ld);
+    # ld 会在 -L 路径中查找 INCLUDE 的文件
+    -L "${CMAKE_CURRENT_SOURCE_DIR}"
 )
 
 # ---- lwIP：按 mini_tree/.config 的 CONFIG_LWIP 软编码（缺省关闭，须显式开启才拉取/链接）----

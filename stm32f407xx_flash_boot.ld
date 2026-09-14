@@ -256,6 +256,10 @@ SECTIONS
     . = ALIGN(8);
   } >RAM
 
+  /* mini-os 堆区: bss 之后到栈顶(顶部留 2KB 给 MSP), 不计入 bss。
+   * boot 也会链接 mini_tree (libmini-os.a), 缺这组符号同样链接不过。 */
+  INCLUDE mini_tree/lib/mini-os/mini-os-heap.ld
+
 
 
   /* Remove information from the standard libraries */

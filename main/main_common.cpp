@@ -7,7 +7,16 @@
 #include "main_common.h"
 #include "compiler_compat.h" /* mini_pre_execution */
 #include "log.h"             /* mini_log_register_tick */
-#include "xtask.h"           /* x_scheduler_now (裸机调度器时基) */
+
+#if defined(CONFIG_OS_BARE)
+#include "xtask.h" /* x_scheduler_now (裸机调度器时基) */
+#elif defined(CONFIG_OS_MINI_OS)
+#include "err.h"      /* MINI_OS_OK */
+#include "schedule.h" /* mini_os_get_tick */
+#elif defined(CONFIG_OS_FREERTOS)
+#include "FreeRTOS.h"
+#include "task.h" /* xTaskGetTickCount */
+#endif
 
 /**
  * @brief 系统时钟配置：HSI 16MHz → PLL(M16/N192/P2) → SYSCLK 96MHz
@@ -76,13 +85,28 @@ void assert_failed(uint8_t* file, uint32_t line)
 /* 日志时基桥接                                                                */
 /* -------------------------------------------------------------------------- */
 /**
- * @brief mini-log 时间戳回调: 桥接到裸机调度器时基
- * @return 当前 tick (ms); 调度器未启动时为 0
- * @note  mini-log 只认自己的回调, 不依赖任何 tick 源; 本工程把 xtask 时基接上去。
+ * @brief mini-log 时间戳回调: 桥接到当前后端的时基
+ * @return 当前 tick (ms); 内核/调度器未启动时为 0
+ * @note  mini-log 只认自己的回调, 不依赖任何 tick 源; 本工程把后端时基接上去:
+ *          裸机    -> x_scheduler_now()
+ *          mini-os -> mini_os_get_tick()
+ *          FreeRTOS-> xTaskGetTickCount()
+ *        三个来源 tick 频率都是 1000Hz, 与 mini-log 需要的毫秒口径一致。
  */
 extern "C" int mini_log_tick_from_scheduler(void)
 {
+#if defined(CONFIG_OS_MINI_OS)
+    mini_os_tick_t tick = 0;
+    if (mini_os_get_tick(&tick) != MINI_OS_OK)
+    {
+        return 0;
+    }
+    return (int)tick;
+#elif defined(CONFIG_OS_FREERTOS)
+    return (int)xTaskGetTickCount();
+#else
     return (int)x_scheduler_now();
+#endif
 }
 
 /** @brief 尽早把调度器时基接给 mini-log (构造函数, 早于 main 与任何日志输出) */

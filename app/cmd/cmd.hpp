@@ -1,48 +1,47 @@
-#pragma once
-#include <cstdint>
+/**
+ * @copyright SPDX-License-Identifier: Apache-2.0
+ * @file cmd.hpp
+ * @brief 命令层: led.set 命令定义 + UART 收包回调入口
+ * @author H-000-H
+ */
+#ifndef APP_CMD_CMD_HPP_
+#define APP_CMD_CMD_HPP_
+
 #include <cstddef>
-#include "system_cmd.hpp"
+#include <cstdint>
+
+#include "app_config.hpp"
 #include "led.hpp"
+#include "system_cmd.hpp"
 #include "system_log.h"
-namespace App_Cmd
+
+namespace app_cmd
 {
-    /* 命令名/日志标签收一处: 裸机后端要求命令名是静态字符串字面量 */
-    constexpr const char* k_led_set_cmd = "led.set";
-    constexpr const char* kTag = "cmd";
 
-    /** @brief LED 控制模式 (串口行命令: ON / OFF / AUTO) */
-    enum LedMode : uint8_t
-    {
-        k_led_off = 0u,
-        k_led_on = 1u,
-        k_led_auto = 2u,
-    };
+constexpr const char* kLedSetCommand = "led.set"; /* 裸机后端要求静态字面量 */
+constexpr const char* kTag           = "cmd";
 
-    struct LedArgs
-    {
-        uint8_t mode; // 取值见 LedMode
-    };
+/** @brief LED 控制模式 (串口行命令: ON / OFF / AUTO) */
+enum class LedMode : uint8_t
+{
+    kOff  = 0u, /**< 熄灭并接管 */
+    kOn   = 1u, /**< 点亮并接管 */
+    kAuto = 2u, /**< 交还控制权, 恢复周期翻转 */
+};
 
-    inline bool led_set_handler(const LedArgs& arg, App_Led::Led* ctx)
-    {
-        if (ctx == nullptr)
-            return false;
-        switch (arg.mode)
-        {
-        case k_led_on:
-            return ctx->set_light(true);
-        case k_led_auto:
-            return ctx->set_auto();
-        case k_led_off:
-        default:
-            return ctx->set_light(false);
-        }
-    }
+struct LedArgs
+{
+    LedMode mode;
+};
 
-    /** @brief 收到 UART 数据时的业务回调(签名同 CommunicateCore::rx_handler_t)
-     *  @note  按字节累积, 遇 '\n' / '\r' 才成帧后分发, 因此能处理拆包/粘包 */
-    void on_uart_rx(const uint8_t* data, size_t len);
+bool HandleLedSet(const LedArgs& arg, app_led::Led* ctx);
 
-    /** @brief 注册 led.set 命令, 并把 on_uart_rx 挂到 UART 通信实例上 */
-    void init();
-} // namespace App_Cmd
+/** @brief UART 收包回调: 逐字节累积, 遇 '\n'/'\r' 成帧后分发 (可处理拆包/粘包) */
+void OnUartRx(const uint8_t* data, size_t len);
+
+/** @brief 注册 led.set 命令, 并把 OnUartRx 挂到 UART 实例 */
+void Init();
+
+} // namespace app_cmd
+
+#endif // APP_CMD_CMD_HPP_

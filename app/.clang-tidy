@@ -1,0 +1,89 @@
+---
+# 应用层命名: 纯 Google C++ 风格（app/ 目录内 C++ 文件）
+#   - 类型（class/struct/union/enum/typedef/别名）: PascalCase
+#     函数指针/回调类型别名尾部加 Callback（RxHandlerCallback / TxDoneCallback）,
+#     便于区分"类型是回调"和"函数会调回调"（clang-tidy 无法强制, 由 code review 把关）
+#   - 函数: PascalCase（Google 的"存取器除外"不在此强制, 统一 PascalCase）
+#   - 枚举值: k + PascalCase（Google 推荐 kEnumName）
+#   - 常量（全局/静态/成员）: k + PascalCase（Google 的 kConstantName）
+#   - 变量: 小写+下划线; 类成员尾下划线（dev_ / manual_hold_）
+#   - namespace: 小写+下划线
+#   - 宏: 全大写
+# 例外（内核风格 API）: container_of/offsetof/likely/unlikely/mini_pre_execution、
+#   IS_ERR/PTR_ERR/ERR_PTR、COMPAT_*、__XXX_H__ 头文件卫士。
+# 说明: 本文件只覆盖 app/ 子树, 更上层（main/ hal/）仍用项目根的 .clang-tidy。
+# 使用: clang-tidy -p build <file>  （clangd / IDE / CI 直接读取本文件）
+
+Checks: '-*,readability-identifier-naming'
+
+CheckOptions:
+  # ── 类型: PascalCase ──
+  - key: readability-identifier-naming.ClassCase
+    value: CamelCase
+  - key: readability-identifier-naming.StructCase
+    value: CamelCase
+  - key: readability-identifier-naming.UnionCase
+    value: CamelCase
+  - key: readability-identifier-naming.EnumCase
+    value: CamelCase
+  - key: readability-identifier-naming.TypedefCase
+    value: CamelCase
+  - key: readability-identifier-naming.TypeAliasCase
+    value: CamelCase
+
+  # ── 枚举值: k + PascalCase（Google: kEnumName）──
+  - key: readability-identifier-naming.EnumConstantPrefix
+    value: k
+  - key: readability-identifier-naming.EnumConstantCase
+    value: CamelCase
+
+  # ── namespace: 小写+下划线 ──
+  - key: readability-identifier-naming.NamespaceCase
+    value: lower_case
+
+  # ── 函数: PascalCase（内核风格 API 名例外）──
+  - key: readability-identifier-naming.FunctionCase
+    value: CamelCase
+  - key: readability-identifier-naming.FunctionIgnoredRegexp
+    value: '^(ERR_PTR|PTR_ERR|IS_ERR|IS_ERR_OR_NULL|COMPAT_[A-Z0-9_]+)$'
+
+  # ── 变量: 小写+下划线; 类成员尾下划线; 函数内 static 无前缀要求 ──
+  - key: readability-identifier-naming.GlobalVariableCase
+    value: lower_case
+  - key: readability-identifier-naming.StaticVariableCase
+    value: lower_case
+  - key: readability-identifier-naming.LocalVariableCase
+    value: lower_case
+  - key: readability-identifier-naming.MemberVariableCase
+    value: lower_case
+  - key: readability-identifier-naming.FunctionParameterCase
+    value: lower_case
+  - key: readability-identifier-naming.VariableCase
+    value: lower_case
+
+  # ── 常量: k + PascalCase（Google: kConstantName）──
+  - key: readability-identifier-naming.GlobalConstantPrefix
+    value: k
+  - key: readability-identifier-naming.GlobalConstantCase
+    value: CamelCase
+  - key: readability-identifier-naming.StaticConstantPrefix
+    value: k
+  - key: readability-identifier-naming.StaticConstantCase
+    value: CamelCase
+  - key: readability-identifier-naming.MemberConstantPrefix
+    value: k
+  - key: readability-identifier-naming.MemberConstantCase
+    value: CamelCase
+  # 局部常量按普通变量（Google 只对编译期常量用 k 前缀）
+  - key: readability-identifier-naming.LocalConstantCase
+    value: lower_case
+  - key: readability-identifier-naming.ConstantParameterCase
+    value: lower_case
+  - key: readability-identifier-naming.ConstantCase
+    value: lower_case
+
+  # ── 宏: 全大写，container_of / likely / 头文件卫士等内核风格宏例外 ──
+  - key: readability-identifier-naming.MacroDefinitionCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.MacroDefinitionIgnoredRegexp
+    value: '^(container_of|container_of_const|offsetof|typeof_member|likely|unlikely|mini_pre_execution|__[A-Z0-9_]+__)$'

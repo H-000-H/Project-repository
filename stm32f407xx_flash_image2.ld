@@ -259,6 +259,10 @@ SECTIONS
     . = ALIGN(8);
   } >RAM
 
+  /* mini-os 堆区: bss 之后到栈顶(顶部留 2KB 给 MSP), 不计入 bss。
+   * 提供 __mini_os_heap_start / __mini_os_heap_end (CONFIG_OS_MINI_OS 必需)。 */
+  INCLUDE mini_tree/lib/mini-os/mini-os-heap.ld
+
 
 
   /* Remove information from the standard libraries */

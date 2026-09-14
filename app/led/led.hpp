@@ -1,49 +1,83 @@
 /**
- *@file led.hpp
- *@brief LED 周期任务实现
- *@copyright SPDX-License-Identifier: Apache-2.0
- *@author H-000-H
+ * @copyright SPDX-License-Identifier: Apache-2.0
+ * @file led.hpp
+ * @brief 板载 LED: 周期翻转任务 + 手动控制接口
+ * @author H-000-H
  */
-#pragma once
-#include "xtask.h"
+#ifndef APP_LED_LED_HPP_
+#define APP_LED_LED_HPP_
+
 #include <cstdint>
 
-// 前向声明 C 结构体
-struct device;
+#include "app_config.hpp"
 
-namespace App_Led
-{
-    class Led
-    {
-    public:
-        static Led& get_instance();
-
-        // 禁止拷贝和移动
-        Led(const Led&) = delete;
-        Led& operator=(const Led&) = delete;
-        Led(Led&&) = delete;
-        Led& operator=(Led&&) = delete;
-        /** @brief 手动控制: 点亮/熄灭, 并接管 LED(停止周期翻转) */
-        bool set_light(bool on);
-        /** @brief 交还控制权: 周期任务恢复翻转 */
-        bool set_auto();
-        void thread(x_task* self);   // 协程回调：翻转 LED
-        bool thread_register(void);  // 注册任务到调度器
-
-    private:
-        Led();
-
-        ::device* m_dev = nullptr;
-        /** @brief 命令接管标志: true 后周期任务停止翻转, 避免把 set_light() 的结果覆盖掉 */
-        bool m_manual = false;
-        static constexpr unsigned int kDelay = 500;
-        static constexpr unsigned int kPriority = 5;
-        static constexpr const char* kName = "Led_Task";
-        static constexpr const char* kTag = "Led";
-
-#ifndef CONFIG_XTASK_PREEMPT
-        static x_task s_tcb;
+#if defined(CONFIG_OS_BARE)
+#include "xtask.h" /* x_task: 仅裸机后端有协程控制块 */
 #endif
-    };
 
-} // namespace App_Led
+struct device; /* 前向声明 C 结构体 */
+
+namespace app_led
+{
+
+/**
+ * @brief 板载 LED 控制器 (单例)
+ * @note  两个控制来源, 手动优先:
+ *        - 周期任务: 默认每 kBlinkPeriodMs 翻转一次 (心跳)
+ *        - 手动接口: TurnOn()/TurnOff() 接管后停止翻转;
+ *        - ResumeBlink() 交还控制权, 下一轮恢复翻转
+ */
+class Led
+{
+public:
+    static Led& GetInstance();
+
+    Led(const Led&) = delete;
+    Led& operator=(const Led&) = delete;
+    Led(Led&&) = delete;
+    Led& operator=(Led&&) = delete;
+
+    /** @brief 点亮并停止周期翻转 (手动接管) */
+    bool TurnOn();
+    /** @brief 熄灭并停止周期翻转 (手动接管) */
+    bool TurnOff();
+    /** @brief 交还控制权: 下一轮周期任务恢复翻转 */
+    bool ResumeBlink();
+
+    /* 裸机后端收 x_task* (xtask 协程回调), 真线程后端收 void* (线程入口) */
+#if defined(CONFIG_OS_BARE)
+    void Thread(x_task* self);
+#else
+    void Thread(void* param);
+#endif
+
+    /** @brief 注册本任务到调度器 (各后端创建方式在 .cpp 里分支) */
+    bool ThreadRegister();
+
+private:
+    Led();
+
+    /** @brief 设置输出电平 (lit=true 点亮) */
+    bool ApplyLit(bool lit);
+    /** @brief 翻转一次: 周期任务的单步动作, 两后端分支共用 */
+    void BlinkStep();
+
+    ::device* dev_ = nullptr;
+    /* 手动接管期间不翻转, 避免覆盖 TurnOn/TurnOff 的结果 */
+    bool manual_hold_ = false;
+
+    static constexpr unsigned int kBlinkPeriodMs = 500; /**< 心跳翻转周期 (ms) */
+
+    /* 优先级数值随后端语义变化, 见 app_config.hpp */
+    static constexpr unsigned int kTaskPriority = app_config::kLedTaskPriority;
+    static constexpr const char*  kTaskName     = "Led_Task";
+    static constexpr const char*  kTag          = "Led";
+
+#if defined(CONFIG_OS_BARE) && !defined(CONFIG_XTASK_PREEMPT)
+    static x_task tcb_; /**< 协调式任务的静态 TCB (抢占式由任务池分配) */
+#endif
+};
+
+} // namespace app_led
+
+#endif // APP_LED_LED_HPP_

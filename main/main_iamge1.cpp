@@ -1,27 +1,40 @@
 /**
- *@copyright SPDX-License-Identifier: Apache-2.0
- *@file main_iamge1.cpp
- *@brief STM32F407ZGT6 应用入口 (image_1 运行态)
- *@author H-000-H
- *@details 点火流程：VTOR → HAL_Init → SystemClock_Config → mini_tree 两段式
+ * @copyright SPDX-License-Identifier: Apache-2.0
+ * @file main_iamge1.cpp
+ * @brief STM32F407ZGT6 应用入口 (image_1 运行态)
+ * @author H-000-H
+ * @details 点火流程：VTOR → HAL_Init → SystemClock_Config → mini_tree 两段式
  *          OTA 的固件长度与启动由业务侧(命令/协议)按需调用, 此处只注册任务:
- *              APP_Ota::Ota::get_instance().request_ota(fw_len);
+ *              app_ota::Ota::GetInstance().RequestOta(fw_len);
+ * @note  启动尾段按 OS 后端分支 (见 system_init.h 的启动时序):
+ *          裸机: xscheduler_start → system_init_complete → super-loop
+ *          OS  : system_init_complete → mini_scheduler_start (不返回)
+ *        业务任务注册在两种后端下都要赶在调度器启动之前完成。
  */
-
 #include "main.h"
-#include "main_common.h"   /* SystemClock_Config / Error_Handler (与 boot 共用) */
-#include "boot_redef.h"
-#include "system_init.h"
+
+#include "cmd.hpp"
+#include "communicate_uart.hpp"
 #include "driver.h"
-#include "xtask.h"
+#include "err.h"
+#include "flash_stm32f4.h" /* flash_stm32f4_init: 注册 flash ops + OTA 状态后端 */
 #include "led.hpp"
 #include "ota.hpp"
-#include "flash_stm32f4.h"  /* flash_stm32f4_init: 注册 flash ops + OTA 状态后端 */
-#include "start.h"          /* mini_boot_state_refresh / mini_boot_confirm_ota */
-#include "err.h"
+#include "start.h" /* mini_boot_state_refresh / mini_boot_confirm_ota */
+#include "system_init.h"
 #include "system_log.h"
-#include "communicate_uart.hpp"
-#include "cmd.hpp"          /* App_Cmd::init: 命令注册 + 收包回调挂载 */
+#include "boot_redef.h"
+
+#if defined(CONFIG_OS_BARE)
+#include "xtask.h" /* 仅裸机后端存在 xtask 调度器接口 */
+#endif
+
+#if !defined(CONFIG_OS_BARE)
+#include "mini_backend.h" /* mini_scheduler_start: OS 后端的内核启动入口 */
+#endif
+
+#include "main_common.h" /* SystemClock_Config / Error_Handler (与 boot 共用) */
+
 /**
  * @brief 本固件所在分区的基址
  * @note  由链接脚本导出: PROVIDE(__app_partition_base = ORIGIN(FLASH))
@@ -48,15 +61,19 @@ extern "C" __attribute__((used)) int stm32f407zgt6_node_main(void)
 
     HAL_Init();
 
-    /* 系统时钟：HSI + PLL → 96MHz*/
+    /* 系统时钟：HSI + PLL → 96MHz */
     SystemClock_Config();
 
     mini_tree_pre_os_init();
+
     board_register_all_drivers();
+
     mini_tree_start_tasks();
 
-    /* 裸机时间片调度器启动 */
+#if defined(CONFIG_OS_BARE)
+    /* 裸机时间片调度器启动 (OS 后端由内核接管, 不走这里) */
     xscheduler_start();
+#endif
     system_init_complete();
 
     /* 系统自检通过 → 确认本分区镜像(清 pending + trial)：
@@ -67,13 +84,36 @@ extern "C" __attribute__((used)) int stm32f407zgt6_node_main(void)
         MT_LOG_ERROR("Ota", "confirm failed: state backend not ready");
     }
 
-    App_Led::Led::get_instance().thread_register();
-    APP_Ota::Ota::get_instance().thread_register();
-    APP_Communicate::UartCommunicate::getInstance().thread_register();
-    App_Cmd::init();
+    /* 业务任务注册: 必须在调度器启动之前完成。
+     * OS 后端下 mini_scheduler_start() 不返回, 之后写什么都跑不到 */
+    if (!app_led::Led::GetInstance().ThreadRegister())
+    {
+        MT_LOG_ERROR("App", "led task register failed");
+    }
+    if (!app_ota::Ota::GetInstance().ThreadRegister())
+    {
+        MT_LOG_ERROR("App", "ota task register failed");
+    }
+    if (!app_communicate::UartCommunicate::GetInstance().ThreadRegister())
+    {
+        MT_LOG_ERROR("App", "uart task register failed");
+    }
 
+    /* 命令层上线: 注册 led.set + 把收包回调挂到 UART 实例上 */
+    app_cmd::Init();
+
+#if defined(CONFIG_OS_BARE)
+    /* 裸机: 调度器只做时间片轮转, 主循环由本函数持有 */
     while (1)
     {
         mini_tree_system_loop();
     }
+#else
+    /* OS 后端: 打开 tick 并交出控制权, 正常情况下不返回;
+     * 若返回则说明内核启动失败, 停在死循环便于定位 */
+    (void)mini_scheduler_start();
+    for (;;)
+    {
+    }
+#endif
 }

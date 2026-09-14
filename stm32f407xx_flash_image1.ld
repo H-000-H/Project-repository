@@ -260,6 +260,9 @@ SECTIONS
   } >RAM
 
 
+  INCLUDE mini_tree/lib/mini-os/mini-os-heap.ld
+
+
 
   /* Remove information from the standard libraries */
   /DISCARD/ :

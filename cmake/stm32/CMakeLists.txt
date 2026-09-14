@@ -18,6 +18,7 @@ set(STM32_DEFINES
 
 set(STM32_INCLUDE_DIRS
     "${STM32_ROOT}/main"
+    "${STM32_ROOT}/app"
     "${STM32_ROOT}/app/stm-unique"
     "${STM32_ROOT}/app/led"
     "${STM32_ROOT}/app/ota"
