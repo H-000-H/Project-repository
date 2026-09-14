@@ -44,7 +44,7 @@
 	};
 
 	/* OTA 固件流口: USART3 (PB10=TX, PB11=RX, AF7) — 与 console(USART2) 分流,
-	 * 避免日志字节混进固件流。label=ota_uart 供 Ota 任务按标签查找。 */
+	 * 避免日志字节混进固件流。业务按 label=ota (client) 查找。 */
 	ota_uart: uart@3 {
 		compatible = "mt-uart";
 		reg = <3>;
@@ -65,5 +65,46 @@
 		rx-clk  = <LL_AHB1_GRP1_PERIPH_GPIOB>;
 		rx-af   = <LL_GPIO_AF_7>;
 		status = "disabled";
+
+		/* 业务侧必须拿 client 设备: 只有 mt-uart-client 注册 fops,
+		 * open 时才会经 uart_vfs_open -> uart_bus_open 打开硬件 (使能 CR1.RE) */
+		ota: ota-client@0 {
+			compatible = "mt-uart-client";
+			reg = <0>;
+			status = "disabled";
+		};
+	};
+
+	/* 业务通信口: USART1 (PA9=TX, PA10=RX, AF7) — 业务按 label=communicate (client) 查找
+	 * 独立于 console(USART2)/OTA(USART3), 三者互不抢字节。
+	 * 注意 USART1/USART6 挂在 APB2, 时钟掩码必须用 LL_APB2_GRP1_PERIPH_*。 */
+	communicate_uart: uart@1 {
+		compatible = "mt-uart";
+		reg = <1>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		uart-base  = <USART1_BASE>;
+		uart-clk   = <LL_APB2_GRP1_PERIPH_USART1>;
+		uart-baud  = <115200>;
+		data-width = <LL_USART_DATAWIDTH_8B>;
+		parity     = <LL_USART_PARITY_NONE>;
+		stop-bits  = <LL_USART_STOPBITS_1>;
+		tx-port = <GPIOA_BASE>;
+		tx-pin  = <LL_GPIO_PIN_9>;
+		tx-clk  = <LL_AHB1_GRP1_PERIPH_GPIOA>;
+		tx-af   = <LL_GPIO_AF_7>;
+		rx-port = <GPIOA_BASE>;
+		rx-pin  = <LL_GPIO_PIN_10>;
+		rx-clk  = <LL_AHB1_GRP1_PERIPH_GPIOA>;
+		rx-af   = <LL_GPIO_AF_7>;
+		status = "disabled";
+
+		/* 业务侧必须拿 client 设备: 只有 mt-uart-client 注册 fops,
+		 * open 时才会经 uart_vfs_open -> uart_bus_open 打开硬件 (使能 CR1.RE) */
+		communicate: communicate-client@0 {
+			compatible = "mt-uart-client";
+			reg = <0>;
+			status = "disabled";
+		};
 	};
 };

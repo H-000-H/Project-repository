@@ -55,7 +55,7 @@ namespace APP_Ota{
         static constexpr unsigned int kPriority = 4;/*任务优先级*/
         static constexpr const char* kName = "Ota_Task";/*任务名称*/
         static constexpr const char* kTag = "Ota";/*任务标签*/
-        static constexpr const char* kDevLabel = "ota_uart";/*OTA串口设备label(USART3: PB10/PB11), 换口只改这里*/
+        static constexpr const char* kDevLabel = "ota";/*OTA串口 client label(USART3: PB10/PB11), 换口只改这里*/
         ::device* ota_driver = nullptr;/*ota驱动设备指针*/
         uint32_t fw_total_len = 0;/*固件总长度(业务侧 request_ota/set_fw_len 注入)*/
         bool is_start = false;/*是否启用Ota(业务侧 start_ota/stop_ota 控制)*/

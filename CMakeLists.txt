@@ -129,7 +129,11 @@ else()
         ota-stm32f4/flash_stm32f4.c
         ota-stm32f4/flash_stm32f4.h
         app/ota/ota.cpp
-        app/ota/ota.hpp)
+        app/ota/ota.hpp
+        app/communicate/communicate.cpp
+        app/communicate/communicate.hpp
+        app/cmd/cmd.hpp
+        app/cmd/cmd.cpp)
 
     target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/hal"

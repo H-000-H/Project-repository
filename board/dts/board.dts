@@ -75,7 +75,21 @@
 	status = "okay";
 };
 
-/* OTA 固件流口: USART3 (PB10=TX / PB11=RX, 115200) — 独立于 console 日志口 */
+/* OTA 固件流口: USART3 (PB10=TX / PB11=RX, 115200) — 独立于 console 日志口
+ * controller 与 client 必须都打开: 只开 controller 时 open 拿不到 fops */
 &ota_uart {
+	status = "okay";
+};
+
+&ota {
+	status = "okay";
+};
+
+/* 业务通信口: USART1 (PA9=TX / PA10=RX, 115200) — communicate 任务收发 */
+&communicate_uart {
+	status = "okay";
+};
+
+&communicate {
 	status = "okay";
 };

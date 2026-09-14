@@ -310,12 +310,14 @@ int hal_uart_write(struct hal_uart_dev* dev, const uint8_t* data, size_t len, ui
 }
 
 /**
- * @brief UART 轮询读 (RXNE, 部分读成功时返回已读字节数)
+ * @brief UART 轮询读 (RXNE)
  * @param dev UART 设备指针
  * @param data 接收缓冲
- * @param len 期望读取字节数
+ * @param len 接收缓冲容量 (上限, 非"必须读满")
  * @param timeout_ms 超时 (ms, 0 用平台默认)
- * @return 成功返回实际读取字节数, 零字节超时返回 MINI_ERR_TIMEOUT
+ * @return 实际读取字节数 (可能少于 len); 首字节就超时返回 MINI_ERR_TIMEOUT
+ * @note  语义: 首字节等满 timeout_ms, 之后把当前已到位的字节一次收完就返回。
+ *        不要求凑满 len —— 否则一次读会固定阻塞一个完整超时 (裸机主循环会被钉住)。
  */
 int hal_uart_read(struct hal_uart_dev* dev, uint8_t* data, size_t len, uint32_t timeout_ms)
 {
@@ -336,21 +338,24 @@ int hal_uart_read(struct hal_uart_dev* dev, uint8_t* data, size_t len, uint32_t 
     to = stm32_uart_timeout(timeout_ms);
     host->status = 2;  /* BUSY */
     start = HAL_GetTick();
-    for (i = 0; i < len; i++)
+
+    /* 首字节: 唯一的阻塞点, 无数据时最多等到 timeout_ms */
+    while (!LL_USART_IsActiveFlag_RXNE(usart))
     {
-        while (!LL_USART_IsActiveFlag_RXNE(usart))
+        if ((uint32_t)(HAL_GetTick() - start) >= to)
         {
-            if ((uint32_t)(HAL_GetTick() - start) >= to)
-            {
-                host->status = 3;  /* ERROR */
-                return (i > 0) ? (int)i : MINI_ERR_TIMEOUT;
-            }
+            host->status = 3;  /* ERROR */
+            return MINI_ERR_TIMEOUT;
         }
-        data[i] = LL_USART_ReceiveData8(usart);
     }
+    data[0] = LL_USART_ReceiveData8(usart);
+
+    /* 后续字节: 有多少收多少, 不在帧尾空等满 len */
+    for (i = 1; (i < len) && LL_USART_IsActiveFlag_RXNE(usart); i++)
+        data[i] = LL_USART_ReceiveData8(usart);
 
     host->status = 1;  /* READY */
-    return (int)len;
+    return (int)i;
 }
 
 /**

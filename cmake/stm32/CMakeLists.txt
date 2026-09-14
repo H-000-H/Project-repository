@@ -21,6 +21,8 @@ set(STM32_INCLUDE_DIRS
     "${STM32_ROOT}/app/stm-unique"
     "${STM32_ROOT}/app/led"
     "${STM32_ROOT}/app/ota"
+    "${STM32_ROOT}/app/communicate"
+    "${STM32_ROOT}/app/cmd"
     "${STM32_ROOT}/Drivers/STM32F4xx_HAL_Driver/Inc"
     "${STM32_ROOT}/Drivers/STM32F4xx_HAL_Driver/Inc/Legacy"
     "${STM32_ROOT}/Drivers/CMSIS/Device/ST/STM32F4xx/Include"
@@ -41,6 +43,8 @@ else()
         "${STM32_ROOT}/main/main_common.cpp"
         "${STM32_ROOT}/startup_stm32f407xx.s"
         "${STM32_ROOT}/app/led/led.cpp"
+        "${STM32_ROOT}/app/communicate/communicate.cpp"
+        "${STM32_ROOT}/app/communicate/communicate_uart.cpp"
     )
 endif()
 

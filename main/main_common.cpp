@@ -5,6 +5,9 @@
  *@author H-000-H
  */
 #include "main_common.h"
+#include "compiler_compat.h" /* mini_pre_execution */
+#include "log.h"             /* mini_log_register_tick */
+#include "xtask.h"           /* x_scheduler_now (裸机调度器时基) */
 
 /**
  * @brief 系统时钟配置：HSI 16MHz → PLL(M16/N192/P2) → SYSCLK 96MHz
@@ -68,3 +71,22 @@ void assert_failed(uint8_t* file, uint32_t line)
     Error_Handler();
 }
 #endif /* USE_FULL_ASSERT */
+
+/* -------------------------------------------------------------------------- */
+/* 日志时基桥接                                                                */
+/* -------------------------------------------------------------------------- */
+/**
+ * @brief mini-log 时间戳回调: 桥接到裸机调度器时基
+ * @return 当前 tick (ms); 调度器未启动时为 0
+ * @note  mini-log 只认自己的回调, 不依赖任何 tick 源; 本工程把 xtask 时基接上去。
+ */
+extern "C" int mini_log_tick_from_scheduler(void)
+{
+    return (int)x_scheduler_now();
+}
+
+/** @brief 尽早把调度器时基接给 mini-log (构造函数, 早于 main 与任何日志输出) */
+mini_pre_execution(MINI_PRE_EXEC_PRIO_RES_POOL) static void mini_log_tick_bind(void)
+{
+    mini_log_register_tick(mini_log_tick_from_scheduler);
+}

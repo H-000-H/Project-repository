@@ -20,7 +20,8 @@
 #include "start.h"          /* mini_boot_state_refresh / mini_boot_confirm_ota */
 #include "err.h"
 #include "system_log.h"
-
+#include "communicate_uart.hpp"
+#include "cmd.hpp"          /* App_Cmd::init: 命令注册 + 收包回调挂载 */
 /**
  * @brief 本固件所在分区的基址
  * @note  由链接脚本导出: PROVIDE(__app_partition_base = ORIGIN(FLASH))
@@ -36,7 +37,7 @@ extern "C" __attribute__((used)) int stm32f407zgt6_node_main(void)
     /* 重定位向量表到本固件所在分区 */
     mini_boot_set_vtor((uint32_t)&__app_partition_base);
 
-    /* flash 后端 + OTA 持久状态，必须早于任何 OTA 判定：
+    /* flash 后端 + OTA 持久，要早于任何 OTA 判定：
      * - 未注册后端时 flash_area_open() 直接失败 → 下载写不进 flash
      * - 未刷新状态时 current 恒为 image_0 → 跑在 image_1 时会覆盖自己 */
     flash_stm32f4_init();
@@ -47,10 +48,9 @@ extern "C" __attribute__((used)) int stm32f407zgt6_node_main(void)
 
     HAL_Init();
 
-    /* 系统时钟：HSI + PLL → 96MHz（见 main_common.cpp） */
+    /* 系统时钟：HSI + PLL → 96MHz*/
     SystemClock_Config();
 
-    /* mini_tree 两段式点火：时钟已配；外设由 board.dts probe 注册（无 CubeMX MX_*） */
     mini_tree_pre_os_init();
     board_register_all_drivers();
     mini_tree_start_tasks();
@@ -69,6 +69,8 @@ extern "C" __attribute__((used)) int stm32f407zgt6_node_main(void)
 
     App_Led::Led::get_instance().thread_register();
     APP_Ota::Ota::get_instance().thread_register();
+    APP_Communicate::UartCommunicate::getInstance().thread_register();
+    App_Cmd::init();
 
     while (1)
     {

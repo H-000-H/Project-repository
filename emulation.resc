@@ -11,6 +11,14 @@ logLevel -1 led_pc13
 emulation CreateServerSocketTerminal 9090 "terminal_uart"
 connector Connect sysbus.usart2 terminal_uart
 
+# OTA 固件流口 (USART3)
+emulation CreateServerSocketTerminal 9091 "terminal_ota"
+connector Connect sysbus.usart3 terminal_ota
+
+# 业务通信口 (USART1, communicate): 独立于 console/OTA, 不接终端则数据进虚空
+emulation CreateServerSocketTerminal 9092 "terminal_comm"
+connector Connect sysbus.usart1 terminal_comm
+
 # 载入 ELF 固件
 sysbus LoadELF @build/Debug/STM32F407ZGT6.elf
 

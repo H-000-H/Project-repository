@@ -1,0 +1,8 @@
+a: .\image2.bin
+  镜像[CRC 头部在后] version='1.0.0' tag='f407' aux=0B
+  crc: 存储 0xf1ddccf6 一致
+  解密 payload: 68552 字节  md5: 2e2548fc11381306e71d17de979b7217
+b: .\build\Debug-Img2\STM32F407ZGT6_img2.bin
+  原始 bin (未解析镜像头): 68552 字节  md5: 2e2548fc11381306e71d17de979b7217
+
+结果: 两文件完全一致

@@ -47,16 +47,38 @@ namespace App_Led
         PT_BEGIN(self);
         while (true)
         {
-            if (m_dev != nullptr)
+            static int toggle_count = 0;
+            /* m_manual 后不再翻转: 否则 set_light() 的结果最多维持 kDelay 就被覆盖 */
+            if ((m_dev != nullptr) && (!m_manual))
             {
-                int ret = device_ioctl(m_dev, GPIO_CMD_TOGGLE, &arg, sizeof(arg), 100);
-                MT_LOG_INFO(kTag,"%d",mini_log_get_tick());
-                if (ret != MINI_OK)
-                    MT_LOG_ERROR(kTag, "ioctl failed: %d", ret);
+                // int ret = device_ioctl(m_dev, GPIO_CMD_TOGGLE, &arg, sizeof(arg), 100);
+                 MT_LOG_INFO(kTag,"%d", ++toggle_count);
+                // if (ret != MINI_OK)
+                //     MT_LOG_ERROR(kTag, "ioctl failed: %d", ret);
             }
             PT_DELAY(self, kDelay);
         }
         PT_END(self);
+    }
+
+    bool Led::set_light(bool on)
+    {
+        if (m_dev == nullptr)
+            return false;
+
+        m_manual = true;          /* 命令接管: 停掉周期翻转 */
+        struct vfs_gpio_arg arg = {0};
+        arg.level = on ;
+        return device_ioctl(m_dev, GPIO_CMD_SET_LEVEL, &arg, sizeof(arg), 100) == MINI_OK;
+    }
+
+    bool Led::set_auto()
+    {
+        if (m_dev == nullptr)
+            return false;
+
+        m_manual = false;         /* 交还控制权: 下一轮 thread 恢复翻转 */
+        return true;
     }
 
     bool Led::thread_register(void)
