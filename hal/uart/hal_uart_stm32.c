@@ -43,6 +43,24 @@ MINI_STATIC_INLINE uint32_t stm32_uart_timeout(uint32_t timeout_ms)
     return timeout_ms ? timeout_ms : STM32_UART_READ_TIMEOUT_MS;
 }
 
+/**
+ * @brief 由 UART 基址换算 VIRQ(uart, N) 的索引
+ * @note  必须与 interrupt_stm32.c 里 USARTx_IRQHandler 的 dispatch 编号一致
+ */
+int hal_uart_virq_index(uintptr_t uart_base)
+{
+    switch (uart_base)
+    {
+    case USART1_BASE: return 0;
+    case USART2_BASE: return 1;
+    case USART3_BASE: return 2;
+    case UART4_BASE:  return 3;
+    case UART5_BASE:  return 4;
+    case USART6_BASE: return 5;
+    default:          return -1;
+    }
+}
+
 /*============================================================================*/
 /*                              LL 库直投 helper                              */
 /*============================================================================*/
@@ -183,7 +201,7 @@ static void hal_uart_dma_init(const struct hal_uart_dma_config* cfg, uintptr_t u
  * @param cfg UART 配置
  * @return 成功返回 MINI_OK, 失败返回 MINI_ERR_INVAL
  */
-int hal_uart_dev_init(struct hal_uart_bus_host* host, const struct hal_uart_config* cfg)
+mt_err_t hal_uart_dev_init(struct hal_uart_bus_host* host, const struct hal_uart_config* cfg)
 {
     if (!host || !cfg)
         return MINI_ERR_INVAL;
@@ -192,6 +210,10 @@ int hal_uart_dev_init(struct hal_uart_bus_host* host, const struct hal_uart_conf
     host->cfg    = *cfg;
     host->uart   = cfg->uart;
     host->status = 0;
+
+    /* RX 环形缓冲句柄绑定到内嵌数据区 (item_size=1 即字节流) */
+    if (fifo_uni_init(&host->rx_fifo, host->rx_buf, 1u, HAL_UART_RX_RING_SIZE) != BUFF_OK)
+        return MINI_ERR_INVAL;
     return MINI_OK;
 }
 
@@ -200,7 +222,7 @@ int hal_uart_dev_init(struct hal_uart_bus_host* host, const struct hal_uart_conf
  * @param host UART 总线主机对象指针
  * @return 成功返回 MINI_OK, 失败返回 MINI_ERR_INVAL 或 MINI_ERR_IO
  */
-int hal_uart_dev_hw_open(struct hal_uart_bus_host* host)
+mt_err_t hal_uart_dev_hw_open(struct hal_uart_bus_host* host)
 {
     LL_USART_InitTypeDef init = {0};
     USART_TypeDef*       uart;
@@ -234,6 +256,11 @@ int hal_uart_dev_hw_open(struct hal_uart_bus_host* host)
     LL_USART_ConfigAsyncMode(uart);
     LL_USART_Enable(uart);
 
+    /* 接收走中断 (it_enable=1): 本芯片 UART 无硬件 FIFO, 靠轮询读必然丢突发字节,
+     * 中断逐字节收进环形缓冲后, hal_uart_read 只管按自己的节奏取 */
+    if (host->cfg.it_enable)
+        LL_USART_EnableIT_RXNE(uart);
+
     /** DMA 静态参数一次性配置: dma_enable=0 时跳过 */
     if (host->cfg.dma_cfg.dma_enable)
         hal_uart_dma_init(&host->cfg.dma_cfg, (uintptr_t)&uart->DR);
@@ -250,7 +277,7 @@ int hal_uart_dev_hw_open(struct hal_uart_bus_host* host)
  * @param host UART 总线主机对象指针
  * @return 成功返回 MINI_OK, 参数非法返回 MINI_ERR_INVAL
  */
-int hal_uart_dev_hw_close(struct hal_uart_bus_host* host)
+mt_err_t hal_uart_dev_hw_close(struct hal_uart_bus_host* host)
 {
     if (!host || !host->uart)
         return MINI_ERR_INVAL;
@@ -265,14 +292,17 @@ int hal_uart_dev_hw_close(struct hal_uart_bus_host* host)
 /*                              同步传输                                       */
 /*============================================================================*/
 /**
- * @brief UART 轮询写 (TXE + TC, 更新 host status)
+ * @brief UART 同步写: 配了 DMA 自动走 DMA, 否则 CPU 轮询
  * @param dev UART 设备指针
  * @param data 发送数据缓冲
  * @param len 字节数
  * @param timeout_ms 超时 (ms, 0 用平台默认)
  * @return 成功返回 MINI_OK, 失败返回 MINI_ERR_INVAL / MINI_ERR_IO / MINI_ERR_TIMEOUT
+ * @note 调用方只管 device_write, 不用关心底层是 DMA 还是 CPU 搬运 —— DTS 配了
+ *       dma-enable 就自动走 DMA。长度超过 DMA 单次上限 (或 dma_enable=0) 时退回
+ *       轮询, 所以大块数据仍然能发, 只是退化为 CPU 搬运。
  */
-int hal_uart_write(struct hal_uart_dev* dev, const uint8_t* data, size_t len, uint32_t timeout_ms)
+mt_err_t hal_uart_write(struct hal_uart_dev* dev, const uint8_t* data, size_t len, uint32_t timeout_ms)
 {
     struct hal_uart_bus_host* host;
     USART_TypeDef*            usart;
@@ -284,6 +314,12 @@ int hal_uart_write(struct hal_uart_dev* dev, const uint8_t* data, size_t len, ui
         return MINI_ERR_INVAL;
 
     host  = dev->ctlr;
+
+    /* 默认分流: DMA 可用且长度在单次上限内 → DMA (CPU 零搬运), 否则轮询。
+     * 放在最前面, 让 write 成为唯一入口, 不必让上层区分两个 API。 */
+    if (host->cfg.dma_cfg.dma_enable && len <= STM32_UART_DMA_MAX_XFER)
+        return hal_uart_write_dma(dev, data, len, timeout_ms);
+
     usart = (USART_TypeDef*)host->uart;
     if (!usart)
         return MINI_ERR_IO;
@@ -319,7 +355,7 @@ int hal_uart_write(struct hal_uart_dev* dev, const uint8_t* data, size_t len, ui
  * @note  语义: 首字节等满 timeout_ms, 之后把当前已到位的字节一次收完就返回。
  *        不要求凑满 len —— 否则一次读会固定阻塞一个完整超时 (裸机主循环会被钉住)。
  */
-int hal_uart_read(struct hal_uart_dev* dev, uint8_t* data, size_t len, uint32_t timeout_ms)
+mt_err_t hal_uart_read(struct hal_uart_dev* dev, uint8_t* data, size_t len, uint32_t timeout_ms)
 {
     struct hal_uart_bus_host* host;
     USART_TypeDef*            usart;
@@ -339,6 +375,33 @@ int hal_uart_read(struct hal_uart_dev* dev, uint8_t* data, size_t len, uint32_t 
     host->status = 2;  /* BUSY */
     start = HAL_GetTick();
 
+    /* 中断接收路径: 数据已由 ISR 收进环形缓冲, 与调用方的读节奏解耦,
+     * 因此不会再出现"读一次只拿到 1 个字节"的丢包 */
+    if (LL_USART_IsEnabledIT_RXNE(usart))
+    {
+        uint16_t count = 0u;
+        uint16_t got   = 0u;
+
+        /* 首字节: 唯一的阻塞点, 缓冲为空时最多等到 timeout_ms */
+        fifo_uni_get_count(&host->rx_fifo, &count);
+        while (count == 0u)
+        {
+            if ((uint32_t)(HAL_GetTick() - start) >= to)
+            {
+                host->status = 3;  /* ERROR */
+                return MINI_ERR_TIMEOUT;
+            }
+            fifo_uni_get_count(&host->rx_fifo, &count);
+        }
+
+        /* 后续字节: 有多少取多少, 不在帧尾空等满 len (与轮询路径语义一致) */
+        fifo_uni_read_block(&host->rx_fifo, data, (uint16_t)len, &got);
+
+        host->status = 1;  /* READY */
+        return (int)got;
+    }
+
+    /* 未开中断 (it_enable=0): 退回原轮询路径 */
     /* 首字节: 唯一的阻塞点, 无数据时最多等到 timeout_ms */
     while (!LL_USART_IsActiveFlag_RXNE(usart))
     {
@@ -366,7 +429,7 @@ int hal_uart_read(struct hal_uart_dev* dev, uint8_t* data, size_t len, uint32_t 
  * @param timeout_ms 超时 (ms)
  * @return 成功返回 MINI_OK, 失败返回 VFS_ERR_*
  */
-int hal_uart_write_dma(struct hal_uart_dev* dev, const uint8_t* data, size_t len, uint32_t timeout_ms)
+mt_err_t hal_uart_write_dma(struct hal_uart_dev* dev, const uint8_t* data, size_t len, uint32_t timeout_ms)
 {
     struct hal_uart_bus_host* host;
     USART_TypeDef*            usart;
@@ -417,7 +480,7 @@ int hal_uart_write_dma(struct hal_uart_dev* dev, const uint8_t* data, size_t len
  * @param dev UART 设备指针
  * @return 成功返回 MINI_OK, 失败返回 MINI_ERR_INVAL 或 MINI_ERR_IO
  */
-int hal_uart_dma_abort(struct hal_uart_dev* dev)
+mt_err_t hal_uart_dma_abort(struct hal_uart_dev* dev)
 {
     struct hal_uart_bus_host* host;
     USART_TypeDef*            usart;
@@ -454,25 +517,38 @@ int hal_uart_dma_abort(struct hal_uart_dev* dev)
 int hal_virtual_uart_irq_callback(void* arg, uint16_t irq_num)
 {
     MINI_IGNORE_RESULT(irq_num);
-    struct hal_uart_dev* dev = (struct hal_uart_dev*)arg;
+    struct hal_uart_bus_host* host = (struct hal_uart_bus_host*)arg;
 
-    if (!dev || !dev->ctlr)
+    if (!host || !host->uart)
         return MINI_IRQ_ENTRY_NOBOTTOM;
 
-    struct hal_uart_bus_host* host = dev->ctlr;
+    USART_TypeDef* usart = (USART_TypeDef*)host->uart;
 
-    if (!host->cfg.dma_cfg.dma_enable || !host->cfg.it_enable)
-        return MINI_IRQ_ENTRY_NOBOTTOM;
+    /* RXNE: 把 DR 里的字节收进环形缓冲。循环是为了兜住"中断被延迟"时
+     * DR 之外可能已积压的字节; 上限取半个缓冲, 避免极端情况下 ISR 长占不放 */
+    if (LL_USART_IsEnabledIT_RXNE(usart))
+    {
+        uint32_t guard = HAL_UART_RX_RING_SIZE / 2u;
 
-    /** 清除 DMA TC 标志 */
-    DMA_TypeDef* dma    = (DMA_TypeDef*)host->cfg.dma_cfg.dma_handle;
-    uint32_t     stream = host->cfg.dma_cfg.dma_stream;
-    if (dma)
-        hal_uart_dma_clear_tc(dma, stream);
+        while ((guard-- > 0u) && LL_USART_IsActiveFlag_RXNE(usart))
+        {
+            const uint8_t byte = (uint8_t)LL_USART_ReceiveData8(usart);
 
-    /** 清除 USART TC 标志 */
-    if (host->uart)
-        LL_USART_ClearFlag_TC((USART_TypeDef*)host->uart);
+            if (fifo_uni_write_block(&host->rx_fifo, &byte, 1u, NULL) != BUFF_OK)
+                host->rx_dropped++; /* 满: 丢新字节, 保住已有数据好让上层拼出完整帧 */
+        }
+    }
 
-    return MINI_IRQ_ENTRY_BOTTOM;
+    /* DMA TC: 清除标志 (仅 DMA 模式) */
+    if (host->cfg.dma_cfg.dma_enable)
+    {
+        DMA_TypeDef* dma = (DMA_TypeDef*)host->cfg.dma_cfg.dma_handle;
+
+        if (dma)
+            hal_uart_dma_clear_tc(dma, host->cfg.dma_cfg.dma_stream);
+        LL_USART_ClearFlag_TC(usart);
+    }
+
+    /* 收下的数据已在缓冲里, 不需要下半部 */
+    return MINI_IRQ_ENTRY_NOBOTTOM;
 }

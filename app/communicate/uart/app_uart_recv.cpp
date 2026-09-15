@@ -1,13 +1,13 @@
 /**
  * @copyright SPDX-License-Identifier: Apache-2.0
- * @file communicate_uart.cpp
+ * @file app_uart_recv.cpp
  * @brief UART 通信派生类实现
  * @author H-000-H
  * @note  仅本文件依赖 UART 专有的 uart_transfer_arg / UART_CMD_TRANSFER。
  *        GetInstance() 由 CRTP 基类 Communicate<UartCommunicate> 生成, 此处无需定义。
  * @note  本层不感知业务: 收到数据的处理由业务侧 SetRxHandler() 注入。
  */
-#include "communicate_uart.hpp"
+#include "app_uart_recv.hpp"
 
 #include <etl/algorithm.h>
 #include <etl/optional.h>
@@ -16,39 +16,14 @@
 #include "system_log.h"
 #include "vfs-uart.h"
 
-#if defined(CONFIG_OS_BARE)
-#include "xtask.h"
-#elif defined(CONFIG_OS_MINI_OS) || defined(CONFIG_OS_FREERTOS)
 #include "mini_backend.h"
-#endif
-#if defined(CONFIG_OS_MINI_OS)
 #include "thread.h"
-#elif defined(CONFIG_OS_FREERTOS)
-#include "FreeRTOS.h"
-#include "task.h"
-#endif
 
 namespace app_communicate
 {
 
-UartCommunicate::UartCommunicate() : Communicate(kDeviceName)
-{
-}
+UartCommunicate::UartCommunicate() : Communicate(kDeviceName){}
 
-#if defined(CONFIG_OS_BARE)
-void UartCommunicate::Thread(x_task* self)
-{
-    UartCommunicate& it = GetInstance();
-
-    PT_BEGIN(self);
-    while (true)
-    {
-        it.PollOnce(kPollTimeout);
-        PT_DELAY(self, kThreadPeriodMs);
-    }
-    PT_END(self);
-}
-#elif defined(CONFIG_OS_MINI_OS) || defined(CONFIG_OS_FREERTOS)
 void UartCommunicate::Thread(void* param)
 {
     (void)param;
@@ -57,16 +32,9 @@ void UartCommunicate::Thread(void* param)
     while (true)
     {
         it.PollOnce(kPollTimeout);
-#if defined(CONFIG_OS_MINI_OS)
         mini_os_thread_delay_ms(kThreadPeriodMs);
-#else
-        vTaskDelay(pdMS_TO_TICKS(kThreadPeriodMs));
-#endif
     }
 }
-#else
-#error "communicate_uart.cpp 尚未适配该 OS 后端: 请补上 Thread 循环与该内核的毫秒延时"
-#endif
 
 etl::optional<mt_err_t> UartCommunicate::SendResv(etl::span<const uint8_t> data_view,
                                                   uint32_t time_out)

@@ -58,8 +58,6 @@ message("Build type: " ${CMAKE_BUILD_TYPE})
 # Enable CMake support for ASM and C languages
 enable_language(C CXX ASM)
 
-# Create an executable object type (sources added by cmake/stm32 + app)
-# 注：net/sys/* 已移除（lwIP 不再使用），源文件由 cmake/stm32 与各 target_sources 补充
 add_executable(${CMAKE_PROJECT_NAME})
 
 # Add STM32 HAL/LL driver library + startup + app entry
@@ -118,7 +116,6 @@ else()
     )
     # mini_tree 自带同内容占位文件，避免重复编译
     list(FILTER PLATFORM_HAL_SRCS EXCLUDE REGEX "hal_if_dummy\\.c$")
-    # USB 裁剪时板级 hal/usb glue（依赖 TinyUSB）一并剔除
     if(CONFIG_USB_OFF)
         list(FILTER PLATFORM_HAL_SRCS EXCLUDE REGEX "/hal/usb/")
     else()
@@ -128,12 +125,15 @@ else()
     target_sources(${CMAKE_PROJECT_NAME} PRIVATE ${PLATFORM_HAL_SRCS}
         ota-stm32f4/flash_stm32f4.c
         ota-stm32f4/flash_stm32f4.h
-        app/ota/ota.cpp
-        app/ota/ota.hpp
-        app/communicate/communicate.cpp
-        app/communicate/communicate.hpp
-        app/cmd/cmd.hpp
-        app/cmd/cmd.cpp)
+        app/ota/app_ota.cpp
+        app/ota/app_ota.hpp
+        app/communicate/base/app_communicate_base.cpp
+        app/communicate/base/app_communicate_base.hpp
+        app/cmd/uart/app_uart_cmd.cpp
+        app/cmd/uart/app_uart_cmd.hpp
+        app/button/app_button.cpp
+        app/button/app_button.hpp
+        app/button/lib/button.hpp)
 
     target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/hal"

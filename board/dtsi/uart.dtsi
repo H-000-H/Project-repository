@@ -13,6 +13,7 @@
 #include <stm32f4xx_ll_gpio.h>
 #include <stm32f4xx_ll_usart.h>
 #include <stm32f4xx_ll_bus.h>
+#include <stm32f4xx_ll_dma.h>
 
 &soc {
 	console_uart: uart@2 {
@@ -34,6 +35,18 @@
 		rx-pin  = <LL_GPIO_PIN_3>;
 		rx-clk  = <LL_AHB1_GRP1_PERIPH_GPIOA>;
 		rx-af   = <LL_GPIO_AF_7>;
+		/* 接收必须走中断: 本芯片 UART 无硬件 FIFO, 纯轮询读会在两次轮询之间
+		 * 被硬件覆盖而丢字节。irqn 用数字 (dtc-lite 不展开 CMSIS 枚举):
+		 * USART1=37 / USART2=38 / USART3=39 */
+		irqn = <38>;          /* USART2_IRQn */
+		irq-priority = <5>;
+		it-enable = <1>;
+		/* TX DMA: 短元组 <handle stream channel priority memory_size enable>
+		 * USART2_TX 的固定映射是 DMA1 Stream6 Channel4 (见 RM0090 DMA 请求映射表)。
+		 * 配了它 hal_uart_write 就自动走 DMA (len<=512), 不必上层区分 API。
+		 * @warning 通道填错不会报错, 只会静默不搬数据 (口上没输出) —— 换口务必查表。 */
+		dma-cfg = <DMA1_BASE LL_DMA_STREAM_6 LL_DMA_CHANNEL_4
+		           LL_DMA_PRIORITY_MEDIUM LL_DMA_MDATAALIGN_BYTE 1>;
 		status = "disabled";
 
 		console: uart-client@0 {
@@ -64,6 +77,15 @@
 		rx-pin  = <LL_GPIO_PIN_11>;
 		rx-clk  = <LL_AHB1_GRP1_PERIPH_GPIOB>;
 		rx-af   = <LL_GPIO_AF_7>;
+		/* OTA 固件流口: 中断接收 (irqn=39 即 USART3_IRQn), 否则大流量必丢 */
+		irqn = <39>;          /* USART3_IRQn */
+		irq-priority = <5>;
+		it-enable = <1>;
+		/* TX DMA: USART3_TX 固定映射 DMA1 Stream3 Channel4 (RM0090)。
+		 * 注意 DTS 里 SPI2 未配 DMA, 故 Stream3 无冲突; 若日后给 SPI2 开 DMA
+		 * (SPI2_TX 也是 DMA1 Stream3) 必须先把本口换到别的空闲流。 */
+		dma-cfg = <DMA1_BASE LL_DMA_STREAM_3 LL_DMA_CHANNEL_4
+		           LL_DMA_PRIORITY_MEDIUM LL_DMA_MDATAALIGN_BYTE 1>;
 		status = "disabled";
 
 		/* 业务侧必须拿 client 设备: 只有 mt-uart-client 注册 fops,
@@ -97,6 +119,13 @@
 		rx-pin  = <LL_GPIO_PIN_10>;
 		rx-clk  = <LL_AHB1_GRP1_PERIPH_GPIOA>;
 		rx-af   = <LL_GPIO_AF_7>;
+		/* 业务命令口: 中断接收 (irqn=37 即 USART1_IRQn), 否则整条命令行会被丢 */
+		irqn = <37>;          /* USART1_IRQn */
+		irq-priority = <5>;
+		it-enable = <1>;
+		/* TX DMA: USART1_TX 固定映射 DMA2 Stream7 Channel4 (RM0090) */
+		dma-cfg = <DMA2_BASE LL_DMA_STREAM_7 LL_DMA_CHANNEL_4
+		           LL_DMA_PRIORITY_MEDIUM LL_DMA_MDATAALIGN_BYTE 1>;
 		status = "disabled";
 
 		/* 业务侧必须拿 client 设备: 只有 mt-uart-client 注册 fops,

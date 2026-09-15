@@ -1,16 +1,16 @@
 /**
  * @copyright SPDX-License-Identifier: Apache-2.0
- * @file communicate.cpp
+ * @file app_communicate_base.cpp
  * @brief 通用通信底座实现 (只依赖 device 的 read/write)
  * @author H-000-H
  * @note  本文件只实现 CommunicateCore, 不含单例/任务 —— 单例与协程任务由
- *        communicate.hpp 的 CRTP 基类按派生类生成。
+ *        app_communicate_base.hpp 的 CRTP 基类按派生类生成。
  *        也不 include 任何总线专有头(vfs-uart.h 等), 换设备不用改这里。
  * @note  长度来源: device_read 的成功返回值就是实际读取字节数
  *        (hal_uart_read -> uart_bus_read -> uart_vfs_read -> device_read 一路透传),
  *        零字节超时返回 MINI_ERR_TIMEOUT, 属正常轮询结果, 不算错误。
  */
-#include "communicate.hpp"
+#include "app_communicate_base.hpp"
 
 #include <cstdint>
 

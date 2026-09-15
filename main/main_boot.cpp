@@ -1,10 +1,12 @@
 /**
  *@copyright SPDX-License-Identifier: Apache-2.0
- *@file main_iamge2.cpp
- *@brief STM32F407ZGT6 bootloader 入口 (image_2 引导态)
+ *@file main_boot.cpp
+ *@brief STM32F407ZGT6 bootloader 入口 (0x08000000)
  *@author H-000-H
  *@details 只做引导仲裁: HAL_Init → flash/状态后端 → state_load(pending 回滚) → 按 current 跳转。
  *          不下载、不跑业务; 下载与激活由 app 侧 Ota 任务负责。
+ *@note  旧名 main_iamge2.cpp: 与槽位号(image_1/image_2)撞名却指的不是一回事
+ *       (本文件是 boot, 在 0x08000000; 槽位是 0x08020000 / 0x08080000), 故改名。
  */
 #include "main_common.h"   /* SystemClock_Config / Error_Handler (与 app 共用) */
 #include "boot_redef.h"

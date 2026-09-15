@@ -23,29 +23,32 @@ set(STM32_INCLUDE_DIRS
     "${STM32_ROOT}/app/led"
     "${STM32_ROOT}/app/ota"
     "${STM32_ROOT}/app/communicate"
+    "${STM32_ROOT}/app/communicate/base"
+    "${STM32_ROOT}/app/communicate/uart"
     "${STM32_ROOT}/app/cmd"
+    "${STM32_ROOT}/app/cmd/uart"
     "${STM32_ROOT}/Drivers/STM32F4xx_HAL_Driver/Inc"
     "${STM32_ROOT}/Drivers/STM32F4xx_HAL_Driver/Inc/Legacy"
     "${STM32_ROOT}/Drivers/CMSIS/Device/ST/STM32F4xx/Include"
     "${STM32_ROOT}/Drivers/CMSIS/Include"
 )
 
-# 入口源按目标切换: boot 编 main_iamge2.cpp(bootloader 引导), app 编 main_iamge1.cpp
+# 入口源按目标切换: boot 编 main_boot.cpp(bootloader 引导仲裁), app 编 main_app.cpp
 # main_common.cpp(SystemClock_Config/Error_Handler) 为两个固件共用
 if(BOOT_BUILD)
     set(STM32_APP_SRCS
-        "${STM32_ROOT}/main/main_iamge2.cpp"
+        "${STM32_ROOT}/main/main_boot.cpp"
         "${STM32_ROOT}/main/main_common.cpp"
         "${STM32_ROOT}/startup_stm32f407xx.s"
     )
 else()
     set(STM32_APP_SRCS
-        "${STM32_ROOT}/main/main_iamge1.cpp"
+        "${STM32_ROOT}/main/main_app.cpp"
         "${STM32_ROOT}/main/main_common.cpp"
         "${STM32_ROOT}/startup_stm32f407xx.s"
-        "${STM32_ROOT}/app/led/led.cpp"
-        "${STM32_ROOT}/app/communicate/communicate.cpp"
-        "${STM32_ROOT}/app/communicate/communicate_uart.cpp"
+        "${STM32_ROOT}/app/led/app_led.cpp"
+        "${STM32_ROOT}/app/communicate/base/app_communicate_base.cpp"
+        "${STM32_ROOT}/app/communicate/uart/app_uart_recv.cpp"
     )
 endif()
 

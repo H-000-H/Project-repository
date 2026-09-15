@@ -1,6 +1,6 @@
 /**
  * @copyright SPDX-License-Identifier: Apache-2.0
- * @file ota.hpp
+ * @file app_ota.hpp
  * @brief OTA 升级任务: 双分区固件流下载 + 激活
  * @author H-000-H
  * @note
@@ -18,16 +18,12 @@
  *      不确认则在下次复位时被 boot 判为"试运行超时"而回滚到旧分区, OTA 白做
  * - 下载目标由 mini-ota 内部算(flash_inactive_area_id = 非当前分区), 本类不用管
  */
-#ifndef APP_OTA_OTA_HPP_
-#define APP_OTA_OTA_HPP_
+#ifndef APP_OTA_APP_OTA_HPP_
+#define APP_OTA_APP_OTA_HPP_
 
 #include <cstdint>
 
 #include "app_config.hpp"
-
-#if defined(CONFIG_OS_BARE)
-#include "xtask.h"
-#endif
 
 struct device; /* 前向声明 C 结构体 */
 
@@ -65,16 +61,10 @@ private:
     Ota();
     ~Ota();
 
-    /* 裸机后端收 x_task* (xtask 协程回调), 真线程后端收 void* (线程入口) */
-#if defined(CONFIG_OS_BARE)
-    static void Thread(x_task* self);
-#else
     static void Thread(void* param);
-#endif
 
     static void OtaStep();
 
-    /* 优先级数值随后端语义变化, 见 app_config.hpp */
     static constexpr unsigned int kTaskPriority = app_config::kOtaTaskPriority;
     static constexpr const char*  kTaskName     = "Ota_Task";
     static constexpr const char*  kTag          = "Ota";
@@ -84,12 +74,8 @@ private:
     ::device* driver_       = nullptr;
     uint32_t  fw_total_len_ = 0;
     bool      is_start_     = false;
-
-#if defined(CONFIG_OS_BARE) && !defined(CONFIG_XTASK_PREEMPT)
-    static x_task tcb_; /**< 协调式任务的静态 TCB (抢占式由任务池分配) */
-#endif
 };
 
 } // namespace app_ota
 
-#endif // APP_OTA_OTA_HPP_
+#endif // APP_OTA_APP_OTA_HPP_

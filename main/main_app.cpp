@@ -1,25 +1,24 @@
 /**
  * @copyright SPDX-License-Identifier: Apache-2.0
- * @file main_iamge1.cpp
- * @brief STM32F407ZGT6 应用入口 (image_1 运行态)
+ * @file main_app.cpp
+ * @brief STM32F407ZGT6 应用入口 (0x08020000 或 0x08080000, 由链接脚本决定)
  * @author H-000-H
  * @details 点火流程：VTOR → HAL_Init → SystemClock_Config → mini_tree 两段式
  *          OTA 的固件长度与启动由业务侧(命令/协议)按需调用, 此处只注册任务:
  *              app_ota::Ota::GetInstance().RequestOta(fw_len);
  * @note  启动尾段按 OS 后端分支 (见 system_init.h 的启动时序):
  *          裸机: xscheduler_start → system_init_complete → super-loop
- *          OS  : system_init_complete → mini_scheduler_start (不返回)
- *        业务任务注册在两种后端下都要赶在调度器启动之前完成。
+ *          OS  : system_init_complete → mini_scheduler_start(本人除非小资源不然不喜欢用裸机)
  */
 #include "main.h"
 
-#include "cmd.hpp"
-#include "communicate_uart.hpp"
+#include "app_uart_cmd.hpp"
+#include "app_uart_recv.hpp"
 #include "driver.h"
 #include "err.h"
 #include "flash_stm32f4.h" /* flash_stm32f4_init: 注册 flash ops + OTA 状态后端 */
-#include "led.hpp"
-#include "ota.hpp"
+#include "app_led.hpp"
+#include "app_ota.hpp"
 #include "start.h" /* mini_boot_state_refresh / mini_boot_confirm_ota */
 #include "system_init.h"
 #include "system_log.h"
@@ -28,12 +27,10 @@
 #if defined(CONFIG_OS_BARE)
 #include "xtask.h" /* 仅裸机后端存在 xtask 调度器接口 */
 #endif
-
 #if !defined(CONFIG_OS_BARE)
-#include "mini_backend.h" /* mini_scheduler_start: OS 后端的内核启动入口 */
+#include "mini_backend.h" 
 #endif
-
-#include "main_common.h" /* SystemClock_Config / Error_Handler (与 boot 共用) */
+#include "main_common.h" 
 
 /**
  * @brief 本固件所在分区的基址

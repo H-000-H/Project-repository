@@ -99,6 +99,32 @@ void TIM7_IRQHandler(void)
     interrupt_virtual_dispatch((uint16_t)VIRQ(tim, 0));
 }
 
+/* -------------------------------------------------------------------------- */
+/*                       UART RX 中断 → VIRQ(uart, N)                          */
+/* -------------------------------------------------------------------------- */
+/**
+ * @brief USART1/2/3 中断入口
+ * @note  本芯片 UART 无硬件 FIFO, 接收靠 RXNE 中断逐字节收进环形缓冲
+ *        (hal_virtual_uart_irq_callback), 纯轮询读必然丢连续字节流。
+ *        N 取外设编号 (USART1→0, USART2→1, USART3→2), 必须与 bus 层注册时的
+ *        hal_uart_virq_index() 一致 —— 两侧任一漏改就收不到数据。
+ *        未使能 NVIC 的 UART 不会进这里, 所以整组都提供是安全的。
+ */
+void USART1_IRQHandler(void)
+{
+    interrupt_virtual_dispatch((uint16_t)VIRQ(uart, 0));
+}
+
+void USART2_IRQHandler(void)
+{
+    interrupt_virtual_dispatch((uint16_t)VIRQ(uart, 1));
+}
+
+void USART3_IRQHandler(void)
+{
+    interrupt_virtual_dispatch((uint16_t)VIRQ(uart, 2));
+}
+
 #ifdef CONFIG_USB
 /**
  * @brief OTG_FS 全局中断 → TinyUSB 协议栈 (rhport 0)

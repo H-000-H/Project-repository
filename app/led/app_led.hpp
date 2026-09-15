@@ -1,19 +1,15 @@
 /**
  * @copyright SPDX-License-Identifier: Apache-2.0
- * @file led.hpp
+ * @file app_led.hpp
  * @brief 板载 LED: 周期翻转任务 + 手动控制接口
  * @author H-000-H
  */
-#ifndef APP_LED_LED_HPP_
-#define APP_LED_LED_HPP_
+#ifndef APP_LED_APP_LED_HPP_
+#define APP_LED_APP_LED_HPP_
 
 #include <cstdint>
 
 #include "app_config.hpp"
-
-#if defined(CONFIG_OS_BARE)
-#include "xtask.h" /* x_task: 仅裸机后端有协程控制块 */
-#endif
 
 struct device; /* 前向声明 C 结构体 */
 
@@ -44,14 +40,9 @@ public:
     /** @brief 交还控制权: 下一轮周期任务恢复翻转 */
     bool ResumeBlink();
 
-    /* 裸机后端收 x_task* (xtask 协程回调), 真线程后端收 void* (线程入口) */
-#if defined(CONFIG_OS_BARE)
-    void Thread(x_task* self);
-#else
     void Thread(void* param);
-#endif
 
-    /** @brief 注册本任务到调度器 (各后端创建方式在 .cpp 里分支) */
+    /** @brief 注册本任务到调度器 */
     bool ThreadRegister();
 
 private:
@@ -68,16 +59,11 @@ private:
 
     static constexpr unsigned int kBlinkPeriodMs = 500; /**< 心跳翻转周期 (ms) */
 
-    /* 优先级数值随后端语义变化, 见 app_config.hpp */
     static constexpr unsigned int kTaskPriority = app_config::kLedTaskPriority;
     static constexpr const char*  kTaskName     = "Led_Task";
     static constexpr const char*  kTag          = "Led";
-
-#if defined(CONFIG_OS_BARE) && !defined(CONFIG_XTASK_PREEMPT)
-    static x_task tcb_; /**< 协调式任务的静态 TCB (抢占式由任务池分配) */
-#endif
 };
 
 } // namespace app_led
 
-#endif // APP_LED_LED_HPP_
+#endif // APP_LED_APP_LED_HPP_

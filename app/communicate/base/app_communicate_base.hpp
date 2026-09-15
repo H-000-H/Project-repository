@@ -1,6 +1,6 @@
 /**
  * @copyright SPDX-License-Identifier: Apache-2.0
- * @file communicate.hpp
+ * @file app_communicate_base.hpp
  * @brief 通信模块: 通用读写底座 + CRTP 单例/任务基类
  * @author H-000-H
  * @details 两层结构:
@@ -15,8 +15,8 @@
  *          - 发送长度 = span.size(), 上限 kBufferSize
  *          - 接收长度 = GetRxLen() (device_read 返回的就是实际字节数)
  */
-#ifndef APP_COMMUNICATE_COMMUNICATE_HPP_
-#define APP_COMMUNICATE_COMMUNICATE_HPP_
+#ifndef APP_COMMUNICATE_BASE_APP_COMMUNICATE_BASE_HPP_
+#define APP_COMMUNICATE_BASE_APP_COMMUNICATE_BASE_HPP_
 
 #include <cstddef>
 #include <cstdint>
@@ -29,11 +29,7 @@
 #include "status.h"
 #include "system_log.h"
 
-#if defined(CONFIG_OS_BARE)
-#include "xtask.h"
-#elif defined(CONFIG_OS_MINI_OS) || defined(CONFIG_OS_FREERTOS)
 #include "mini_backend.h"
-#endif
 
 namespace app_communicate
 {
@@ -95,8 +91,8 @@ public:
     static constexpr const char*   kTag            = "communicate";
     static constexpr std::uint16_t kDefaultTimeout = 1000; /**< 发送/主动读超时 (ms) */
 
-    /* 轮询读超时 (ms) 必须短: 裸机协调式下 PollOnce 是同步忙等, 无数据时若用
-     * kDefaultTimeout 会把主循环(含其他任务/喂狗)钉住整整 1 秒 */
+    /* 轮询读超时 (ms) 必须短: 无数据时若用 kDefaultTimeout 会把任务整整阻塞 1 秒,
+     * 拖慢同优先级任务的心跳 */
     static constexpr std::uint32_t kPollTimeout = 2;
 };
 
@@ -108,12 +104,11 @@ public:
  * @tparam Derived 派生类(如 UartCommunicate), 必须继承 Communicate<Derived>
  * @note  单例是 static Derived(不是基类指针), 而且是模板更不可能互相干扰
  * @note  派生类必须提供三样东西(漏写会在编译期报错, 不会静默退化):
- *          - `static void Thread(...)`                        任务循环体
+ *          - `static void Thread(void*)`                      任务循环体
  *          - `static constexpr unsigned int kThreadPeriodMs`  任务周期 (ms)
- *          - `static constexpr std::uint32_t kTaskStack`      任务栈大小 (仅真线程后端用)
- *        Thread 的形参随后端变化(裸机 x_task* / 真线程 void*), 由派生类自己声明。
+ *          - `static constexpr std::uint32_t kTaskStack`      任务栈大小
  *        周期归派生类定义, 它同时是 Thread 里让出的取值 —— 一处定义,
- *        避免"调度唤醒"与"协程让出"两个节奏打架。
+ *        避免"调度唤醒"与"休眠让出"两个节奏打架。
  */
 template <typename Derived>
 class Communicate : public CommunicateCore
@@ -134,30 +129,7 @@ public:
      *         派生类没提供会在编译期报错, 不会静默退化成通用轮询 */
     bool ThreadRegister()
     {
-#if defined(CONFIG_OS_BARE) && defined(CONFIG_XTASK_PREEMPT)
-        /* 抢占式: TCB 由任务池分配, 需要优先级 */
-        x_task_handle_t handle = x_scheduler_task_create(
-            CommunicateCore::kTag, Derived::kThreadPeriodMs, Derived::kTaskPriority,
-            &Derived::Thread, nullptr);
-        if (handle == 0)
-        {
-            MT_LOG_ERROR(CommunicateCore::kTag, "task register failed");
-            return false;
-        }
-#elif defined(CONFIG_OS_BARE)
-        /* 协调式: TCB 由调用方静态分配, 无优先级概念 */
-        static x_task tcb; /* 函数内静态: 每实例化一份 */
-
-        x_task_handle_t handle = xscheduler_task_create(&tcb, CommunicateCore::kTag,
-                                                        &Derived::Thread,
-                                                        Derived::kThreadPeriodMs);
-        if (handle == 0)
-        {
-            MT_LOG_ERROR(CommunicateCore::kTag, "task register failed");
-            return false;
-        }
-#elif defined(CONFIG_OS_MINI_OS) || defined(CONFIG_OS_FREERTOS)
-        /* 真线程后端: 走 mini_backend 统一任务入口 (栈大小只在这里用得上) */
+        /* 走 mini_backend 统一任务入口 (栈大小只在这里用得上) */
         mini_task_handle_t handle = nullptr;
         const mt_err_t ret = mini_task_create_handle(
             CommunicateCore::kTag, Derived::kTaskStack, Derived::kTaskPriority,
@@ -168,9 +140,6 @@ public:
                          static_cast<int>(ret));
             return false;
         }
-#else
-#error "communicate.hpp 尚未适配该 OS 后端: 请补上任务创建分支"
-#endif
         MT_LOG_INFO(CommunicateCore::kTag, "task registered");
         return true;
     }
@@ -178,4 +147,4 @@ public:
 
 } // namespace app_communicate
 
-#endif // APP_COMMUNICATE_COMMUNICATE_HPP_
+#endif // APP_COMMUNICATE_BASE_APP_COMMUNICATE_BASE_HPP_
