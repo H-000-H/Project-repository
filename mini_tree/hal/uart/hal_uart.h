@@ -91,13 +91,7 @@ struct hal_uart_config
  * 字节会在两次轮询之间被硬件覆盖丢弃 —— 实测 12 字节的命令行一次送达, 读侧只拿到
  * 1 个字节, 连帧尾 '\n' 都没活下来。故改为 RXNE 中断逐字节收集到环形缓冲,
  * hal_uart_read 再按调用方节奏从缓冲取, 读写两侧彻底解耦。
- *
- * 缓冲本体复用项目统一的 SPSC 无锁环形缓冲 (algorithm/buffer/buffer.h):
- * item_size=1 即字节流, 自带 acquire/release 内存序、满/空判定与块读写。
- *
- * @warning 本结构与 hal/uart/hal_uart.h 的同名定义必须逐字节一致: bus 层按本文
- *          (mini_tree 侧) 计算 s_uart_hosts 步长, 板级 hal_uart_stm32.c 按
- *          hal/uart 那份访问字段, 布局一旦分叉就会越界写到相邻 host 上。 */
+ * */
 #ifndef HAL_UART_RX_RING_SIZE
 #define HAL_UART_RX_RING_SIZE 2048U /**< 元素(字节)个数, 必须是 2 的幂 */
 #endif

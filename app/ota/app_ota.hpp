@@ -7,7 +7,7 @@
  * - 使用方法(入口 main 只注册任务; 固件长度与启动由业务侧按需触发):
  *   1. 注册任务(main 里调用一次): `ota.ThreadRegister();`
  *   2. 业务侧(命令解析/协议/按键)判断要升级后一行触发:
- *      `app_ota::Ota::GetInstance().RequestOta(fw_len);`
+ *      `app::Ota::GetInstance().RequestOta(fw_len);`
  *      —— 内部依次 SetFwLen → ota_open → ota_rollback_open → 置启动标志
  *   3. (可选) 校验备用分区镜像是否完好: `mini_boot_backup();`
  * - app 启动流程里必须补两件事(见 start.h), 否则双分区升级不成立:
@@ -23,15 +23,13 @@
 
 #include <cstdint>
 
-#include "app_config.hpp"
-
 struct device; /* 前向声明 C 结构体 */
 
-namespace app_ota
+namespace app
 {
 
 /**
- * @brief OTA 升级任务 (单例)
+ * @brief OTA 升级任务
  */
 class Ota
 {
@@ -65,17 +63,18 @@ private:
 
     static void OtaStep();
 
-    static constexpr unsigned int kTaskPriority = app_config::kOtaTaskPriority;
+    static constexpr unsigned int  kTaskPriority = 14;   /* mini-os: 数值越小越优先 (OTA 最不急) */
+    static constexpr std::uint32_t kTaskStack    = 1024; /* mini-os 线程栈 (字节) */
     static constexpr const char*  kTaskName     = "Ota_Task";
     static constexpr const char*  kTag          = "Ota";
     /** @brief OTA 串口 client label (USART3: PB10/PB11), 换口只改这里 */
     static constexpr const char*  kDevLabel     = "ota";
 
-    ::device* driver_       = nullptr;
-    uint32_t  fw_total_len_ = 0;
-    bool      is_start_     = false;
+    ::device* m_driver       = nullptr;
+    uint32_t  m_fw_total_len = 0;
+    bool      m_is_start     = false;
 };
 
-} // namespace app_ota
+} // namespace app
 
 #endif // APP_OTA_APP_OTA_HPP_

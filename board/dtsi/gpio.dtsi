@@ -26,4 +26,33 @@
 		default-level = <1>; /* 常见 PC13 LED 低电平亮，默认灭 */
 		status = "disabled";
 	};
+
+	/*
+	 * GPIO 输入脚模板（按键）；板级用 &buttonN { } 继承覆盖 port/pin/clk
+	 * label=button1/button2 供 app_button::AppButton<>::Open 的 device_find_by_label 查找
+	 * gpio-mode/gpio-pull 为 vfs-gpio 探针必读项，speed/otype 对输入无意义但保持字段齐整
+	 */
+	button1: gpios-pin@0 {
+		compatible = "mt-gpios";
+		reg = <0>;
+		gpio-mode = <LL_GPIO_MODE_INPUT>;
+		gpio-pull = <LL_GPIO_PULL_UP>;
+		gpio-speed = <LL_GPIO_SPEED_FREQ_LOW>;
+		gpio-otype = <LL_GPIO_OUTPUT_PUSHPULL>;
+		gpio-intr = <DTS_GPIO_DEFAULT_INTR>;
+		default-level = <0>;
+		status = "disabled";
+	};
+
+	button2: gpios-pin@4 {
+		compatible = "mt-gpios";
+		reg = <4>;
+		gpio-mode = <LL_GPIO_MODE_INPUT>;
+		gpio-pull = <LL_GPIO_PULL_UP>;
+		gpio-speed = <LL_GPIO_SPEED_FREQ_LOW>;
+		gpio-otype = <LL_GPIO_OUTPUT_PUSHPULL>;
+		gpio-intr = <DTS_GPIO_DEFAULT_INTR>;
+		default-level = <0>;
+		status = "disabled";
+	};
 };

@@ -133,7 +133,8 @@ else()
         app/cmd/uart/app_uart_cmd.hpp
         app/button/app_button.cpp
         app/button/app_button.hpp
-        app/button/lib/button.hpp)
+        app/button/lib/button.hpp
+        ui/display/display_base.hpp)
 
     target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/hal"
@@ -146,9 +147,6 @@ endif()
 # ---- USB glue（usb_tusb_port / 描述符 / 网络回调 / DCD）— 仅 app；按上面读出的 CONFIG_USB_OFF 门控 ----
 if(NOT BOOT_BUILD)
 if(NOT CONFIG_USB_OFF)
-    # 契约头在中间件 bus/usb/usb_tusb_port.h（mini_tree INTERFACE include 已带）；板级只链实现
-    # 中间件 v1.0+：TinyUSB 改为链接期惰性拉取（local-or-fetch），须显式调用 mini_tree_link_tinyusb
-    # 创建 tinyusb 目标并链接；TINYUSB_SRC_DIR 在函数作用域内，从目标 include 属性取回源码目录
     mini_tree_link_tinyusb(${CMAKE_PROJECT_NAME})
     get_target_property(_tinyusb_inc_dirs tinyusb INTERFACE_INCLUDE_DIRECTORIES)
     list(GET _tinyusb_inc_dirs 0 TINYUSB_SRC_DIR)
@@ -202,6 +200,45 @@ if(NOT BOOT_BUILD)
     if(NOT CONFIG_LWIP_OFF)
         mini_tree_link_lwip(${CMAKE_PROJECT_NAME} "${CMAKE_CURRENT_SOURCE_DIR}/net")
     endif()
+endif()
+
+option(UI_LVGL "构建 ui/lvgl (LVGL 上屏胶水层)" ON)
+if(NOT BOOT_BUILD AND UI_LVGL)
+    # mini_tree_link_lvgl 定义在中间件里（该文件有 include guard，重复 include 安全）
+    include("${CMAKE_CURRENT_SOURCE_DIR}/mini_tree/cmake/lvgl.cmake")
+
+    # LVGL 自带的 ThorVG 与本板无关 (lv_conf.h: LV_USE_THORVG=0)，但它的 cmake 选项
+    # 默认 ON，会把 vendored 的 47 个 .cpp 一起编进来 → 显式关掉。
+    set(CONFIG_LV_USE_THORVG OFF CACHE BOOL "LVGL ThorVG (MCU 不用)" FORCE)
+
+    # ui/ 下源码用 glob 收: CONFIGURE_DEPENDS 让新增/删除文件在下次构建时自动重配,
+    # 重写 UI 期间不用回来改本文件。头文件一并列出, 只作 IDE 展示, 编译由 include 路径决定。
+    file(GLOB_RECURSE UI_SRCS CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/ui/*.c"
+        "${CMAKE_CURRENT_SOURCE_DIR}/ui/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/ui/*.h"
+        "${CMAKE_CURRENT_SOURCE_DIR}/ui/*.hpp")
+    target_sources(${CMAKE_PROJECT_NAME} PRIVATE ${UI_SRCS})
+
+    # ui/ 本身 + 每个子目录都进 include 路径 (桥接头/port 头在代码里都是裸名 include),
+    # 重写时新增子目录也不用改本文件。
+    # ui/ 本身 + 每个子目录都进 include 路径 (头文件在代码里都是裸名 include),
+    # 重写时新增子目录也不用改本文件。
+    # 注意: file(GLOB ui/*) 会把同层的普通文件(如 .clangd)也列进来 → 只保留目录,
+    # 否则文件会被当 -I 送进编译器 (cc1: warning: <path>: not a directory)。
+    file(GLOB UI_INC_DIRS LIST_DIRECTORIES true CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/ui/*")
+    set(UI_INC_SUBDIRS "")
+    foreach(d ${UI_INC_DIRS})
+        if(IS_DIRECTORY "${d}")
+            list(APPEND UI_INC_SUBDIRS "${d}")
+        endif()
+    endforeach()
+    target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/ui"
+        ${UI_INC_SUBDIRS})
+    # port 目录 = ui/lvgl（里面必须有 lv_conf.h，函数内部会校验）
+    mini_tree_link_lvgl(${CMAKE_PROJECT_NAME} "${CMAKE_CURRENT_SOURCE_DIR}/ui/lvgl")
 endif()
 
 # ---- clangd：构建后将编译数据库同步到源码根目录 ----

@@ -62,8 +62,9 @@ def _wait_ready(sock: socket.socket, timeout_s: float) -> bool:
     '''
     brief : 等设备发来就绪握手字节 'R'
     sock  : 已连接的 OTA 口 socket
-    说明  : 备选方案 —— 直接在当前连接(OTA 口)上等设备发来的字节。
-            需要 UART3 的 TX 有实际通路; 若该口只有 RX, 请改用 --ready-port 走日志流。
+    说明  : 正路 —— 设备擦完 flash 立刻在 OTA 信道回一个 'R', 上位机在同一条连接上收。
+            一个端口搞定, 不碰设备日志, 也不会和"人看日志"抢串口。
+            设备侧对应 app/ota/app_ota.cpp 的 OtaDownloadSource()。
     return: 收到就绪 True; 超时/对端关闭 False; timeout_s<=0 时直接放行 (兼容旧固件)
     '''
     if timeout_s <= 0:
@@ -97,8 +98,9 @@ def _wait_ready(sock: socket.socket, timeout_s: float) -> bool:
 
 def _wait_ready_by_log(host: str, port: int, timeout_s: float) -> bool:
     '''
-    brief : 连日志口, 等设备打出就绪标记 OTA_READY
-    说明  : OTA 口(USART3) 硬件上只接了 RX, 回不了握手字节, 所以就绪信号走 console 日志口。
+    brief : 连日志口, 等设备打出就绪标记 OTA_READY (兼容旧固件的备用路径)
+    说明  : 只有设备固件尚未实现 OTA 信道自握手时才需要走这条 —— 拿 另外一个端口 日志当控制面。
+            代价: 上位机要按字节匹配日志文本, 且日志口单客户端, 会与"人看日志"互斥。
             设备每轮 download_stream 重试都会重新打这个标记, 晚连一会儿也能等到。
     return: 见到标记 True; 超时/连接失败 False; port<=0 或 timeout<=0 时直接放行
     '''
@@ -145,8 +147,8 @@ def down_load(image_file:str,size : int,Host:str,Port:str,mode:int,
     cmd_port : int : mode 0 可选, 先向该端口发 'cmdota <len>' 触发设备再灌镜像 (0 = 不触发)
     cmd_wait : float : 触发命令发出后等待秒数 (仅在 ready_timeout<=0 时起作用)
     ready_timeout : float : 等设备就绪的秒数 (默认 15, 覆盖 1~3 秒擦除; 0 = 不等)
-    ready_port : int : 就绪标记所在的日志口 (如 9090)。OTA 口只有 RX, 回不了握手字节,
-                       就绪信号从 console 日志流里认; 0 = 不启用
+    ready_port : int : 兼容旧固件: 就绪标记所在的日志口 (如 9090); 0 (默认) = 走正路,
+                       直接在 OTA 口连接上等握手字节 'R'
     return : bool : 成功返回 True, 失败返回 False
     '''
     if not image_file or not os.path.isfile(image_file):
@@ -254,7 +256,8 @@ def main():
     parser.add_argument("--ready-timeout", dest="ready_timeout", type=float, default=15.0,
                         help="等待设备就绪的秒数 (默认 15; 0 = 不等, 兼容旧固件)")
     parser.add_argument("--ready-port", dest="ready_port", type=int, default=0,
-                        help="就绪标记所在的日志口 (如 9090); OTA 口只有 RX, 就绪信号走日志流")
+                        help="兼容旧固件: 从该日志口认 OTA_READY 标记 (如 9090); "
+                             "不填则走正路 —— 直接在 OTA 口等握手字节 'R'")
     try:
         args = parser.parse_args()
         ok = down_load(args.image_file, args.size, args.Host, args.Port, args.mode,

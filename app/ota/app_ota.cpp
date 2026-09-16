@@ -14,10 +14,9 @@
 #include "status.h"
 #include "system_log.h"
 
-#include "mini_backend.h"
 #include "thread.h"
 
-namespace app_ota
+namespace app
 {
 
 /* 任务周期 (ms) */
@@ -41,24 +40,24 @@ Ota::Ota()
     if (pdev == nullptr)
     {
         MT_LOG_ERROR(kTag, "OTA uart '%s' not found", kDevLabel);
-        driver_ = nullptr;
+        m_driver = nullptr;
         return;
     }
     if (device_open(pdev, nullptr) != MINI_OK)
     {
         MT_LOG_ERROR(kTag, "device_open failed");
-        driver_ = nullptr;
+        m_driver = nullptr;
         return;
     }
     MT_LOG_INFO(kTag, "OTA uart opened");
-    driver_ = pdev;
+    m_driver = pdev;
 }
 
 Ota::~Ota() = default;
 
 void Ota::SetFwLen(uint32_t len)
 {
-    fw_total_len_ = len;
+    m_fw_total_len = len;
 }
 
 void Ota::RequestOta(uint32_t len)
@@ -71,12 +70,12 @@ void Ota::StartOta()
 {
     ota_open();          /* 未 open 时下载会被内部拒绝 (ERR_OTA_OPEN) */
     ota_rollback_open(); /* 双分区+回滚: 激活后置 pending, 新固件 confirm 后清除 */
-    is_start_ = true;
+    m_is_start = true;
 }
 
 void Ota::StopOta()
 {
-    is_start_ = false;
+    m_is_start = false;
 }
 
 /* 就绪握手是否已发出 (每轮 download_stream 重置一次, 见 OtaStep) */
@@ -93,9 +92,12 @@ static int OtaDownloadSource(void* param, uint8_t* buf, uint32_t want, int* out_
     if (!s_ready_sent)
     {
         s_ready_sent = true;
-        /* 就绪标记走 console 日志口: OTA 口(USART3) 硬件上只接通了 RX (业务只需从 PC
-         * 收固件), 无法反向发握手字节, 所以上位机改为从日志流里认这个标记。
-         * 标记文本必须稳定 —— 上位机按字节匹配。 */
+        /* 就绪握手走 OTA 信道本身: 上位机在同一条连接上等这个字节
+         * (file_download.py 的 _wait_ready), 这才是正路 —— 走日志口等于拿诊断面当控制面,
+         * 既逼上位机解析日志文本, 又因日志口单客户端而与"人看日志"互斥。 */
+        static const uint8_t kReadyByte = 'R';
+        (void)device_write(dev, &kReadyByte, 1u, 100u);
+        /* 日志那句留作人读诊断, 不再当控制信号 (上位机若配了 --ready-port 仍可用) */
         MT_LOG_INFO("Ota", "OTA_READY");
     }
 
@@ -112,12 +114,12 @@ void Ota::OtaStep()
 {
     Ota& it = GetInstance();
 
-    if (!it.is_start_ || (it.driver_ == nullptr) || (it.fw_total_len_ == 0))
+    if (!it.m_is_start || (it.m_driver == nullptr) || (it.m_fw_total_len == 0))
         return;
 
     MT_LOG_INFO(kTag, "ota download started");
     s_ready_sent = false; /* 每轮都会重新擦除, 所以要重新握手通知上位机 */
-    int ret = mini_boot_source_download_stream(OtaDownloadSource, it.driver_, it.fw_total_len_);
+    int ret = mini_boot_source_download_stream(OtaDownloadSource, it.m_driver, it.m_fw_total_len);
     if (ret != ERR_OK)
     {
         MT_LOG_ERROR(kTag, "ota download failed: %d", ret);
@@ -149,14 +151,12 @@ void Ota::Thread(void* param)
 
 bool Ota::ThreadRegister()
 {
-    /* 走 mini_backend 统一任务入口 (栈大小只在这里用得上) */
-    mini_task_handle_t handle = nullptr;
-    const mt_err_t ret = mini_task_create_handle(
-        kTaskName, app_config::kOtaTaskStack, kTaskPriority,
-        [](void* param) { Thread(param); }, nullptr, -1, &handle);
-    if (ret != MINI_OK)
+    mini_os_thread_t* handle = mini_os_thread_create(
+        kTaskName, kTaskStack, static_cast<mini_os_uint8_t>(kTaskPriority),
+        [](void* param) { Thread(param); }, nullptr);
+    if (handle == nullptr)
     {
-        MT_LOG_ERROR(kTag, "task register failed: %d", static_cast<int>(ret));
+        MT_LOG_ERROR(kTag, "task register failed");
         return false;
     }
 
@@ -164,4 +164,4 @@ bool Ota::ThreadRegister()
     return true;
 }
 
-} // namespace app_ota
+} // namespace app

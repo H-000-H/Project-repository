@@ -1,13 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 /*
- * STM32F407 TIM 板级片段 — 调度 tick 用 TIM7
+ * STM32F407 TIM 板级片段
+ *   tim@7 → 裸机时间片调度器 tick  (APB1 定时器, TIMCLK=48MHz)
+ *   tim@9 → ST7789 背光 PWM        (APB2 定时器, TIMCLK=96MHz)
  *
  * 用法: board/dts/board.dts 中 #include "tim.dtsi"
- * TIMCLK=48MHz (APB1=24MHz×2): PSC=47 ARR=999 → 1kHz 更新中断
+ *
+ * 时钟树 (见 STM32F407ZGT6.ioc): HSE=25MHz → SYSCLK=HCLK=96MHz
+ *   APB1 = /4 = 24MHz → TIMxCLK(APB1) = 48MHz
+ *   APB2 = /2 = 48MHz → TIMxCLK(APB2) = 96MHz   ← TIM9 挂这里, 别按 48MHz 算
+ *   (F4 规则: APBx 分频 != 1 时, 该总线上定时器的时钟 = PCLKx × 2)
  *
  * 厂商宏经 VENDOR_INC_DIRS / dtc-lite -I 解析（见根 CMakeLists.txt）
  */
 #include <stm32f4xx_ll_tim.h>
+#include <stm32f4xx_ll_gpio.h>
 #include <stm32f4xx_ll_bus.h>
 #include <dt-bindings/tim/tim-parameter.h>
 
@@ -16,7 +23,8 @@
 };
 
 &soc {
-	/* 裸机时间片调度器 tick */
+	/* 裸机时间片调度器 tick
+	 * PSC=47 ARR=999 → 48MHz/48/1000 = 1kHz 更新中断 */
 	tim7: tim@7 {
 		compatible = "mt-tim";
 		reg = <7>;
@@ -32,5 +40,51 @@
 		interrupt-mask = <LL_TIM_DIER_UIE>;
 		nvic-priority = <5>;
 		status = "disabled";
+	};
+
+	/* ---- ST7789 背光 PWM: TIM9_CH1 → PE5 (AF3) ----
+	 * 通道选脚: TIM9_CH1 的另一组复用是 PA2, 那已经是 console 口 USART2_TX,
+	 * 所以只能走 PE5 (CH2 对应 PA3/PE6, 同样要避开 PA3)。
+	 * 频率: 96MHz / (PSC+1) / (ARR+1) = 96e6 / 1 / 4800 = 20kHz */
+	st7789_pwm: tim@9 {
+		compatible = "mt-tim";
+		reg = <9>;
+		tim-mode = <HAL_TIM_MODE_OC>;       /* 输出比较 = PWM 模式 */
+		prescaler = <0>;                    /* 96MHz / 1 */
+		counter-mode = <LL_TIM_COUNTERMODE_UP>;
+		autoreload = <4799>;                /* 96MHz / 4800 = 20kHz */
+		clock-division = <LL_TIM_CLOCKDIVISION_DIV1>;
+		repetition-counter = <0>;           /* TIM9 无 RCR */
+
+		/* OC 模式必须给通道位掩码: vfs-tim 的通道循环是
+		 *   if (!(active_chn_mask & (1u << i))) continue; */
+		active-chn-mask = <1>;
+
+		hw-instance = <TIM9_BASE>;
+		clk-periph = <LL_APB2_GRP1_PERIPH_TIM9>;  /* TIM9 在 APB2, 不是 APB1 */
+
+		irqn = <0>;
+		interrupt-mask = <0>;
+
+		/* ---- 通道 0 (即 CH1) 的输出比较配置 ---- */
+		oc0-compare-value = <0>;                        /* 初始 CCR=0 → 输出常低, 上电不闪 */
+		oc0-oc-mode = <LL_TIM_OCMODE_PWM1>;             /* PWM 模式 1: 高电平占比 = CCR/ARR */
+		oc0-oc-state = <LL_TIM_OCSTATE_ENABLE>;         /* 使能该通道输出 */
+		oc0-oc-polarity = <LL_TIM_OCPOLARITY_HIGH>;
+		oc0-oc-idle-state = <LL_TIM_OCIDLESTATE_LOW>;   /* LOW/HIGH */
+		oc0-oc-n-state = <LL_TIM_OCSTATE_DISABLE>;      /* TIM9 无互补输出, 置 DISABLE */
+		oc0-oc-n-polarity = <LL_TIM_OCPOLARITY_HIGH>;
+		oc0-oc-n-idle-state = <LL_TIM_OCIDLESTATE_LOW>;
+		oc0-channel-id = <LL_TIM_CHANNEL_CH1>;
+		oc0-chn-mode = <0>;
+		oc0-chn-polarity = <0>;
+		oc0-chn-filter = <0>;
+		oc0-chn-prescaler = <0>;
+		oc0-chn-enable-comp = <0>;
+		/*   <port pin clk_bus af output_type speed mode pull>   */
+		oc0-pin = <GPIOE_BASE LL_GPIO_PIN_5 LL_AHB1_GRP1_PERIPH_GPIOE
+		           LL_GPIO_AF_3 LL_GPIO_OUTPUT_PUSHPULL LL_GPIO_SPEED_FREQ_LOW
+		           LL_GPIO_MODE_ALTERNATE LL_GPIO_PULL_NO>;
+		status = "disabled";                /* 由 board.dts 统一开启 */
 	};
 };

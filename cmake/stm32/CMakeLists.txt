@@ -27,6 +27,9 @@ set(STM32_INCLUDE_DIRS
     "${STM32_ROOT}/app/communicate/uart"
     "${STM32_ROOT}/app/cmd"
     "${STM32_ROOT}/app/cmd/uart"
+    "${STM32_ROOT}/app/button"
+    "${STM32_ROOT}/app/button_base"
+    "${STM32_ROOT}/app/ui/main"
     "${STM32_ROOT}/Drivers/STM32F4xx_HAL_Driver/Inc"
     "${STM32_ROOT}/Drivers/STM32F4xx_HAL_Driver/Inc/Legacy"
     "${STM32_ROOT}/Drivers/CMSIS/Device/ST/STM32F4xx/Include"
@@ -49,6 +52,7 @@ else()
         "${STM32_ROOT}/app/led/app_led.cpp"
         "${STM32_ROOT}/app/communicate/base/app_communicate_base.cpp"
         "${STM32_ROOT}/app/communicate/uart/app_uart_recv.cpp"
+        "${STM32_ROOT}/app/ui/main/app_ui.cpp"
     )
 endif()
 

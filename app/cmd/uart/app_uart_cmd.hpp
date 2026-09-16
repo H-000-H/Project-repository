@@ -10,18 +10,16 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "app_config.hpp"
 #include "app_led.hpp"
 #include "app_ota.hpp"
 #include "system_cmd.hpp"
 #include "system_log.h"
 
-namespace app_cmd
+namespace app
 {
 
 constexpr const char* kLedSetCommand   = "led.set";   /* 裸机后端要求静态字面量 */
 constexpr const char* kOtaStartCommand = "ota.start"; /* 裸机后端要求静态字面量 */
-constexpr const char* kTag             = "cmd";
 
 /** @brief LED 控制模式 (串口行命令: ON / OFF / AUTO) */
 enum class LedMode : uint8_t
@@ -44,17 +42,17 @@ struct OtaArgs
     uint32_t len;
 };
 
-bool HandleLedSet(const LedArgs& arg, app_led::Led* ctx);
+/** @brief 命令层入口: 注册 led.set / ota.start 命令, 并把 UART 收包回调挂到实例 */
+class Cmd
+{
+public:
+    static void Init();
 
-/** @brief ota.start 处理: 交 Ota 任务开始接收镜像 (SetFwLen + StartOta) */
-bool HandleOtaStart(const OtaArgs& arg, app_ota::Ota* ctx);
+private:
+    /** @brief UART 收包回调: 逐字节累积, 遇 '\n'/'\r' 成帧后分发 (可处理拆包/粘包) */
+    static void OnUartRx(const uint8_t* data, size_t len);
+};
 
-/** @brief UART 收包回调: 逐字节累积, 遇 '\n'/'\r' 成帧后分发 (可处理拆包/粘包) */
-void OnUartRx(const uint8_t* data, size_t len);
-
-/** @brief 注册 led.set / ota.start 命令, 并把 OnUartRx 挂到 UART 实例 */
-void Init();
-
-} // namespace app_cmd
+} // namespace app
 
 #endif // APP_CMD_UART_APP_UART_CMD_HPP_

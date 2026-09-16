@@ -57,7 +57,7 @@ MEMORY
 {
 RAM (xrw)      : ORIGIN = 0x20000000, LENGTH = 128K
 CCMRAM (xrw)      : ORIGIN = 0x10000000, LENGTH = 64K
-FLASH (rx)      : ORIGIN = 0x08020000, LENGTH = 384K  /* app image_0: Sector 5~7 */
+FLASH (rx)      : ORIGIN = 0x08000000, LENGTH = 1024K  /* 无 bootloader: app 从 0x08000000 起占满整片 1MB (原 boot 64K + image_0 384K + image_1 384K + 尾部 128K)。VTOR 由 main_app.cpp 的 mini_boot_set_vtor(&__app_partition_base) 设成本行 ORIGIN */
 }
 
 /* 本固件被链接的分区基址 — 启动代码据此设置 VTOR，随脚本自动切换 */

@@ -84,15 +84,7 @@ void assert_failed(uint8_t* file, uint32_t line)
 /* -------------------------------------------------------------------------- */
 /* 日志时基桥接                                                                */
 /* -------------------------------------------------------------------------- */
-/**
- * @brief mini-log 时间戳回调: 桥接到当前后端的时基
- * @return 当前 tick (ms); 内核/调度器未启动时为 0
- * @note  mini-log 只认自己的回调, 不依赖任何 tick 源; 本工程把后端时基接上去:
- *          裸机    -> x_scheduler_now()
- *          mini-os -> mini_os_get_tick()
- *          FreeRTOS-> xTaskGetTickCount()
- *        三个来源 tick 频率都是 1000Hz, 与 mini-log 需要的毫秒口径一致。
- */
+
 extern "C" int mini_log_tick_from_scheduler(void)
 {
 #if defined(CONFIG_OS_MINI_OS)

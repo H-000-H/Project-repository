@@ -14,10 +14,9 @@
 
 #include <cstdint>
 
-#include "app_config.hpp"
 #include "app_communicate_base.hpp"
 
-namespace app_communicate
+namespace app
 {
 
 class UartCommunicate final : public Communicate<UartCommunicate>
@@ -32,8 +31,9 @@ public:
     /* 任务周期 (ms): 任务注册与 Thread 里让出共用这个值 */
     static constexpr unsigned int kThreadPeriodMs = 100;
 
-    static constexpr unsigned int  kTaskPriority = app_config::kCommunicateTaskPriority;
-    static constexpr std::uint32_t kTaskStack    = app_config::kCommunicateTaskStack;
+    /* mini-os: 数值越小越优先 (与 LED 同级) */
+    static constexpr unsigned int  kTaskPriority = 12;
+    static constexpr std::uint32_t kTaskStack    = 1024;
 
     static void Thread(void* param);
 
@@ -41,6 +41,6 @@ public:
     etl::optional<mt_err_t> SendResv(etl::span<const uint8_t> data_view, uint32_t time_out) override;
 };
 
-} // namespace app_communicate
+} // namespace app
 
 #endif // APP_COMMUNICATE_UART_APP_UART_RECV_HPP_

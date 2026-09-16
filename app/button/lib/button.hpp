@@ -71,7 +71,7 @@ constexpr uint8_t  kPressed                       = 1;                        /*
  */
 enum class Button_Event
 {
-    kPressed_Down              = 1,                                            /**< First press down */
+    kPressed_Down              = 1,                                            /**< Press down (each press edge, including re-press during multi-click) */
     kSignal_Pressed_Click      ,                                               /**< Single click completed */
     kDouble_Pressed_Click      ,                                               /**< Double click completed */
     kPressed_Repeat_Click      ,                                               /**< Repeat click */
@@ -396,8 +396,12 @@ public:
             /* Multi-click judgment state */
             if(is_preesed())
             {
-                /* Pressed again: go back to pressed state, restart counting */
+                /* Pressed again: a new press edge. is_preesed() already debounces the
+                 * falling edge, so this is reached on a real re-press only.
+                 * kPressed_Down must be re-fired here, otherwise the app keeps the
+                 * timestamp of the *previous* press and the press duration is wrong. */
                 scan_cnt = 0;
+                trigger(Button_Event::kPressed_Down);
                 status = Button_Status::kPressed;
             }
             else
@@ -467,6 +471,8 @@ private:
 
     uint8_t  pressed_value                  = kNot_Pressed;                         /**< Whether currently pressed (0 = not / 1 = pressed) */
 
+    bool     debounce_primed                = false;                                /**< First scan after boot has no release edge: treated as stable-released (prevents phantom click) */
+
     /**
      * @brief Set event and trigger callback
      * @param evt event to trigger
@@ -524,6 +530,7 @@ private:
         if(pressed_value == kPressed)
         {
             release_debounce_start_tick = 0;       /* Enter press, reset release debounce */
+            debounce_primed = true;                /* Real press seen: later release edges must debounce normally */
             if(debounce_ms == 0)
                 return true;                       /* Debounce disabled: return directly */
             if(press_debounce_start_tick == 0)
@@ -535,6 +542,15 @@ private:
             press_debounce_start_tick = 0;         /* Enter release, reset press debounce */
             if(debounce_ms == 0)
                 return false;                      /* Debounce disabled: return directly */
+
+            if(!debounce_primed)
+            {
+                /*make initial status is stable*/
+                debounce_primed             = true;
+                release_debounce_start_tick = now ? now : 1u;
+                return false;
+            }
+
             if(release_debounce_start_tick == 0)
                 release_debounce_start_tick = now; /* Record when this release started */
             return (now - release_debounce_start_tick) < debounce_ms;  /* Release not yet stable for debounce_ms, still treated as pressed */

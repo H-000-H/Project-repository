@@ -21,7 +21,6 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "app_config.hpp"
 #include "device.h"
 #include "etl/array.h"
 #include "etl/optional.h"
@@ -29,13 +28,10 @@
 #include "status.h"
 #include "system_log.h"
 
-#include "mini_backend.h"
+#include "thread.h"
 
-namespace app_communicate
+namespace app
 {
-
-/** @brief 收发缓冲上限 (字节) */
-constexpr std::size_t kBufferSize = 128;
 
 /* -------------------------------------------------------------------------- */
 /* 通用通信实现 (底座, 无单例/无任务)                                          */
@@ -43,8 +39,11 @@ constexpr std::size_t kBufferSize = 128;
 class CommunicateCore
 {
 public:
+    /** @brief 收发缓冲上限 (字节) */
+    static constexpr std::size_t kBufferSize = 128;
+
     /** @brief 收到数据时的业务回调: data 指向内部接收缓冲, len 为实际字节数 */
-    using RxHandlerCallback = void (*)(const uint8_t* data, size_t len);
+    using RxCallback = void (*)(const uint8_t* data, size_t len);
 
 protected:
     explicit CommunicateCore(const char* label);
@@ -53,17 +52,17 @@ protected:
     CommunicateCore(CommunicateCore&&) = delete;
     CommunicateCore& operator=(CommunicateCore&&) = delete;
 
-    ::device* dev_ = nullptr;
-    etl::array<uint8_t, kBufferSize> send_buffer_{};
-    etl::array<uint8_t, kBufferSize> recv_buffer_{};
-    std::size_t       rx_len_     = 0;       /**< 最近一次读到的有效字节数 */
-    RxHandlerCallback rx_handler_ = nullptr; /**< 业务回调, 为空时只打日志 */
+    ::device* m_dev = nullptr;
+    etl::array<uint8_t, kBufferSize> m_send_buffer{};
+    etl::array<uint8_t, kBufferSize> m_recv_buffer{};
+    std::size_t m_rx_len      = 0;        /**< 最近一次读到的有效字节数 */
+    RxCallback  m_rx_callback = nullptr;  /**< 业务回调, 为空时只打日志 */
 
 public:
     virtual ~CommunicateCore();
 
     /** @brief 注册接收回调 (传 nullptr 恢复为只打日志) */
-    void SetRxHandler(RxHandlerCallback fn);
+    void SetRxCallback(RxCallback callback);
 
     /** @brief 发送: 长度取 data_view.size(), 上限 kBufferSize */
     etl::optional<mt_err_t> Send(etl::span<const uint8_t> data_view, uint32_t time_out);
@@ -124,20 +123,15 @@ public:
         return instance;
     }
 
-    /** @brief 把本派生类的任务注册到调度器 (每派生类一个 TCB)
-     *  @note  Thread / kThreadPeriodMs / kTaskPriority / kTaskStack 都取自 Derived,
-     *         派生类没提供会在编译期报错, 不会静默退化成通用轮询 */
+    /** @brief 通过模板特性顶层虽然都是这个register但是确实不同的 */
     bool ThreadRegister()
     {
-        /* 走 mini_backend 统一任务入口 (栈大小只在这里用得上) */
-        mini_task_handle_t handle = nullptr;
-        const mt_err_t ret = mini_task_create_handle(
-            CommunicateCore::kTag, Derived::kTaskStack, Derived::kTaskPriority,
-            &Derived::Thread, nullptr, -1, &handle);
-        if (ret != MINI_OK)
+        mini_os_thread_t* handle = mini_os_thread_create(
+            CommunicateCore::kTag, Derived::kTaskStack, static_cast<mini_os_uint8_t>(Derived::kTaskPriority),
+            &Derived::Thread, nullptr);
+        if (handle == nullptr)
         {
-            MT_LOG_ERROR(CommunicateCore::kTag, "task register failed: %d",
-                         static_cast<int>(ret));
+            MT_LOG_ERROR(CommunicateCore::kTag, "task register failed");
             return false;
         }
         MT_LOG_INFO(CommunicateCore::kTag, "task registered");
@@ -145,6 +139,6 @@ public:
     }
 };
 
-} // namespace app_communicate
+} // namespace app
 
 #endif // APP_COMMUNICATE_BASE_APP_COMMUNICATE_BASE_HPP_

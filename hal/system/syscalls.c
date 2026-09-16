@@ -144,3 +144,16 @@ void _kill(int pid, int sig)
     (void)pid;
     (void)sig;
 }
+
+/**
+ * @brief 退出桩: newlib 的 abort() 实现依赖它 (libc_a-abort.o → _exit)
+ * @note  嵌入式没有"退出"语义: 停在这里留个死循环, 便于挂调试器看调用栈; 不做任何清理。
+ *        任何代码走到 abort()(断言失败 / 误用未初始化对象等) 都会终结在此。
+ */
+__attribute__((noreturn)) void _exit(int code)
+{
+    (void)code;
+    for (;;)
+    {
+    }
+}

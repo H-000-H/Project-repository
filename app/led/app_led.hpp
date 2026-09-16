@@ -9,11 +9,9 @@
 
 #include <cstdint>
 
-#include "app_config.hpp"
-
 struct device; /* 前向声明 C 结构体 */
 
-namespace app_led
+namespace app
 {
 
 /**
@@ -53,17 +51,18 @@ private:
     /** @brief 翻转一次: 周期任务的单步动作, 两后端分支共用 */
     void BlinkStep();
 
-    ::device* dev_ = nullptr;
+    ::device* m_dev = nullptr;
     /* 手动接管期间不翻转, 避免覆盖 TurnOn/TurnOff 的结果 */
-    bool manual_hold_ = false;
+    bool m_manual_hold = false;
 
     static constexpr unsigned int kBlinkPeriodMs = 500; /**< 心跳翻转周期 (ms) */
 
-    static constexpr unsigned int kTaskPriority = app_config::kLedTaskPriority;
+    static constexpr unsigned int  kTaskPriority = 12;   /* mini-os: 数值越小越优先 (与通信同级) */
+    static constexpr std::uint32_t kTaskStack    = 2048; /* mini-os 线程栈 (字节) */
     static constexpr const char*  kTaskName     = "Led_Task";
     static constexpr const char*  kTag          = "Led";
 };
 
-} // namespace app_led
+} // namespace app
 
 #endif // APP_LED_APP_LED_HPP_

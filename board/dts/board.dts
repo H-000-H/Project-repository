@@ -13,6 +13,8 @@
 #include "tim.dtsi"
 #include "gpio.dtsi"
 #include "uart.dtsi"
+#include "spi.dtsi"
+#include "st7789.dtsi"
 
 #include <stm32f4xx_ll_gpio.h>
 #include <stm32f4xx_ll_bus.h>
@@ -66,6 +68,23 @@
 	status = "okay";
 };
 
+/* 按键1: PA6 — 内部上拉, 按下为低电平 (与 app_button.cpp 的 pressed_level=0 配套)
+ * 按键2: PA7 — 内部上拉, 按下为低电平 (pressed_level=0)
+ * @note 引脚按实际硬件改; 换引脚只需改这里 + app_button.cpp 两处实例的有效电平 */
+&button1 {
+	gpio-port = <GPIOA_BASE>;
+	gpio-pin = <LL_GPIO_PIN_6>;
+	gpio-clk = <LL_AHB1_GRP1_PERIPH_GPIOA>;
+	status = "okay";
+};
+
+&button2 {
+	gpio-port = <GPIOA_BASE>;
+	gpio-pin = <LL_GPIO_PIN_7>;
+	gpio-clk = <LL_AHB1_GRP1_PERIPH_GPIOA>;
+	status = "okay";
+};
+
 /* console 日志口: USART2 (PA2=TX/PA3=RX, Renode 9090 终端接 sysbus.usart2) */
 &console_uart {
 	status = "okay";
@@ -91,5 +110,26 @@
 };
 
 &communicate {
+	status = "okay";
+};
+
+&display{
+	status = "okay";
+};
+
+&panel_rst{
+	status = "okay";
+};
+
+&panel_dc{
+	status = "okay";
+};
+
+&st7789{
+	status = "okay";
+};
+
+/* ST7789 背光 PWM: TIM9_CH1 (PE5, AF3, 20kHz) 要么一起开要么一起关 st7789和pwm */
+&st7789_pwm {
 	status = "okay";
 };

@@ -1,0 +1,11 @@
+Button1 : Miscellaneous.Button @ gpioPortA
+    invert: true
+    -> gpioPortA@6
+
+Button2 : Miscellaneous.Button @ gpioPortA
+    invert: true
+    -> gpioPortA@7
+Led1 : Miscellaneous.LED @ gpioPortC
+
+gpioPortC:
+    13 -> Led1@0

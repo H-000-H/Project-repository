@@ -6,9 +6,8 @@
  * @note  本文件只实现 CommunicateCore, 不含单例/任务 —— 单例与协程任务由
  *        app_communicate_base.hpp 的 CRTP 基类按派生类生成。
  *        也不 include 任何总线专有头(vfs-uart.h 等), 换设备不用改这里。
- * @note  长度来源: device_read 的成功返回值就是实际读取字节数
- *        (hal_uart_read -> uart_bus_read -> uart_vfs_read -> device_read 一路透传),
- *        零字节超时返回 MINI_ERR_TIMEOUT, 属正常轮询结果, 不算错误。
+ * @note  
+ *        - 零字节超时返回 MINI_ERR_TIMEOUT, 属正常轮询结果, 不算错误。
  */
 #include "app_communicate_base.hpp"
 
@@ -20,7 +19,7 @@
 #include "status.h"
 #include "system_log.h"
 
-namespace app_communicate
+namespace app
 {
 
 CommunicateCore::CommunicateCore(const char* label)
@@ -29,34 +28,34 @@ CommunicateCore::CommunicateCore(const char* label)
     if (pdev == nullptr)
     {
         MT_LOG_ERROR(kTag, "device '%s' not found", label);
-        dev_ = nullptr;
+        m_dev = nullptr;
         return;
     }
     if (device_open(pdev, nullptr) != MINI_OK)
     {
         MT_LOG_ERROR(kTag, "device_open('%s') failed", label);
-        dev_ = nullptr;
+        m_dev = nullptr;
         return;
     }
     MT_LOG_INFO(kTag, "device '%s' opened", label);
-    dev_ = pdev;
+    m_dev = pdev;
 }
 
 CommunicateCore::~CommunicateCore() = default;
 
-void CommunicateCore::SetRxHandler(RxHandlerCallback fn)
+void CommunicateCore::SetRxCallback(RxCallback callback)
 {
-    rx_handler_ = fn;
+    m_rx_callback = callback;
 }
 
 std::size_t CommunicateCore::GetRxLen() const
 {
-    return rx_len_;
+    return m_rx_len;
 }
 
 etl::span<const uint8_t> CommunicateCore::GetRx() const
 {
-    return etl::span<const uint8_t>(recv_buffer_.data(), rx_len_);
+    return etl::span<const uint8_t>(m_recv_buffer.data(), m_rx_len);
 }
 
 etl::optional<mt_err_t> CommunicateCore::Send(etl::span<const uint8_t> data_view,
@@ -69,7 +68,7 @@ etl::optional<mt_err_t> CommunicateCore::Send(etl::span<const uint8_t> data_view
                      (unsigned)kBufferSize);
         return etl::make_optional(static_cast<mt_err_t>(MINI_ERR_INVAL));
     }
-    if (dev_ == nullptr) /* 构造时已报过, 静默返回免得调用方反复触发 */
+    if (m_dev == nullptr) /* 构造时已报过, 静默返回免得调用方反复触发 */
     {
         return etl::make_optional(static_cast<mt_err_t>(MINI_ERR_NODEV));
     }
@@ -77,9 +76,9 @@ etl::optional<mt_err_t> CommunicateCore::Send(etl::span<const uint8_t> data_view
     {
         time_out = kDefaultTimeout;
     }
-    etl::copy(data_view.begin(), data_view.end(), send_buffer_.begin());
+    etl::copy(data_view.begin(), data_view.end(), m_send_buffer.begin());
 
-    const mt_err_t ret = device_write(dev_, send_buffer_.data(), len, time_out);
+    const mt_err_t ret = device_write(m_dev, m_send_buffer.data(), len, time_out);
     if (ret != MINI_OK)
     {
         MT_LOG_ERROR(kTag, "device_write failed: %d", static_cast<int>(ret));
@@ -89,18 +88,18 @@ etl::optional<mt_err_t> CommunicateCore::Send(etl::span<const uint8_t> data_view
 
 etl::optional<mt_err_t> CommunicateCore::Receive(uint32_t time_out)
 {
-    if (dev_ == nullptr) /* 每任务周期调一次, 打日志会刷屏 */
+    if (m_dev == nullptr) /* 每任务周期调一次, 打日志会刷屏 */
     {
-        rx_len_ = 0u;
+        m_rx_len = 0u;
         return etl::make_optional(static_cast<mt_err_t>(MINI_ERR_NODEV));
     }
     if (time_out == 0)
     {
         time_out = kDefaultTimeout;
     }
-    const int n = device_read(dev_, recv_buffer_.data(), recv_buffer_.size(), time_out);
+    const int n = device_read(m_dev, m_recv_buffer.data(), m_recv_buffer.size(), time_out);
 
-    rx_len_ = (n > 0) ? static_cast<std::size_t>(n) : 0u;
+    m_rx_len = (n > 0) ? static_cast<std::size_t>(n) : 0u;
 
     if (n > 0)
     {
@@ -116,21 +115,21 @@ etl::optional<mt_err_t> CommunicateCore::Receive(uint32_t time_out)
 
 int CommunicateCore::PollOnce(uint32_t time_out)
 {
-    (void)Receive(time_out); /* Receive 内部已置 rx_len_ 并处理错误日志 */
+    (void)Receive(time_out); /* Receive 内部已置 m_rx_len 并处理错误日志 */
 
-    if (rx_len_ == 0u)
+    if (m_rx_len == 0u)
     {
         return 0;
     }
-    if (rx_handler_ != nullptr)
+    if (m_rx_callback != nullptr)
     {
-        rx_handler_(recv_buffer_.data(), rx_len_);
+        m_rx_callback(m_recv_buffer.data(), m_rx_len);
     }
     else
     {
         RecvLog();
     }
-    return static_cast<int>(rx_len_);
+    return static_cast<int>(m_rx_len);
 }
 
 /* 默认不支持: 需要"一写一读"的设备(如 UART)在派生类 override */
@@ -144,17 +143,17 @@ etl::optional<mt_err_t> CommunicateCore::SendResv(etl::span<const uint8_t> data_
 
 void CommunicateCore::SendLog()
 {
-    MT_LOG_INFO(kTag, "Send: %s", send_buffer_.data());
+    MT_LOG_INFO(kTag, "Send: %s", m_send_buffer.data());
 }
 
 void CommunicateCore::RecvLog()
 {
-    MT_LOG_INFO(kTag, "Receive: %s", recv_buffer_.data());
+    MT_LOG_INFO(kTag, "Receive: %s", m_recv_buffer.data());
 }
 
 void CommunicateCore::SendRecvLog()
 {
-    MT_LOG_INFO(kTag, "Send: %s, Receive: %s", send_buffer_.data(), recv_buffer_.data());
+    MT_LOG_INFO(kTag, "Send: %s, Receive: %s", m_send_buffer.data(), m_recv_buffer.data());
 }
 
-} // namespace app_communicate
+} // namespace app

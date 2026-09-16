@@ -1,11 +1,16 @@
 mach create "stm32f407_platform"
 machine LoadPlatformDescription @platforms/boards/stm32f4_discovery.repl
 
-# 动态挂载 PC13 LED
-machine LoadPlatformDescriptionFromString "led_pc13: Miscellaneous.LED @ sysbus; gpioPortC: { 13 -> led_pc13@0 }"
+#挂载外设
+machine LoadPlatformDescription @./emulation_peripheral.repl
+
 # LED 电平变化日志是 Noisy 级别, 必须显式开启才能在 Renode 控制台看到
-logLevel -1 led_pc13
-logLevel -1 led_pc13
+logLevel -1 gpioPortC.Led1
+logLevel -1 gpioPortA.Button1
+logLevel -1 gpioPortA.Button2
+logLevel 3 sysbus.usart1
+logLevel 3 sysbus.usart2
+logLevel 3 sysbus.usart3
 
 # 串口配置
 emulation CreateServerSocketTerminal 9090 "terminal_uart"

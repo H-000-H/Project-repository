@@ -1,0 +1,97 @@
+// SPDX-License-Identifier: Apache-2.0
+/*
+ * STM32F407 SPI2 板级片段 — 单工显示总线 (MOSI/SCK 输出, 供 ST7789 等 TFT)
+ *
+ * 用法: board/dts/board.dts 中 #include "spi.dtsi"
+ *       面板与它的控制脚(DC/RST)在 display.dtsi
+ *
+ * 引脚 (均为 SPI2 的 AF5 复用):
+ *   SCK  = PB13   原 PB10 是 OTA 口 USART3_TX, 会撞, 已挪开
+ *   MOSI = PC3
+ *   MISO = PB14   单工用不到, 但 HAL 会无条件初始化 mosi/miso/sclk 三路,
+ *                 port 填 0 会 LL_GPIO_Init((GPIO_TypeDef*)0) 写地址 0 直接跑飞,
+ *                 所以必须给一个真实空闲脚
+ *
+ * DMA (SPI2 固定映射, 见 RM0090 请求映射表):
+ *   SPI2_TX = DMA1 Stream4 Channel0  → 已使能
+ *   SPI2_RX = DMA1 Stream3 Channel0  → 关闭: 与 OTA 的 USART3_TX
+ *            (DMA1 Stream3 Channel4, 见 uart.dtsi) 抢同一个 Stream
+ */
+#include <stm32f4xx_ll_spi.h>
+#include <stm32f4xx_ll_gpio.h>
+#include <stm32f4xx_ll_bus.h>
+#include <stm32f4xx_ll_dma.h>
+
+/*单工*/
+&soc {
+	display: spi@2 {
+		compatible = "mt-spi-master"; /* host; "mt-spi-slave" 为从机模式 */
+		reg = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		spi-base = <SPI2_BASE>;
+		spi-clk  = <LL_APB1_GRP1_PERIPH_SPI2>;
+
+		/* MOSI: PC3 / AF5 = SPI2_MOSI */
+		mosi-port = <GPIOC_BASE>;
+		mosi-pin  = <LL_GPIO_PIN_3>;
+		mosi-clk  = <LL_AHB1_GRP1_PERIPH_GPIOC>;
+		mosi-af   = <LL_GPIO_AF_5>;
+		mosi-output-type = <LL_GPIO_OUTPUT_PUSHPULL>;
+		mosi-speed = <LL_GPIO_SPEED_FREQ_VERY_HIGH>;
+		mosi-mode  = <LL_GPIO_MODE_ALTERNATE>;
+		mosi-pull  = <LL_GPIO_PULL_NO>;
+
+		/* MISO: PB14 / AF5 = SPI2_MISO (单工不用, 但不留 0) */
+		miso-port = <GPIOB_BASE>;
+		miso-pin  = <LL_GPIO_PIN_14>;
+		miso-clk  = <LL_AHB1_GRP1_PERIPH_GPIOB>;
+		miso-af   = <LL_GPIO_AF_5>;
+		miso-output-type = <LL_GPIO_OUTPUT_PUSHPULL>;
+		miso-speed = <LL_GPIO_SPEED_FREQ_VERY_HIGH>;
+		miso-mode  = <LL_GPIO_MODE_ALTERNATE>;
+		miso-pull  = <LL_GPIO_PULL_NO>;
+
+		/* SCK: PB13 / AF5 = SPI2_SCK */
+		sclk-port = <GPIOB_BASE>;
+		sclk-pin  = <LL_GPIO_PIN_13>;
+		sclk-clk  = <LL_AHB1_GRP1_PERIPH_GPIOB>;
+		sclk-af   = <LL_GPIO_AF_5>;
+		sclk-output-type = <LL_GPIO_OUTPUT_PUSHPULL>;
+		sclk-speed = <LL_GPIO_SPEED_FREQ_VERY_HIGH>;
+		sclk-mode  = <LL_GPIO_MODE_ALTERNATE>;
+		sclk-pull  = <LL_GPIO_PULL_NO>;
+
+		irqn = <0>;            /* 纯轮询 + TX DMA, 不需要 SPI 中断 */
+		irq-priority = <0>;
+		it-enable = <0>;
+		max-trans-buffer = <512>;    /* 单次传输上限, 超出由驱动切块 */
+		max-transfer-buffer = <512>;
+
+		/* TX DMA: <handle stream channel priority memory_size enable> */
+		dma-tx-cfg = <DMA1_BASE LL_DMA_STREAM_4 LL_DMA_CHANNEL_0
+		              LL_DMA_PRIORITY_HIGH LL_DMA_MDATAALIGN_BYTE 1>;
+		/* RX DMA: 关闭 (Stream3 与 OTA 的 USART3_TX 冲突) */
+		dma-rx-cfg = <0 0 0 0 0 0>;
+		status = "disabled";
+
+		/* 显示器从设备: 软件片选; 面板节点(叶子)在 display.dtsi */
+		display_spi_client: spi-master-client@0 {
+			compatible = "mt-spi-master-client"; /* client fops 节点 */
+			reg = <0>;
+			cs-port = <GPIOB_BASE>;         /* CS: PB12 */
+			cs-pin  = <LL_GPIO_PIN_12>;
+			cs-clk  = <LL_AHB1_GRP1_PERIPH_GPIOB>;
+			spi-mode = <0>;                 /* CPOL=0 / CPHA=0 */
+			spi-max-frequency = <10500000>; /* 先 10.5MHz 点屏 */
+			transfer-direction = <LL_SPI_HALF_DUPLEX_TX>;
+			data-width = <0>;
+			nss = <0>;                      /* 0 = 软件 NSS */
+			bit-order = <0>;                /* 0 = MSB */
+			crc-calculation = <0>;          /* 0 = 关 */
+			crc-poly = <0>;
+			standard = <0>;                 /* Motorola SPI */
+			status = "okay";
+		};
+	};
+};

@@ -5,7 +5,7 @@
  * @author H-000-H
  * @note  仅本文件依赖 UART 专有的 uart_transfer_arg / UART_CMD_TRANSFER。
  *        GetInstance() 由 CRTP 基类 Communicate<UartCommunicate> 生成, 此处无需定义。
- * @note  本层不感知业务: 收到数据的处理由业务侧 SetRxHandler() 注入。
+ * @note  本层不感知业务: 收到数据的处理由业务侧 SetRxCallback() 注入。
  */
 #include "app_uart_recv.hpp"
 
@@ -16,10 +16,9 @@
 #include "system_log.h"
 #include "vfs-uart.h"
 
-#include "mini_backend.h"
 #include "thread.h"
 
-namespace app_communicate
+namespace app
 {
 
 UartCommunicate::UartCommunicate() : Communicate(kDeviceName){}
@@ -46,9 +45,9 @@ etl::optional<mt_err_t> UartCommunicate::SendResv(etl::span<const uint8_t> data_
                      (unsigned)kBufferSize);
         return etl::make_optional(static_cast<mt_err_t>(MINI_ERR_INVAL));
     }
-    if (dev_ == nullptr) /* 构造时已打过 ERROR */
+    if (m_dev == nullptr) /* 构造时已打过 ERROR */
     {
-        rx_len_ = 0u;
+        m_rx_len = 0u;
         MT_LOG_ERROR(kTag, "device not ready, send_resv aborted");
         return etl::make_optional(static_cast<mt_err_t>(MINI_ERR_NODEV));
     }
@@ -58,16 +57,16 @@ etl::optional<mt_err_t> UartCommunicate::SendResv(etl::span<const uint8_t> data_
     }
 
     ::uart_transfer_arg transfer_arg{};
-    etl::copy(data_view.begin(), data_view.end(), send_buffer_.begin());
-    transfer_arg.tx     = send_buffer_.data();
-    transfer_arg.rx     = recv_buffer_.data();
+    etl::copy(data_view.begin(), data_view.end(), m_send_buffer.begin());
+    transfer_arg.tx     = m_send_buffer.data();
+    transfer_arg.rx     = m_recv_buffer.data();
     transfer_arg.tx_len = tx_len;
-    transfer_arg.rx_len = recv_buffer_.size();
+    transfer_arg.rx_len = m_recv_buffer.size();
 
-    const int n = device_ioctl(dev_, UART_CMD_TRANSFER, &transfer_arg,
+    const int n = device_ioctl(m_dev, UART_CMD_TRANSFER, &transfer_arg,
                                sizeof(::uart_transfer_arg), time_out);
 
-    rx_len_ = (n > 0) ? static_cast<std::size_t>(n) : 0u;
+    m_rx_len = (n > 0) ? static_cast<std::size_t>(n) : 0u;
     if (n > 0)
     {
         return etl::make_optional(static_cast<mt_err_t>(MINI_OK));
@@ -80,4 +79,4 @@ etl::optional<mt_err_t> UartCommunicate::SendResv(etl::span<const uint8_t> data_
     return etl::make_optional(static_cast<mt_err_t>(n));
 }
 
-} // namespace app_communicate
+} // namespace app

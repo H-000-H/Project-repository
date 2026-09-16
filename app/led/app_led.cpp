@@ -13,10 +13,9 @@
 #include "system_log.h"
 #include "vfs-gpio.h"
 
-#include "mini_backend.h"
 #include "thread.h"
 
-namespace app_led
+namespace app
 {
 
 Led& Led::GetInstance()
@@ -38,16 +37,16 @@ Led::Led()
         MT_LOG_ERROR(kTag, "device_open failed");
         return;
     }
-    dev_ = pdev;
+    m_dev = pdev;
 }
 
 void Led::BlinkStep()
 {
-    if ((dev_ == nullptr) || (manual_hold_))
+    if ((m_dev == nullptr) || (m_manual_hold))
         return;
 
     struct vfs_gpio_arg arg = {0};
-    const int ret = device_ioctl(dev_, GPIO_CMD_TOGGLE, &arg, sizeof(arg), 100);
+    const int ret = device_ioctl(m_dev, GPIO_CMD_TOGGLE, &arg, sizeof(arg), 100);
     if (ret != MINI_OK)
     {
         MT_LOG_ERROR(kTag, "toggle failed: %d", ret);
@@ -67,55 +66,53 @@ void Led::Thread(void* param)
 
 bool Led::ApplyLit(bool lit)
 {
-    if (dev_ == nullptr)
+    if (m_dev == nullptr)
         return false;
 
     struct vfs_gpio_arg arg = {0};
     arg.level = lit;
-    return device_ioctl(dev_, GPIO_CMD_SET_LEVEL, &arg, sizeof(arg), 100) == MINI_OK;
+    return device_ioctl(m_dev, GPIO_CMD_SET_LEVEL, &arg, sizeof(arg), 100) == MINI_OK;
 }
 
 bool Led::TurnOn()
 {
-    if (dev_ == nullptr)
+    if (m_dev == nullptr)
         return false;
 
-    manual_hold_ = true; /* 先接管, 再设电平 */
+    m_manual_hold = true; /* 先接管, 再设电平 */
     return ApplyLit(true);
 }
 
 bool Led::TurnOff()
 {
-    if (dev_ == nullptr)
+    if (m_dev == nullptr)
         return false;
 
-    manual_hold_ = true;
+    m_manual_hold = true;
     return ApplyLit(false);
 }
 
 bool Led::ResumeBlink()
 {
-    if (dev_ == nullptr)
+    if (m_dev == nullptr)
         return false;
 
-    manual_hold_ = false; /* 交还控制权: 下一轮 Thread 恢复翻转 */
+    m_manual_hold = false; /* 交还控制权: 下一轮 Thread 恢复翻转 */
     return true;
 }
 
 bool Led::ThreadRegister()
 {
-    /* 走 mini_backend 统一任务入口 (栈大小只在这里用得上) */
-    mini_task_handle_t handle = nullptr;
-    const mt_err_t ret = mini_task_create_handle(
-        kTaskName, app_config::kLedTaskStack, kTaskPriority,
-        [](void* param) { GetInstance().Thread(param); }, nullptr, -1, &handle);
-    if (ret != MINI_OK)
+    mini_os_thread_t* handle = mini_os_thread_create(
+        kTaskName, kTaskStack, static_cast<mini_os_uint8_t>(kTaskPriority),
+        [](void* param) { GetInstance().Thread(param); }, nullptr);
+    if (handle == nullptr)
     {
-        MT_LOG_ERROR(kTag, "task register failed: %d", static_cast<int>(ret));
+        MT_LOG_ERROR(kTag, "task register failed");
         return false;
     }
     MT_LOG_INFO(kTag, "task registered");
     return true;
 }
 
-} // namespace app_led
+} // namespace app

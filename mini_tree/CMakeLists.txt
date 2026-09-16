@@ -643,15 +643,6 @@ if(MINI_TREE_LWIP_ON)
     target_link_libraries(mini_tree PUBLIC mini_tree_net)
 endif()
 
-# 由本地扩展提供并定义 CONFIG_UI_* 符号; 随仓只提交桥接头 ui/display/display_ui_bridge.h。
-file(STRINGS "${KCONFIG_DOT}" CONFIG_UI_LVGL_ON REGEX "^CONFIG_UI_LVGL=y$")
-file(STRINGS "${KCONFIG_DOT}" CONFIG_UI_U8G2_ON REGEX "^CONFIG_UI_U8G2=y$")
-if(CONFIG_UI_LVGL_ON OR CONFIG_UI_U8G2_ON)
-    add_subdirectory(ui)
-    add_dependencies(mini_tree_ui mini_tree_gen)
-    target_link_libraries(mini_tree PUBLIC mini_tree_ui)
-endif()
-
 if(MINI_TREE_USB)
     target_link_libraries(mini_tree PUBLIC tinyusb)
 endif()

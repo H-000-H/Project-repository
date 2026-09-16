@@ -1,0 +1,65 @@
+// SPDX-License-Identifier: Apache-2.0
+/*
+ * ST7789 面板板级片段 — 显示设备 + 它的控制脚 (DC/RST)
+ *
+ * 用法: board/dts/board.dts 中 #include "st7789.dtsi"
+ *       依赖 spi.dtsi 先定义出 host(display: spi@2) 和 client(display_spi_client)
+ *
+ *   display: spi@2              (mt-spi-master)         ← spi.dtsi
+ *   └── display_spi_client      (mt-spi-master-client)  ← spi.dtsi
+ *       └── st7789: st7789@0    (mt-st7789)             ← 本文件
+ */
+#include <stm32f4xx_ll_gpio.h>
+#include <stm32f4xx_ll_bus.h>
+
+/* ST7789 控制脚: DC(命令/数据 选择) + RST(复位)
+ * 引脚是按"空闲脚"挑的, 请按实际接线改 port/pin/clk */
+&soc {
+	panel_dc: gpios-pin@14 {
+		compatible = "mt-gpios";
+		reg = <14>;
+		gpio-port = <GPIOC_BASE>;
+		gpio-pin  = <LL_GPIO_PIN_4>;   /* PC4 */
+		gpio-clk  = <LL_AHB1_GRP1_PERIPH_GPIOC>;
+		gpio-mode = <LL_GPIO_MODE_OUTPUT>;
+		gpio-pull = <LL_GPIO_PULL_NO>;
+		gpio-speed = <LL_GPIO_SPEED_FREQ_VERY_HIGH>;
+		gpio-otype = <LL_GPIO_OUTPUT_PUSHPULL>;
+		gpio-intr = <0>;               /* 0 = 不使能 EXTI 中断; 非 0 = LL_EXTI_TRIGGER_* 触发类型 */
+		default-level = <0>;           /* 0 = 不主动驱动(保持复位后输出寄存器值=低); DC 空闲低 */
+		status = "disabled";
+	};
+
+	panel_rst: gpios-pin@15 {
+		compatible = "mt-gpios";
+		reg = <15>;
+		gpio-port = <GPIOC_BASE>;
+		gpio-pin  = <LL_GPIO_PIN_5>;   /* PC5 */
+		gpio-clk  = <LL_AHB1_GRP1_PERIPH_GPIOC>;
+		gpio-mode = <LL_GPIO_MODE_OUTPUT>;
+		gpio-pull = <LL_GPIO_PULL_NO>;
+		gpio-speed = <LL_GPIO_SPEED_FREQ_VERY_HIGH>;
+		gpio-otype = <LL_GPIO_OUTPUT_PUSHPULL>;
+		gpio-intr = <0>;               /* 0 = 不使能 EXTI 中断; 非 0 = LL_EXTI_TRIGGER_* 触发类型 */
+		default-level = <1>;           /* 非 0 = open 时主动拉高; RST 空闲为高 */
+		status = "disabled";
+	};
+};
+
+/* ST7789 面板: 必须嵌在 SPI client 里 */
+&display_spi_client {
+	st7789: st7789@0 {
+		compatible = "mt-st7789";
+		reg = <0>;
+		width = <240>;              /* 屏宽 px */
+		height = <320>;             /* 屏高 px (驱动上限 320) */
+		madctl = <0>;               /* 旋转/镜像: 0 = 不旋转 */
+		invert = <0>;               /* 颜色反转: 部分模块需要置 1 */
+		bl-active-high = <0>;       /* 背光极性 */
+		bl-channel = <1>;           /* 背光 PWM 通道 1..4 (对应 TIM 的 CH1..CH4), 须与 tim.dtsi 的 active-chn-mask 一致 */
+		dc-gpio = <&panel_dc>;      /* 命令/数据选择脚 (必填) */
+		reset-gpio = <&panel_rst>;  /* 复位脚 (可选) */
+		backlight = <&st7789_pwm>;
+		status = "disabled";        /* 接线核对完再改 "okay" */
+	};
+};

@@ -868,8 +868,8 @@ int hal_tim_disable_arr_preload(hal_tim_device *pdev)
  * @brief 更新 PWM 频率与占空比 (ARR 与 CCR)
  * @param pdev 定时器设备句柄
  * @param channel 目标通道号 (1..4)
- * @param frequency 自动重装载值 (frequency > 0 时更新)
- * @param duty 比较寄存器值 (duty > 0 时更新)
+ * @param frequency 自动重装载值 ARR (frequency > 0 时更新; 0 表示不改动 ARR)
+ * @param duty 比较寄存器值 CCR (无条件写入: 0 是合法的 0% 占空比)
  * @return 成功返回 MINI_OK, 失败返回 MINI_ERR_INVAL
  */
 int hal_tim_pwm_update(hal_tim_device* pdev, uint32_t channel, uint32_t frequency, uint32_t duty)
@@ -887,10 +887,9 @@ int hal_tim_pwm_update(hal_tim_device* pdev, uint32_t channel, uint32_t frequenc
         LL_TIM_SetAutoReload(tim_handle, frequency);
     }
 
-    if(duty > 0U)
-    {
-        *hal_tim_get_ccr_ptr(tim_handle, channel) = duty;
-    }
+    /**< CCR 无条件写入: 0% 占空比(CCR=0) 是合法目标值,
+     * 不能用"0 表示不改动"——否则 0 永远写不进去(蜂鸣器静音/背光熄灭都会失效) */
+    *hal_tim_get_ccr_ptr(tim_handle, channel) = duty;
 
     return MINI_OK;
 }

@@ -25,12 +25,12 @@ CompileFlags:
     - '-IC:/Program Files (x86)/Arm GNU Toolchain arm-none-eabi/13.3 rel1/arm-none-eabi/include'
     - -D__WCHAR_MIN__=0U
 ---
-# C 头文件（根层 hal/app/main/Drivers/board/ota-stm32f4）：单独打开时不在编译数据库中，
+# C 头文件（根层 hal/app/main/Drivers/board/ota-stm32f4/ui）：单独打开时不在编译数据库中，
 # 且不匹配上面 .c$ 规则，驱动模拟会失效 → 复用 gcc 模拟。
 # 分隔符同时兼容 / 与 \（clangd 内部路径分隔符在 Windows 上可能任一）。
 # 刻意限定目录：mini_tree/lib/etl 下的 .h 是 C++ 模板头，走默认推断，不套 C 规则。
 If:
-  PathMatch: '.*(hal|app|main|Drivers|board|ota-stm32f4)[/\\].*\.h$'
+  PathMatch: '.*(hal|app|main|Drivers|board|ota-stm32f4|ui)[/\\].*\.h$'
 CompileFlags:
   Compiler: arm-none-eabi-gcc
   Add:
