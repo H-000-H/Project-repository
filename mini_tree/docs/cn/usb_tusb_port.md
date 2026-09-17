@@ -34,7 +34,7 @@
 
 | 字段 | 说明 |
 | :--- | :--- |
-| `compatible` | `"mini-tree,usb"` |
+| `compatible` | `"mt-usb-otg-host"` |
 | `interrupts` | USB 中断号（经 VIRQ 封装） |
 | `num-endpoints` | 端点数量 |
 | `maximum-speed` | `high` / `full` / `low` |

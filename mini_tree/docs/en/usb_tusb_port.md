@@ -34,7 +34,7 @@
 
 | Field | Description |
 | :--- | :--- |
-| `compatible` | `"mini-tree,usb"` |
+| `compatible` | `"mt-usb-otg-host"` |
 | `interrupts` | USB IRQ number (via VIRQ wrapper) |
 | `num-endpoints` | endpoint count |
 | `maximum-speed` | `high` / `full` / `low` |

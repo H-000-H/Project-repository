@@ -1,61 +1,71 @@
+/*界面按照file系统分home就是锁屏页面->然后按照目录一样划分不同深度的页面半遵循MVP不会全按MVP写*/
 #include "app_ui.hpp"
 #include "schedule.h"
 #include "system_log.h"
 #include "thread.h"
-#include "lvgl_port.hpp"
 #include <cstdint>
+#include "../indev/lvgl_button_bridge.hpp"
+#include <lvgl/core/lv_group.h>
+#include <lvgl/core/lv_obj_pos.h>
+#include <lvgl/display/lv_display.h>
+#include <lvgl/indev/lv_indev.h>
+#include <lvgl/widgets/lv_button.h>
 namespace app
 {
     constexpr const char *      kUiThreadName       = "UiThread";
     constexpr const uint32_t    kUiThreadStackSize  = 8192;
     constexpr const uint8_t     kUiThreadPriority   = 12;
-    Ui& Ui::GetInstance()
+    Ui::Ui(const char* panel_label, std::uint16_t panel_occupy)
     {
-        static Ui s_instance;
-        return s_instance;
-    }
-
-    /**
-     * @brief 初始化 UI 运行时(LVGL): 幂等, 重复调用只生效一次
-     * @return MINI_OK 或 MINI_ERR_*
-     */
-    int Ui::Init()
-    {
-        const int ret = display::LvglPort::get_instance().Init(); /* 开屏 + 建 display + 挂 flush 回调 */
-        if (ret != MINI_OK)
-        {
-            MT_LOG_ERROR(kUiThreadName, "lvgl port init failed: %d", ret);
-        }
-        return ret;
+        (void)PanelPort::get_instance(panel_label, panel_occupy);
     }
 
     void Ui::Thread(void* param)
     {
         (void)param;
 
-        if (GetInstance().Init() != MINI_OK)
+        auto& port = PanelPort::instance();
+        if (port.Init() != MINI_OK)
         {
-            MT_LOG_ERROR(kUiThreadName, "ui init failed, idle");
-            for (;;)
-            {
-                mini_os_schedule_delay(MINI_OS_MS_TO_TICK(100));
-            }
+            MT_LOG_ERROR(kUiThreadName, "port init failed");
         }
+        lv_indev_t* indev = lv_indev_create();
+        lv_indev_set_read_cb(indev, ui::ButtonLvglIndevRead);
+        /*创建焦点组*/
+        lv_group_t* group = lv_group_create();
+        /*开焦点循环*/
+        lv_group_set_wrap(group,true);
+        lv_indev_set_group(indev,group);
 
+        /*测试*/
+        lv_obj_t *btn =lv_button_create(lv_screen_active());
+        lv_obj_set_size(btn,20 ,60);
+        lv_obj_center(btn);
+        lv_group_add_obj(group,btn);
+        lv_group_focus_obj(btn);
+        for(uint8_t t = 0; (t<20)&& !ui::ButtonLvglReady(ui::kButtonLvglButton2);++t)
+        {
+             mini_os_schedule_delay(MINI_OS_MS_TO_TICK(10));
+        }
+        ui::ButtonLvglClear(ui::kButtonLvglButton2);
+        ui::ButtonLvglBind(ui::kButtonLvglButton2,button::Button_Event::kPressed_Short_Over,LV_KEY_ENTER);
         for(;;)
         {
-            lv_timer_handler();
+            if (port.disp != nullptr)
+            {
+                lv_timer_handler();
+            }
             mini_os_schedule_delay(MINI_OS_MS_TO_TICK(10));
         }
     }
 
     bool Ui::ThreadRegister(void)
     {
-        auto handle = mini_os_thread_create(kUiThreadName,kUiThreadStackSize,kUiThreadPriority,[](void* param){Thread(param);},nullptr);
+        auto handle = mini_os_thread_create(kUiThreadName,kUiThreadStackSize,kUiThreadPriority,Thread,nullptr);
         if(!handle)
         {
             MT_LOG_ERROR(kUiThreadName,"Ui thread register failed");
-            return false; /* 原来这里照样往下打 success 并 return true, 上层永远发现不了注册失败 */
+            return false; 
         }
         MT_LOG_INFO(kUiThreadName,"Ui thread register success");
         return true;

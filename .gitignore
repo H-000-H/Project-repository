@@ -81,3 +81,4 @@ image_ota*.bin
 img2_*.bin
 diff_report.txt
 /_*
+./app/ui/image/home/dektop_320x240.png

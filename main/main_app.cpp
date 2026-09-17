@@ -9,7 +9,8 @@
  * @note  启动尾段按 OS 后端分支 (见 system_init.h 的启动时序):
  *          裸机: xscheduler_start → system_init_complete → super-loop
  *          OS  : system_init_complete → mini_scheduler_start(本人除非小资源不然不喜欢用裸机)
- */
+ *          main没有任何逻辑只有注册和ota 逻辑和实现在不同目录下面
+ */      
 #include "main.h"
 
 #include "app_uart_cmd.hpp"
@@ -86,7 +87,11 @@ extern "C" __attribute__((used)) int stm32f407zgt6_node_main(void)
     {
         MT_LOG_ERROR("App", "uart task register failed");
     }
-    if (!app::Ui::GetInstance().ThreadRegister())
+    /* UI 实例在这里才构造, 不能放文件作用域: DisplayBase 构造里要 device_find_by_label,
+     * 必须晚于上面的 board_register_all_drivers()。函数作用域 static 保证首次执行到才构造,
+     * node_main 不返回, 所以它活到进程结束 */
+    static app::Ui s_ui("st7789", 10U);
+    if (!s_ui.ThreadRegister())
     {
         MT_LOG_ERROR("App", "ui task register failed");
     }
