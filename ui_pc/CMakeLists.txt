@@ -19,12 +19,13 @@ set(CONFIG_LV_USE_THORVG OFF CACHE BOOL "" FORCE)
 set(CONFIG_LV_USE_THORVG_INTERNAL OFF CACHE BOOL "" FORCE)
 add_subdirectory(${ROOT}/mini_tree/lib/lvgl ${CMAKE_BINARY_DIR}/lvgl)
 
-# 目标: 只要 app/ui 与 ui 两层 (+ 可移植的 fifo 实现 + PC 适配桩)
-file(GLOB_RECURSE UI_SRCS ${ROOT}/app/ui/*.cpp ${ROOT}/app/ui/*.c ${ROOT}/ui/*.cpp)
+# 目标: 只要 app/ui 与 ui 两层 (+ app/secure 的常驻数据 + 可移植的 fifo 实现 + PC 适配桩)
+file(GLOB_RECURSE UI_SRCS ${ROOT}/app/ui/*.cpp ${ROOT}/app/ui/*.c ${ROOT}/ui/*.cpp
+                           ${ROOT}/app/secure/*/*.cpp)
 file(GLOB BUF_SRCS ${ROOT}/mini_tree/algorithm/buffer/*.c)
 # app/ui 下所有子目录都进 include: 新增页面目录不用回来改本文件
 # (GLOB 会把同层文件如 .clangd 也列进来 → 只保留目录)
-file(GLOB _APP_UI_DIRS_RAW ${ROOT}/app/ui/* ${ROOT}/app/ui/global/* ${ROOT}/app/ui/home/*)
+file(GLOB _APP_UI_DIRS_RAW ${ROOT}/app/ui/* ${ROOT}/app/ui/global/* ${ROOT}/app/ui/home/* ${ROOT}/app/secure/*)
 set(_APP_UI_DIRS "")
 foreach(_d IN LISTS _APP_UI_DIRS_RAW)
     if(IS_DIRECTORY ${_d})

@@ -95,6 +95,13 @@ extern "C"
         std::this_thread::sleep_for(std::chrono::milliseconds(ticks));
     }
 
+    /* mini_tree/core/src/mini_time.c 没进 PC 构建(ui_logic 只编 app/ui + ui + 本桩文件),
+     * app/ui 里用到的 mini_delay_ms 在这儿补个等价实现; 真机上这个是 mini_tree 提供的 */
+    void mini_delay_ms(uint32_t ms)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+    }
+
     mini_os_thread_t* mini_os_thread_create(const char* name, mini_os_uint32_t stack_size, mini_os_uint8_t priority,
                                             void (*entry)(void*), void* param)
     {
