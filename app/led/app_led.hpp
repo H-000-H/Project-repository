@@ -24,31 +24,60 @@ namespace app
 class Led
 {
 public:
+    /**
+     * @brief  获取 LED 控制器单例
+     * @return LED 控制器单例引用
+     */
     static Led& GetInstance();
 
-    Led(const Led&) = delete;
-    Led& operator=(const Led&) = delete;
-    Led(Led&&) = delete;
-    Led& operator=(Led&&) = delete;
+    Led(const Led&) = delete;            /**< 禁用拷贝构造 */
+    Led& operator=(const Led&) = delete; /**< 禁用拷贝赋值 */
+    Led(Led&&) = delete;                 /**< 禁用移动构造 */
+    Led& operator=(Led&&) = delete;      /**< 禁用移动赋值 */
 
-    /** @brief 点亮并停止周期翻转 (手动接管) */
+    /**
+     * @brief  点亮并停止周期翻转 (手动接管)
+     * @return 成功返回 true, 设备未绑定或设置失败返回 false
+     */
     bool TurnOn();
-    /** @brief 熄灭并停止周期翻转 (手动接管) */
+    /**
+     * @brief  熄灭并停止周期翻转 (手动接管)
+     * @return 成功返回 true, 设备未绑定或设置失败返回 false
+     */
     bool TurnOff();
-    /** @brief 交还控制权: 下一轮周期任务恢复翻转 */
+    /**
+     * @brief  交还控制权: 下一轮周期任务恢复翻转
+     * @return 设备已绑定返回 true, 未绑定返回 false
+     */
     bool ResumeBlink();
 
+    /**
+     * @brief 周期翻转任务体: 死循环, 每 kBlinkPeriodMs 翻转一次
+     * @param param 线程参数 (未使用)
+     */
     void Thread(void* param);
 
-    /** @brief 注册本任务到调度器 */
+    /**
+     * @brief  注册本任务到调度器
+     * @return 创建成功返回 true, 失败返回 false
+     */
     bool ThreadRegister();
 
 private:
+    /**
+     * @brief 构造: 按标签查找并打开 led 设备, 失败则记录日志并保持未绑定
+     */
     Led();
 
-    /** @brief 设置输出电平 (lit=true 点亮) */
+    /**
+     * @brief  设置输出电平
+     * @param  lit true 点亮, false 熄灭
+     * @return 设置成功返回 true, 设备未绑定或 ioctl 失败返回 false
+     */
     bool ApplyLit(bool lit);
-    /** @brief 翻转一次: 周期任务的单步动作, 两后端分支共用 */
+    /**
+     * @brief 翻转一次: 周期任务的单步动作, 两后端分支共用
+     */
     void BlinkStep();
 
     ::device* m_dev = nullptr;

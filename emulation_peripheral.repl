@@ -9,3 +9,7 @@ Led1 : Miscellaneous.LED @ gpioPortC
 
 gpioPortC:
     13 -> Led1@0
+
+// ST7789 哑外设: 挂到 SPI2 (stm32f4.repl 里的 spi2 @ 0x40003800, 与 DTS 的 spi-base 一致)
+// 只统计 MOSI 字节流, 不画画面 —— 用来验证 固件→SPI2→外设 这条链
+st7789_panel: St7789Dummy @ spi2

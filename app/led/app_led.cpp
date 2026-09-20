@@ -18,12 +18,19 @@
 namespace app
 {
 
+/**
+ * @brief  获取 LED 控制器单例
+ * @return LED 控制器单例引用
+ */
 Led& Led::GetInstance()
 {
     static Led instance;
     return instance;
 }
 
+/**
+ * @brief 构造: 按标签查找并打开 led 设备, 失败则记录日志并保持未绑定
+ */
 Led::Led()
 {
     ::device* pdev = device_find_by_label("led");
@@ -40,6 +47,9 @@ Led::Led()
     m_dev = pdev;
 }
 
+/**
+ * @brief 翻转一次 LED: 周期任务的单步动作, 手动接管或未绑定设备时跳过
+ */
 void Led::BlinkStep()
 {
     if ((m_dev == nullptr) || (m_manual_hold))
@@ -53,6 +63,10 @@ void Led::BlinkStep()
     }
 }
 
+/**
+ * @brief  周期翻转任务体: 死循环, 每 kBlinkPeriodMs 翻转一次
+ * @param  param 线程参数 (未使用)
+ */
 void Led::Thread(void* param)
 {
     (void)param;
@@ -64,6 +78,11 @@ void Led::Thread(void* param)
     }
 }
 
+/**
+ * @brief  设置 LED 输出电平
+ * @param  lit true 点亮, false 熄灭
+ * @return 设置成功返回 true, 设备未绑定或 ioctl 失败返回 false
+ */
 bool Led::ApplyLit(bool lit)
 {
     if (m_dev == nullptr)
@@ -74,6 +93,10 @@ bool Led::ApplyLit(bool lit)
     return device_ioctl(m_dev, GPIO_CMD_SET_LEVEL, &arg, sizeof(arg), 100) == MINI_OK;
 }
 
+/**
+ * @brief  点亮 LED 并停止周期翻转 (手动接管)
+ * @return 成功返回 true, 设备未绑定或设置失败返回 false
+ */
 bool Led::TurnOn()
 {
     if (m_dev == nullptr)
@@ -83,6 +106,10 @@ bool Led::TurnOn()
     return ApplyLit(true);
 }
 
+/**
+ * @brief  熄灭 LED 并停止周期翻转 (手动接管)
+ * @return 成功返回 true, 设备未绑定或设置失败返回 false
+ */
 bool Led::TurnOff()
 {
     if (m_dev == nullptr)
@@ -92,6 +119,10 @@ bool Led::TurnOff()
     return ApplyLit(false);
 }
 
+/**
+ * @brief  交还控制权: 下一轮周期任务恢复翻转
+ * @return 设备已绑定返回 true, 未绑定返回 false
+ */
 bool Led::ResumeBlink()
 {
     if (m_dev == nullptr)
@@ -101,6 +132,10 @@ bool Led::ResumeBlink()
     return true;
 }
 
+/**
+ * @brief  注册 LED 周期翻转任务到调度器 (mini-os 线程)
+ * @return 创建成功返回 true, 失败返回 false
+ */
 bool Led::ThreadRegister()
 {
     mini_os_thread_t* handle = mini_os_thread_create(

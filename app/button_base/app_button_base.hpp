@@ -36,6 +36,7 @@ class AppButton
 {
 public:
     /**
+     * @brief 构造: 按 label 查找并打开按键 GPIO 设备, 绑定用户数据引用
      * @param label         DTS 节点 label (如 "button1")
      * @param pressed_level 按下时的有效电平 (与 board.dts 的上下拉配套)
      * @param data          该按键的用户数据 (引用, 保证非空, 生命周期须长于本对象)
@@ -57,14 +58,16 @@ public:
         m_dev = pdev;
     }
 
-    virtual ~AppButton() = default;
+    virtual ~AppButton() = default; /**< 虚析构: 支持经基类指针派生销毁 */
 
-    AppButton(const AppButton&) = delete;
-    AppButton& operator=(const AppButton&) = delete;
-    AppButton(AppButton&&) = delete;
-    AppButton& operator=(AppButton&&) = delete;
+    AppButton(const AppButton&) = delete;            /**< 禁用拷贝构造 */
+    AppButton& operator=(const AppButton&) = delete; /**< 禁用拷贝赋值 */
+    AppButton(AppButton&&) = delete;                 /**< 禁用移动构造 */
+    AppButton& operator=(AppButton&&) = delete;      /**< 禁用移动赋值 */
 
-    /** @brief 采样一次: 读本键 GPIO 电平并写入状态机; scan() 由统一驱动调用 */
+    /**
+     * @brief 采样一次: 读本键 GPIO 电平并写入状态机; scan() 由统一驱动调用
+     */
     void SampleLevel()
     {
         if (m_dev == nullptr)
@@ -79,7 +82,9 @@ public:
         m_button.set_preesed(arg.level == m_pressed_level ? button::kPressed : button::kNot_Pressed);
     }
 
-    /** @brief 注册库回调 (void* param = this) */
+    /**
+     * @brief 注册库回调 (void* param = this)
+     */
     void RegisterCallback()
     {
         m_button.callback_register(CallbackEntry, this);
@@ -89,6 +94,7 @@ public:
      * @brief 事件处理 —— 子类只需实现这一个
      * @param self 触发事件的按钮库对象 (可取 event_read()/read_id())
      * @param data 本按键的用户数据 (类型由模板参数决定)
+     * @return 处理结果 (约定返回 true 表示已消费)
      */
     virtual bool ButtonCallback(button::Button& self, CallbackData& data) = 0;
 
@@ -100,7 +106,12 @@ protected:
     CallbackData&  m_data;
 
 private:
-    /** @brief 库回调入口: 转发到虚函数 */
+    /**
+     * @brief 库回调入口: 转发到虚函数
+     * @param param RegisterCallback 传入的 this 指针 (非空)
+     * @param self  触发事件的按钮库对象
+     * @return 子类 ButtonCallback 的返回值
+     */
     static bool CallbackEntry(void* param, button::Button& self)
     {
         /* param 由 RegisterCallback 传入的 this, 不会为空 */

@@ -53,19 +53,17 @@ extern "C" __attribute__((used)) int stm32f407zgt6_node_main(void)
     /* 系统时钟：HSI + PLL → 96MHz */
     SystemClock_Config();
 
-    /* flash 后端 + OTA 持久，要早于任何 OTA 判定：
-     * - 未注册后端时 flash_area_open() 直接失败 → 下载写不进 flash
-     * - 未刷新状态时 current 恒为 image_0 → 跑在 image_1 时会覆盖自己 */
-    flash_stm32f4_init();
-    /* 先从flash拿数据 */
-    const bool ota_state_ok = (mini_boot_state_refresh() == ERR_OK);
+    /* ===== 暂时关闭 OTA (先保证 app 能正常跑) =====
+     * 原因: app 用 image1.ld 从 0x08000000 起占满整片 1MB */
+    // flash_stm32f4_init();
+    // const bool ota_state_ok = (mini_boot_state_refresh() == ERR_OK);
 
     mini_tree_pre_os_init();
 
-    if (!ota_state_ok)
-    {
-        MT_LOG_ERROR("Ota", "state refresh failed: flash backend not ready");
-    }
+    // if (!ota_state_ok)
+    // {
+    //     MT_LOG_ERROR("Ota", "state refresh failed: flash backend not ready");
+    // }
 
     board_register_all_drivers();
 
@@ -79,17 +77,16 @@ extern "C" __attribute__((used)) int stm32f407zgt6_node_main(void)
     {
         MT_LOG_ERROR("App", "button task register failed");
     }
-    if (!app::Ota::GetInstance().ThreadRegister())
-    {
-        MT_LOG_ERROR("App", "ota task register failed");
-    }
+    /* 恢复 OTA 时把这段打开 */
+    // if (!app::Ota::GetInstance().ThreadRegister())
+    // {
+    //     MT_LOG_ERROR("App", "ota task register failed");
+    // }
     if (!app::UartCommunicate::GetInstance().ThreadRegister())
     {
         MT_LOG_ERROR("App", "uart task register failed");
     }
-    /* UI 实例在这里才构造, 不能放文件作用域: DisplayBase 构造里要 device_find_by_label,
-     * 必须晚于上面的 board_register_all_drivers()。函数作用域 static 保证首次执行到才构造,
-     * node_main 不返回, 所以它活到进程结束 */
+
     static app::Ui s_ui("st7789", 10U);
     if (!s_ui.ThreadRegister())
     {
@@ -102,11 +99,11 @@ extern "C" __attribute__((used)) int stm32f407zgt6_node_main(void)
     system_init_complete();
 
     /* 确认本分区镜像(清 pending + trial)：boot 已放行过本次试运行(trial=1)，确认后即"转正"；
-     * 不确认则下次复位被 boot 判为试运行超时 → 回滚到旧分区。 */
-    if (mini_boot_confirm_ota() != ERR_OK)
-    {
-        MT_LOG_ERROR("Ota", "confirm failed: state backend not ready");
-    }
+     * 不确认则下次复位被 boot 判为试运行超时 → 回滚到旧分区。*/
+    // if (mini_boot_confirm_ota() != ERR_OK)
+    // {
+    //     MT_LOG_ERROR("Ota", "confirm failed: state backend not ready");
+    // }
 
     (void)mini_scheduler_start();
     for (;;)

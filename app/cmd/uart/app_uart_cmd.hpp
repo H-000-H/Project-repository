@@ -46,10 +46,17 @@ struct OtaArgs
 class Cmd
 {
 public:
+    /**
+     * @brief 命令层初始化: 注册 led.set / ota.start 命令, 并把 UART 收包回调挂到实例
+     */
     static void Init();
 
 private:
-    /** @brief UART 收包回调: 逐字节累积, 遇 '\n'/'\r' 成帧后分发 (可处理拆包/粘包) */
+    /**
+     * @brief UART 收包回调: 逐字节累积, 遇 '\n'/'\r' 成帧后分发 (可处理拆包/粘包)
+     * @param data 收到的字节缓冲
+     * @param len  字节数
+     */
     static void OnUartRx(const uint8_t* data, size_t len);
 };
 

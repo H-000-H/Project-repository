@@ -56,7 +56,10 @@
 
 #if LV_USE_STDLIB_MALLOC == LV_STDLIB_BUILTIN
 /*lvgl内纯上限 TODO:可调节*/
+/* 允许外部覆盖: PC 端(ui_pc)用 -DLV_MEM_SIZE=... 给大池; MCU 不覆盖, 保持 16KB */
+#ifndef LV_MEM_SIZE
 #define LV_MEM_SIZE 16384
+#endif
 
 /** Place the pool at a fixed address instead of allocating it as a normal array.
  *  0: unused.
@@ -150,7 +153,7 @@
 #define LV_COLOR_MIX_ROUND_OFS 0
 
 /** Default display refresh, input device read and animation step period. */
-#define LV_DEF_REFR_PERIOD 33
+#define LV_DEF_REFR_PERIOD 15
 
 /** Used to initialize default sizes such as widget sizes and style paddings. */
 #define LV_DPI_DEF 130
@@ -1007,13 +1010,13 @@
 #define LV_FONT_MONTSERRAT_10 0
 
 /** Montserrat 12 */
-#define LV_FONT_MONTSERRAT_12 0
+#define LV_FONT_MONTSERRAT_12 1
 
 /** Montserrat 14 */
-#define LV_FONT_MONTSERRAT_14 1
+#define LV_FONT_MONTSERRAT_14 0
 
 /** Montserrat 16 */
-#define LV_FONT_MONTSERRAT_16 0
+#define LV_FONT_MONTSERRAT_16 1
 
 /** Montserrat 18 */
 #define LV_FONT_MONTSERRAT_18 0
@@ -1144,7 +1147,7 @@
  *  - LV_FONT_DEFAULT_UNSCII_8 (enable: LV_FONT_UNSCII_8)
  *  - LV_FONT_DEFAULT_UNSCII_16 (enable: LV_FONT_UNSCII_16)
  */
-#define LV_FONT_DEFAULT LV_FONT_DEFAULT_MONTSERRAT_14
+#define LV_FONT_DEFAULT LV_FONT_DEFAULT_MONTSERRAT_16
 
 #endif /*!LV_USE_CUSTOM_FONT_DEFAULT*/
 
@@ -2084,7 +2087,7 @@
 /** Periodically collect CPU, FPS and memory statistics and optionally show them in an
  *  on-screen overlay.
  */
-#define LV_USE_SYSMON 0
+#define LV_USE_SYSMON 1
 
 #if LV_USE_SYSMON
 /** The port provides `lv_os_get_proc_idle_percent` a per-process idle percentage
@@ -2093,7 +2096,7 @@
 #define LV_SYSMON_PROC_IDLE_AVAILABLE 0
 
 /** Show the CPU usage and FPS count in a label on the screen. */
-#define LV_USE_PERF_MONITOR 0
+#define LV_USE_PERF_MONITOR 1
 
 #if LV_USE_PERF_MONITOR
 /** Performance monitor position

@@ -311,6 +311,11 @@ static int stm32_spi_apply_dev_cfg(struct hal_spi_bus_host* host,const struct ha
     LL_SPI_SetStandard(spi, dev_cfg->standard);
     LL_SPI_Enable(spi);
 
+    if (host->cfg.dma_tx.dma_enable && host->cfg.dma_tx.dma_handle)
+        LL_SPI_EnableDMAReq_TX(spi);
+    if (host->cfg.dma_rx.dma_enable && host->cfg.dma_rx.dma_handle)
+        LL_SPI_EnableDMAReq_RX(spi);
+
     return MINI_OK;
 }
 
@@ -424,7 +429,9 @@ static int stm32_spi_transfer_poll(struct hal_spi_bus_host* host, const struct h
     if ((half_tx && !tx) || (half_rx && !rx))
         return MINI_ERR_INVAL;
 
-    LL_SPI_SetTransferDirection(spi, half_tx ? LL_SPI_HALF_DUPLEX_TX : half_rx ? LL_SPI_HALF_DUPLEX_RX : LL_SPI_FULL_DUPLEX);
+    const uint32_t want_dir = half_tx ? LL_SPI_HALF_DUPLEX_TX : half_rx ? LL_SPI_HALF_DUPLEX_RX : LL_SPI_FULL_DUPLEX;
+    if (LL_SPI_GetTransferDirection(spi) != want_dir)
+        LL_SPI_SetTransferDirection(spi, want_dir);
     start = HAL_GetTick();
     hal_spi_cs_assert(dev_cfg);
 
@@ -655,7 +662,9 @@ int hal_spi_transfer_dma_stm32(struct hal_spi_bus_host* host, const uint8_t* tx,
     if ((use_tx && !dma_tx_ctrl) || (use_rx && !dma_rx_ctrl))
         return MINI_ERR_IO;
 
-    LL_SPI_SetTransferDirection(spi, (use_tx && !use_rx) ? LL_SPI_HALF_DUPLEX_TX : (use_rx && !use_tx) ? LL_SPI_HALF_DUPLEX_RX : LL_SPI_FULL_DUPLEX);
+    const uint32_t want_dir = (use_tx && !use_rx) ? LL_SPI_HALF_DUPLEX_TX : (use_rx && !use_tx) ? LL_SPI_HALF_DUPLEX_RX : LL_SPI_FULL_DUPLEX;
+    if (LL_SPI_GetTransferDirection(spi) != want_dir)
+        LL_SPI_SetTransferDirection(spi, want_dir);
 
     if (use_tx && !tx_buf)
     {
@@ -673,7 +682,6 @@ int hal_spi_transfer_dma_stm32(struct hal_spi_bus_host* host, const uint8_t* tx,
         LL_DMA_ConfigAddresses(dma_tx_ctrl, tx_stream, (uint32_t)tx_buf, (uint32_t)&spi->DR, LL_DMA_DIRECTION_MEMORY_TO_PERIPH);
         LL_DMA_SetDataLength(dma_tx_ctrl, tx_stream, len);
         hal_spi_dma_clear_tc_optimized(dma_tx_ctrl, tx_stream);
-        LL_SPI_EnableDMAReq_TX(spi);
     }
     if (use_rx)
     {
@@ -681,7 +689,6 @@ int hal_spi_transfer_dma_stm32(struct hal_spi_bus_host* host, const uint8_t* tx,
         LL_DMA_ConfigAddresses(dma_rx_ctrl, rx_stream, (uint32_t)&spi->DR, (uint32_t)rx_buf, LL_DMA_DIRECTION_PERIPH_TO_MEMORY);
         LL_DMA_SetDataLength(dma_rx_ctrl, rx_stream, len);
         hal_spi_dma_clear_tc_optimized(dma_rx_ctrl, rx_stream);
-        LL_SPI_EnableDMAReq_RX(spi);
     }
     if (use_rx)
         LL_DMA_EnableStream(dma_rx_ctrl, rx_stream);
@@ -703,13 +710,11 @@ int hal_spi_transfer_dma_stm32(struct hal_spi_bus_host* host, const uint8_t* tx,
     {
         hal_spi_dma_clear_tc_optimized(dma_tx_ctrl, tx_stream);
         LL_DMA_DisableStream(dma_tx_ctrl, tx_stream);
-        LL_SPI_DisableDMAReq_TX(spi);
     }
     if (use_rx)
     {
         hal_spi_dma_clear_tc_optimized(dma_rx_ctrl, rx_stream);
         LL_DMA_DisableStream(dma_rx_ctrl, rx_stream);
-        LL_SPI_DisableDMAReq_RX(spi);
     }
     hal_spi_cs_deassert(&host->active_cfg);
     return MINI_OK;
@@ -718,12 +723,10 @@ timeout:
     if (use_tx)
     {
         LL_DMA_DisableStream(dma_tx_ctrl, tx_stream);
-        LL_SPI_DisableDMAReq_TX(spi);
     }
     if (use_rx)
     {
         LL_DMA_DisableStream(dma_rx_ctrl, rx_stream);
-        LL_SPI_DisableDMAReq_RX(spi);
     }
     hal_spi_cs_deassert(&host->active_cfg);
     return MINI_ERR_TIMEOUT;
@@ -735,14 +738,8 @@ timeout:
  */
 void hal_spi_abort_stm32(struct hal_spi_bus_host* host)
 {
-    SPI_TypeDef* spi;
-
     if (!host || !host->spi)
         return;
-
-    spi = (SPI_TypeDef*)host->spi;
-    LL_SPI_DisableDMAReq_TX(spi);
-    LL_SPI_DisableDMAReq_RX(spi);
 
     if (host->cfg.dma_tx.dma_enable && host->cfg.dma_tx.dma_handle)
         LL_DMA_DisableStream((DMA_TypeDef*)host->cfg.dma_tx.dma_handle,host->cfg.dma_tx.dma_stream);

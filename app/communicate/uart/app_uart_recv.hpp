@@ -23,6 +23,9 @@ class UartCommunicate final : public Communicate<UartCommunicate>
 {
 public:
     /* public 是为了让 CRTP 基类的 GetInstance() 能构造本类实例; 使用走 GetInstance() */
+    /**
+     * @brief 构造: 绑定 kDeviceName 对应的通信设备
+     */
     UartCommunicate();
 
     /** @brief 本类绑定的设备标签 (DTS 里 communicate client 节点的 label) */
@@ -35,9 +38,18 @@ public:
     static constexpr unsigned int  kTaskPriority = 12;
     static constexpr std::uint32_t kTaskStack    = 1024;
 
+    /**
+     * @brief 轮询任务体: 死循环 PollOnce 并按 kThreadPeriodMs 让出
+     * @param param 线程参数 (未使用)
+     */
     static void Thread(void* param);
 
-    /** @brief 半双工一写一读: 走 UART_CMD_TRANSFER(先发 tx 再收 rx), 长度取 span.size() */
+    /**
+     * @brief  半双工一写一读: 走 UART_CMD_TRANSFER(先发 tx 再收 rx), 长度取 span.size()
+     * @param  data_view 待发送数据视图
+     * @param  time_out  传输超时 (ms), 0 表示用 kDefaultTimeout
+     * @return 有值时为传输结果错误码 (MINI_OK / MINI_ERR_TIMEOUT / 其他错误)
+     */
     etl::optional<mt_err_t> SendResv(etl::span<const uint8_t> data_view, uint32_t time_out) override;
 };
 

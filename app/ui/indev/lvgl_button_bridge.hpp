@@ -50,6 +50,12 @@ namespace ui
     class AppButtonLvgl : public app::AppButton<ButtonLvglData>
     {
     private:
+        /**
+         * @brief  按键事件回调: 把该事件绑定的键值序列按序写入 SPSC 队列
+         * @param  self 触发事件的按钮库对象
+         * @param  data 本按键的 LVGL 桥接数据
+         * @return 已入队返回 true; 事件非法(越界)返回 false
+         */
         bool ButtonCallback(button::Button& self, ButtonLvglData& data) override final
         {
             /* 枚举从 1 起, 表从 0 起; kPressed_None 已被 -2 排除在表外, 落到下面返回 false */
@@ -76,6 +82,8 @@ namespace ui
 
     public:
         /** @brief 追加一条绑定: 某个按键事件 → 一个 LVGL 键值 (0 = 不绑)
+         *  @param event 要绑定的按键事件
+         *  @param key   对应的 LVGL 键值 (0 表示不绑)
          *  @note 同一事件调多次 = 触发后按调用顺序逐个上报 (连发)
          *  @note 短按有两种表示: 松手即发的 kPressed_Short_Over, 与 500ms 后结算的 Click 系列;
          *        同一次短按会先后都发, 所以这两类之间只允许占一边, 混绑直接拒
@@ -116,6 +124,7 @@ namespace ui
         }
 
         /** @brief 给 LVGL: 一个键 = 一次 PRESSED + 一次 RELEASED
+         *  @param data LVGL 输入设备数据 (写入键值/状态/continue_reading)
          *  @note 中间必须夹一次松开, 否则第二个键进不了"按下"分支(LVGL 只在 RELEASED→PRESSED 沿发 PRESSED)
          *  @return false = 没有待上报的键 (data 未写入) */
         bool lvgl_step(lv_indev_data_t& data)
@@ -146,21 +155,34 @@ namespace ui
             return true;
         }
 
-        ~AppButtonLvgl() = default;
+        ~AppButtonLvgl() = default; /**< 默认析构 */
+        /**
+         * @brief 构造: 绑定 label 对应的按键设备与 LVGL 桥接数据 (低电平触发)
+         * @param label DTS 节点 label
+         * @param data  该按键的 LVGL 桥接数据引用
+         */
         explicit AppButtonLvgl(const char* label, ButtonLvglData& data)
             : app::AppButton<ButtonLvglData>(label, app::kTriggerLevelLow, data)
         {
         }
 
     private:
-        /** @brief 该事件当前是否已绑 (至少一个键) */
+        /**
+         * @brief  该事件当前是否已绑 (至少一个键)
+         * @param  event 待查询的按键事件
+         * @return 已绑返回 true, 否则 false
+         */
         bool has_bind(button::Button_Event event) const
         {
             const uint8_t i = static_cast<uint8_t>(event) - 1U;
             return (i < kButtonLvglEventNum) && (MINI_ATOMIC_LOAD(&m_data.lv_event_num[i], MINI_RELAXED) != 0U);
         }
 
-        /** @brief 结算类短按事件 (松开 500ms 后发): 单击 / 双击 / 重复点击 */
+        /**
+         * @brief  结算类短按事件 (松开 500ms 后发): 单击 / 双击 / 重复点击
+         * @param  event 待判断的按键事件
+         * @return 属于结算类短按事件返回 true, 否则 false
+         */
         static bool is_click_event(button::Button_Event event)
         {
             return (event == button::Button_Event::kSignal_Pressed_Click) ||
@@ -168,7 +190,10 @@ namespace ui
                    (event == button::Button_Event::kPressed_Repeat_Click);
         }
 
-        /** @brief 是否已绑了任一结算类短按事件 */
+        /**
+         * @brief  是否已绑了任一结算类短按事件
+         * @return 已绑返回 true, 否则 false
+         */
         bool has_click_event_bind() const
         {
             return has_bind(button::Button_Event::kSignal_Pressed_Click) ||
@@ -191,7 +216,8 @@ namespace ui
     inline ButtonLvglData               s_lvgl_data[kButtonLvglNum] = {};
     inline etl::optional<AppButtonLvgl> s_lvgl_btn[kButtonLvglNum];
 
-    /** @brief 清掉一颗按键的全部绑定 (换页/换模式: 先清, 再按新页面重新绑) */
+    /** @brief 清掉一颗按键的全部绑定 (换页/换模式: 先清, 再按新页面重新绑)
+     *  @param index 按键下标 (见 ButtonLvglIndex) */
     inline void ButtonLvglClear(uint8_t index)
     {
         if ((index < kButtonLvglNum) && s_lvgl_btn[index])
@@ -201,6 +227,9 @@ namespace ui
     }
 
     /** @brief 绑一条: 某个按键事件 → 一个 LVGL 键值 (同一事件可连续调 = 连发)
+     *  @param index 按键下标 (见 ButtonLvglIndex)
+     *  @param event 要绑定的按键事件
+     *  @param key   对应的 LVGL 键值
      *  @return false = 下标非法 / 按键没注册 / 事件非法 / 该事件已绑满 / 短按表示冲突
      *  @note 运行期随时可调 (换页处调即可, 不用重启) */
     inline bool ButtonLvglBind(uint8_t index, button::Button_Event event, lv_key_t key)
@@ -212,6 +241,7 @@ namespace ui
         return s_lvgl_btn[index]->set_event_lvgl(event, key);
     }
 
+    /** @brief 初始化全部 LVGL 按键: 建 SPSC 队列、构造对象并注册回调 (不预绑任何键) */
     inline void ButtonLvglInit()
     {
         for (uint8_t i = 0; i < kButtonLvglNum; ++i)
@@ -241,7 +271,8 @@ namespace ui
         }
     }
 
-    /** @brief LVGL read 回调: 有待上报的键就吐一个出去 (多键靠 continue_reading 在同一周期连着吐) */
+    /** @brief LVGL read 回调: 有待上报的键就吐一个出去 (多键靠 continue_reading 在同一周期连着吐)
+     *  @param data LVGL 输入设备数据 (写入键值/状态/continue_reading) */
     inline void ButtonLvglRead(lv_indev_data_t& data)
     {
         for (uint8_t i = 0; i < kButtonLvglNum; ++i)
@@ -255,14 +286,18 @@ namespace ui
         data.continue_reading = false;
     }
 
-    /** @brief LVGL read 回调入口 */
+    /** @brief LVGL read 回调入口
+     *  @param indev LVGL 输入设备 (未使用)
+     *  @param data  LVGL 输入设备数据 (转交 ButtonLvglRead) */
     inline void ButtonLvglIndevRead(lv_indev_t* indev, lv_indev_data_t* data)
     {
         (void)indev;
         ButtonLvglRead(*data);
     }
 
-    /** @brief 该按键是否已注册好 (可以接受动态绑定) */
+    /** @brief 该按键是否已注册好 (可以接受动态绑定)
+     *  @param index 按键下标 (见 ButtonLvglIndex)
+     *  @return 已注册返回 true, 否则 false */
     inline bool ButtonLvglReady(uint8_t index)
     {
         return (index < kButtonLvglNum) && static_cast<bool>(s_lvgl_btn[index]);

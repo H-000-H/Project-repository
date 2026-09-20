@@ -1,6 +1,7 @@
 ---
-# ui 层走 PC 构建 (ui_pc/CMakeLists.txt): 编译数据库取 ui_pc 的构建目录, 编译器用宿主工具链,
-# 并把根 .clangd 为固件注入的 arm-none-eabi 编译器与头路径剔掉
+# app/ui 走 PC 构建 (ui_pc/CMakeLists.txt): 编译数据库取 ui_pc 的构建目录, 编译器用宿主工具链,
+# 并把根 .clangd 为固件注入的 arm-none-eabi 编译器与头路径剔掉。
+# -target mingw: 否则 clangd 按 MSVC 目标解析, 会和宿主 gcc 的头打架
 CompileFlags:
   CompilationDatabase: D:/device_platform/STM32F407ZG76/ui_pc/build/Debug-PcUi
   Compiler: 'C:/msys64/ucrt64/bin/g++.exe'

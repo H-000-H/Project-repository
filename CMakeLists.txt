@@ -218,7 +218,13 @@ if(NOT BOOT_BUILD AND UI_LVGL)
         "${CMAKE_CURRENT_SOURCE_DIR}/ui/*.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/ui/*.h"
         "${CMAKE_CURRENT_SOURCE_DIR}/ui/*.hpp")
-    target_sources(${CMAKE_PROJECT_NAME} PRIVATE ${UI_SRCS})
+    target_sources(${CMAKE_PROJECT_NAME} PRIVATE ${UI_SRCS}
+        app/ui/global/dektop/dektop.cpp
+        app/ui/home/dektop_320x240.c
+        app/ui/global/top-bar/top-bar.cpp
+        app/ui/home/lock/lock.cpp
+        app/secure/lock-password/lock-password.cpp
+        app/ui/home/home.hpp)
 
     # ui/ 本身 + 每个子目录都进 include 路径 (桥接头/port 头在代码里都是裸名 include),
     # 重写时新增子目录也不用改本文件。
@@ -236,6 +242,7 @@ if(NOT BOOT_BUILD AND UI_LVGL)
     endforeach()
     target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/ui"
+        "${CMAKE_CURRENT_SOURCE_DIR}/app/secure/lock-password"
         ${UI_INC_SUBDIRS})
     # port 目录 = ui/lvgl（里面必须有 lv_conf.h，函数内部会校验）
     mini_tree_link_lvgl(${CMAKE_PROJECT_NAME} "${CMAKE_CURRENT_SOURCE_DIR}/ui/lvgl")

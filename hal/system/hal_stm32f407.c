@@ -137,3 +137,66 @@ int hal_is_in_isr(void)
     return 0;
 #endif
 }
+
+/* ==========================================================================
+ * 临时调试: 异常现场存档 (定位 lv_init 里的 UsageFault; 定位完可整段删除)
+ * 触发后不再返回, 把异常帧 (压在被中断栈上的 R0/R1/R2/R3/R12/LR/PC/xPSR) 存到这些全局
+ * 变量里, 然后用 Renode 读内存 / GDB 看 g_fault_pc 即可知道出事指令地址
+ * ========================================================================== */
+volatile uint32_t g_fault_pc   = 0U; /**< 出事的 PC (异常帧里的 PC) */
+volatile uint32_t g_fault_lr   = 0U; /**< 出事时的 LR (函数返回地址) */
+volatile uint32_t g_fault_sp   = 0U; /**< 异常帧所在栈 (PSP 或 MSP) */
+volatile uint32_t g_fault_xpsr = 0U; /**< 出事时的 xPSR */
+volatile uint32_t g_fault_cfsr = 0U; /**< SCB->CFSR (故障原因位) */
+volatile uint32_t g_fault_exc  = 0U; /**< EXC_RETURN (判断用的是 PSP 还是 MSP) */
+volatile uint32_t g_fault_src  = 0U; /**< 哪个异常进来的: 1=Hard 2=Usage 3=Bus 4=MemManage */
+
+static void fault_save(uint32_t exc_return, uint32_t src)
+{
+    /* bit2 = 0 → 用的是 MSP; = 1 → 用的是 PSP */
+    const uint32_t sp = ((exc_return & 0x4U) != 0U) ? __get_PSP() : __get_MSP();
+    const volatile uint32_t* frame = (const volatile uint32_t*)sp;
+
+    g_fault_src  = src;
+    g_fault_exc  = exc_return;
+    g_fault_sp   = sp;
+    g_fault_pc   = frame[6];
+    g_fault_lr   = frame[5];
+    g_fault_xpsr = frame[7];
+    g_fault_cfsr = SCB->CFSR;
+
+    for (;;)
+    {
+    }
+}
+
+/* 注意: 四个 handler 的体不能完全相同 —— -O2 会把它们合并成一个公共体, 一旦变成
+ * "bl 公共体", LR 就被改写成返回地址, 读到的就不再是 EXC_RETURN 了 (踩过)。
+ * 所以每个 handler 各给一个不同的 src 常量。LR 必须在本体第一条就读出来。 */
+void HardFault_Handler(void)
+{
+    uint32_t lr;
+    __asm__ volatile("mov %0, lr" : "=r"(lr));
+    fault_save(lr, 1U);
+}
+
+void UsageFault_Handler(void)
+{
+    uint32_t lr;
+    __asm__ volatile("mov %0, lr" : "=r"(lr));
+    fault_save(lr, 2U);
+}
+
+void BusFault_Handler(void)
+{
+    uint32_t lr;
+    __asm__ volatile("mov %0, lr" : "=r"(lr));
+    fault_save(lr, 3U);
+}
+
+void MemManage_Handler(void)
+{
+    uint32_t lr;
+    __asm__ volatile("mov %0, lr" : "=r"(lr));
+    fault_save(lr, 4U);
+}

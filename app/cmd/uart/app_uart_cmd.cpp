@@ -30,7 +30,13 @@ constexpr std::size_t kOtaCmdPrefixLen = 7u;
 char        line_buf[kLineMax];
 std::size_t line_len = 0u;
 
-/* 十进制解析: 只收纯数字, 空串/非数字/溢出/零 一律失败 */
+/**
+ * @brief  十进制解析: 只收纯数字, 空串/非数字/溢出/零 一律失败
+ * @param  s   待解析字符串起始 (不要求以 '\0' 结尾)
+ * @param  n   参与解析的字符数
+ * @param  out 解析成功时写入结果
+ * @return 解析成功返回 true, 否则返回 false
+ */
 bool ParseDec(const char* s, std::size_t n, uint32_t* out)
 {
     if ((s == nullptr) || (out == nullptr) || (n == 0u))
@@ -56,6 +62,10 @@ bool ParseDec(const char* s, std::size_t n, uint32_t* out)
     return true;
 }
 
+/**
+ * @brief 分发 led.set 命令: 打包 LedArgs 后交给 SystemCmd 安全分发
+ * @param mode LED 控制模式 (ON / OFF / AUTO)
+ */
 void DispatchLedSet(LedMode mode)
 {
     const LedArgs args{mode};
@@ -66,6 +76,10 @@ void DispatchLedSet(LedMode mode)
     }
 }
 
+/**
+ * @brief 分发 ota.start 命令: 打包 OtaArgs 后交给 SystemCmd 安全分发
+ * @param len 固件镜像总字节数
+ */
 void DispatchOtaStart(uint32_t len)
 {
     const OtaArgs args{len};
@@ -76,7 +90,11 @@ void DispatchOtaStart(uint32_t len)
     }
 }
 
-/* 精确匹配, 不做 trim */
+/**
+ * @brief 处理一行命令: 精确匹配 (不做 trim), 分发 LED 控制或 OTA 启动
+ * @param line 行缓冲起始 (不含结束符)
+ * @param len  行长度 (字节)
+ */
 void HandleLine(const char* line, std::size_t len)
 {
     if (len == 0u)
@@ -115,6 +133,11 @@ void HandleLine(const char* line, std::size_t len)
 
 } // namespace
 
+/**
+ * @brief UART 收包回调: 逐字节累积, 遇 '\n'/'\r' 成帧后分发 (可处理拆包/粘包)
+ * @param data 收到的字节缓冲
+ * @param len  字节数
+ */
 void Cmd::OnUartRx(const uint8_t* data, size_t len)
 {
     if ((data == nullptr) || (len == 0u))
@@ -143,6 +166,9 @@ void Cmd::OnUartRx(const uint8_t* data, size_t len)
     }
 }
 
+/**
+ * @brief 命令层初始化: 注册 led.set / ota.start 命令, 并把 UART 收包回调挂到实例
+ */
 void Cmd::Init()
 {
     const int ret = SystemCmd::get_instance().register_cmd<LedArgs>(

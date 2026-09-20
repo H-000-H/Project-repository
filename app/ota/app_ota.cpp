@@ -28,12 +28,19 @@ constexpr uint32_t kTaskPeriodMs = 100;
  * 真机 115200bps 下 512B 只需 44ms, 这里放宽到秒级纯粹是为了容忍仿真/慢链路的抖动。 */
 constexpr uint32_t kReadTimeoutMs = 3000;
 
+/**
+ * @brief  获取 OTA 任务单例
+ * @return OTA 任务单例引用
+ */
 Ota& Ota::GetInstance()
 {
     static Ota instance;
     return instance;
 }
 
+/**
+ * @brief 构造: 查找并打开 OTA 串口设备, 失败则记录日志并保持未绑定
+ */
 Ota::Ota()
 {
     ::device* pdev = device_find_by_label(kDevLabel);
@@ -53,19 +60,30 @@ Ota::Ota()
     m_driver = pdev;
 }
 
-Ota::~Ota() = default;
+Ota::~Ota() = default; /**< 析构: 默认实现 */
 
+/**
+ * @brief 设置固件总长度
+ * @param len 固件镜像总字节数
+ */
 void Ota::SetFwLen(uint32_t len)
 {
     m_fw_total_len = len;
 }
 
+/**
+ * @brief 业务侧入口: SetFwLen + StartOta
+ * @param len 固件镜像总字节数
+ */
 void Ota::RequestOta(uint32_t len)
 {
     SetFwLen(len);
     StartOta();
 }
 
+/**
+ * @brief 启动 OTA (内部 ota_open + ota_rollback_open + 置启动标志)
+ */
 void Ota::StartOta()
 {
     ota_open();          /* 未 open 时下载会被内部拒绝 (ERR_OTA_OPEN) */
@@ -73,6 +91,9 @@ void Ota::StartOta()
     m_is_start = true;
 }
 
+/**
+ * @brief 停止 OTA (清启动标志)
+ */
 void Ota::StopOta()
 {
     m_is_start = false;
@@ -81,7 +102,14 @@ void Ota::StopOta()
 /* 就绪握手是否已发出 (每轮 download_stream 重置一次, 见 OtaStep) */
 static bool s_ready_sent = false;
 
-/* 传输钩子: device_read 返回实际字节数(可能短读), 负数为错误 */
+/**
+ * @brief  传输钩子: 从 OTA 串口读取固件数据供 download_stream 消费
+ * @param  param   设备指针 (::device*)
+ * @param  buf     输出缓冲, 写入读到的字节
+ * @param  want    期望读取的字节数
+ * @param  out_len 实际读到的字节数 (成功时写入)
+ * @return ERR_OK 成功, ERR_TRANSMIT 读失败或超时
+ */
 static int OtaDownloadSource(void* param, uint8_t* buf, uint32_t want, int* out_len)
 {
     ::device*  dev = static_cast<::device*>(param);
@@ -110,6 +138,9 @@ static int OtaDownloadSource(void* param, uint8_t* buf, uint32_t want, int* out_
     return ERR_OK;
 }
 
+/**
+ * @brief OTA 单步: 满足启动条件时流式下载固件 → 激活 → 复位
+ */
 void Ota::OtaStep()
 {
     Ota& it = GetInstance();
@@ -138,6 +169,10 @@ void Ota::OtaStep()
     mini_boot_system_reset(); /* 复位进 boot 运行新固件(confirm 由新固件负责) */
 }
 
+/**
+ * @brief 任务体: 死循环执行 OtaStep 并按 kTaskPeriodMs 让出
+ * @param param 线程参数 (未使用)
+ */
 void Ota::Thread(void* param)
 {
     (void)param;
@@ -149,6 +184,10 @@ void Ota::Thread(void* param)
     }
 }
 
+/**
+ * @brief  注册 OTA 任务到调度器 (mini-os 线程)
+ * @return 创建成功返回 true, 失败返回 false
+ */
 bool Ota::ThreadRegister()
 {
     mini_os_thread_t* handle = mini_os_thread_create(

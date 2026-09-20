@@ -46,11 +46,15 @@ public:
     using RxCallback = void (*)(const uint8_t* data, size_t len);
 
 protected:
+    /**
+     * @brief 构造: 按 label 查找并打开 device, 失败则记录日志并保持未绑定
+     * @param label DTS 节点 label
+     */
     explicit CommunicateCore(const char* label);
-    CommunicateCore(const CommunicateCore&) = delete;
-    CommunicateCore& operator=(const CommunicateCore&) = delete;
-    CommunicateCore(CommunicateCore&&) = delete;
-    CommunicateCore& operator=(CommunicateCore&&) = delete;
+    CommunicateCore(const CommunicateCore&) = delete;            /**< 禁用拷贝构造 */
+    CommunicateCore& operator=(const CommunicateCore&) = delete; /**< 禁用拷贝赋值 */
+    CommunicateCore(CommunicateCore&&) = delete;                 /**< 禁用移动构造 */
+    CommunicateCore& operator=(CommunicateCore&&) = delete;      /**< 禁用移动赋值 */
 
     ::device* m_dev = nullptr;
     etl::array<uint8_t, kBufferSize> m_send_buffer{};
@@ -59,32 +63,68 @@ protected:
     RxCallback  m_rx_callback = nullptr;  /**< 业务回调, 为空时只打日志 */
 
 public:
-    virtual ~CommunicateCore();
+    virtual ~CommunicateCore(); /**< 虚析构: 支持经基类指针派生销毁 */
 
-    /** @brief 注册接收回调 (传 nullptr 恢复为只打日志) */
+    /**
+     * @brief 注册接收回调 (传 nullptr 恢复为只打日志)
+     * @param callback 收到数据时调用的业务回调
+     */
     void SetRxCallback(RxCallback callback);
 
-    /** @brief 发送: 长度取 data_view.size(), 上限 kBufferSize */
+    /**
+     * @brief  发送: 长度取 data_view.size(), 上限 kBufferSize
+     * @param  data_view 待发送数据视图
+     * @param  time_out  发送超时 (ms), 0 表示用 kDefaultTimeout
+     * @return 有值时为 device_write 的错误码 (MINI_OK 表示成功)
+     */
     etl::optional<mt_err_t> Send(etl::span<const uint8_t> data_view, uint32_t time_out);
 
-    /** @brief 主动读一次(不触发回调), 数据进接收缓冲 */
+    /**
+     * @brief  主动读一次(不触发回调), 数据进接收缓冲
+     * @param  time_out 读超时 (ms), 0 表示用 kDefaultTimeout
+     * @return 有值时为读结果错误码 (MINI_OK / MINI_ERR_TIMEOUT / 其他错误)
+     */
     etl::optional<mt_err_t> Receive(uint32_t time_out);
 
-    /** @brief 最近一次 Receive()/PollOnce() 读到的有效字节数 */
+    /**
+     * @brief  最近一次 Receive()/PollOnce() 读到的有效字节数
+     * @return 有效字节数
+     */
     std::size_t GetRxLen() const;
 
-    /** @brief 最近一次读到的数据视图 */
+    /**
+     * @brief  最近一次读到的数据视图
+     * @return 指向接收缓冲、长度为 GetRxLen() 的只读视图
+     */
     etl::span<const uint8_t> GetRx() const;
 
-    /** @brief 轮询一次: 读 → 分发(有回调给回调, 否则打印); 返回 >0 字节数 / 0 无数据 / <0 错误 */
+    /**
+     * @brief  轮询一次: 读 → 分发(有回调给回调, 否则打印)
+     * @param  time_out 轮询读超时 (ms)
+     * @return >0 收到的字节数 / 0 无数据 / <0 错误
+     */
     int PollOnce(uint32_t time_out);
 
-    /** @brief 半双工一写一读(先发后收): 底座默认不支持, UART 派生类 override */
+    /**
+     * @brief  半双工一写一读(先发后收): 底座默认不支持, UART 派生类 override
+     * @param  data_view 待发送数据视图
+     * @param  time_out  传输超时 (ms), 0 表示用 kDefaultTimeout
+     * @return 有值时为传输结果错误码; 底座默认返回 MINI_ERR_NOTSUPP
+     */
     virtual etl::optional<mt_err_t> SendResv(etl::span<const uint8_t> data_view,
                                              uint32_t time_out);
 
+    /**
+     * @brief 打印发送缓冲内容 (以字符串形式)
+     */
     void SendLog();
+    /**
+     * @brief 打印接收缓冲内容 (以字符串形式)
+     */
     void RecvLog();
+    /**
+     * @brief 同时打印发送与接收缓冲内容 (以字符串形式)
+     */
     void SendRecvLog();
 
     static constexpr const char*   kTag            = "communicate";
@@ -113,17 +153,27 @@ template <typename Derived>
 class Communicate : public CommunicateCore
 {
 protected:
+    /**
+     * @brief 构造: 转发 label 给 CommunicateCore
+     * @param label DTS 节点 label
+     */
     explicit Communicate(const char* label) : CommunicateCore(label) {}
 
 public:
-    /** @brief 本派生类的唯一实例(首次调用时构造) */
+    /**
+     * @brief  本派生类的唯一实例(首次调用时构造)
+     * @return 派生类单例引用
+     */
     static Derived& GetInstance()
     {
         static Derived instance;
         return instance;
     }
 
-    /** @brief 通过模板特性顶层虽然都是这个register但是确实不同的 */
+    /**
+     * @brief  注册本派生类的轮询任务 (顶层同名但各派生类独立)
+     * @return 创建成功返回 true, 失败返回 false
+     */
     bool ThreadRegister()
     {
         mini_os_thread_t* handle = mini_os_thread_create(

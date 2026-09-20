@@ -22,10 +22,17 @@ namespace app
 class Button
 {
 public:
-    /** @brief 注册扫描任务 (main 里调用一次), 成功返回 true */
+    /**
+     * @brief  注册扫描任务 (main 里调用一次)
+     * @return 创建成功返回 true, 失败返回 false
+     */
     static bool ThreadRegister();
 
 private:
+    /**
+     * @brief 扫描任务体: 初始化 LVGL 桥接后死循环采样并驱动按键状态机
+     * @param param 线程参数 (未使用)
+     */
     static void Thread(void* param);
 
     static constexpr std::uint16_t kStackSize  = 2048;        /**< mini-os 线程栈 (字节) */

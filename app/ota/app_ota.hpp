@@ -34,33 +34,60 @@ namespace app
 class Ota
 {
 public:
+    /**
+     * @brief  获取 OTA 任务单例
+     * @return OTA 任务单例引用
+     */
     static Ota& GetInstance();
 
-    Ota(const Ota&) = delete;
-    Ota& operator=(const Ota&) = delete;
-    Ota(Ota&&) = delete;
-    Ota& operator=(Ota&&) = delete;
+    Ota(const Ota&) = delete;            /**< 禁用拷贝构造 */
+    Ota& operator=(const Ota&) = delete; /**< 禁用拷贝赋值 */
+    Ota(Ota&&) = delete;                 /**< 禁用移动构造 */
+    Ota& operator=(Ota&&) = delete;      /**< 禁用移动赋值 */
 
-    /** @brief 启动 OTA (内部 ota_open + ota_rollback_open + 置位) */
+    /**
+     * @brief 启动 OTA (内部 ota_open + ota_rollback_open + 置启动标志)
+     */
     void StartOta();
-    /** @brief 停止 OTA */
+    /**
+     * @brief 停止 OTA (清启动标志)
+     */
     void StopOta();
 
-    /** @brief 设置固件总长度 */
+    /**
+     * @brief 设置固件总长度
+     * @param len 固件镜像总字节数
+     */
     void SetFwLen(uint32_t len);
 
-    /** @brief 业务侧入口: SetFwLen + StartOta */
+    /**
+     * @brief 业务侧入口: SetFwLen + StartOta
+     * @param len 固件镜像总字节数
+     */
     void RequestOta(uint32_t len);
 
-    /** @brief 任务注册 (main 里调用一次), 成功返回 true */
+    /**
+     * @brief  任务注册 (main 里调用一次)
+     * @return 创建成功返回 true, 失败返回 false
+     */
     bool ThreadRegister();
 
 private:
+    /**
+     * @brief 构造: 查找并打开 OTA 串口设备, 失败则记录日志并保持未绑定
+     */
     Ota();
-    ~Ota();
+    ~Ota(); /**< 析构: 默认实现 */
 
+    /**
+     * @brief 任务体: 死循环执行 OtaStep 并按 kTaskPeriodMs 让出
+     * @param param 线程参数 (未使用)
+     */
     static void Thread(void* param);
 
+    /**
+     * @brief OTA 单步: 满足启动条件时流式下载固件 → 激活 → 复位
+     */
     static void OtaStep();
 
     static constexpr unsigned int  kTaskPriority = 14;   /* mini-os: 数值越小越优先 (OTA 最不急) */

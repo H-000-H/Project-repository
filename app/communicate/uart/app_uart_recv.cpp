@@ -21,8 +21,15 @@
 namespace app
 {
 
+/**
+ * @brief 构造: 绑定 kDeviceName 对应的通信设备
+ */
 UartCommunicate::UartCommunicate() : Communicate(kDeviceName){}
 
+/**
+ * @brief 轮询任务体: 死循环 PollOnce 并按 kThreadPeriodMs 让出
+ * @param param 线程参数 (未使用)
+ */
 void UartCommunicate::Thread(void* param)
 {
     (void)param;
@@ -35,6 +42,12 @@ void UartCommunicate::Thread(void* param)
     }
 }
 
+/**
+ * @brief  半双工一写一读: 走 UART_CMD_TRANSFER(先发 tx 再收 rx), 长度取 span.size()
+ * @param  data_view 待发送数据视图
+ * @param  time_out  传输超时 (ms), 0 表示用 kDefaultTimeout
+ * @return 有值时为传输结果错误码 (MINI_OK / MINI_ERR_TIMEOUT / 其他错误)
+ */
 etl::optional<mt_err_t> UartCommunicate::SendResv(etl::span<const uint8_t> data_view,
                                                   uint32_t time_out)
 {
