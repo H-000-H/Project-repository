@@ -13,6 +13,7 @@
 #include <lvgl/widgets/lv_button.h>
 #include "../global/dektop/dektop.hpp"
 #include "../global/top-bar/top-bar.hpp"
+#include "../home/home.hpp"
 #include "../home/lock/lock.hpp"
 namespace app
 {
@@ -73,7 +74,6 @@ namespace app
 
         static ui::Lock* s_lock = new ui::Lock;
         s_lock->CreateLockScreen(desktop.GetScreen());
-        s_lock->CreateLockShowTip("Press any key to unlock");
 
         /* 顶栏: 左段两项(宽度自适应) + 右段一项(固定 44px)*/
         static ui::TopBar s_topbar;

@@ -167,8 +167,6 @@ namespace ui
         store.SetLocked(!matched);
         if(matched)
         {
-            /* CreateLockShowTip 自己就是"没有就建": 别判 lock_show_tip 非空(它可能已被 1.5s 定时器删掉),
-             * 也别紧接着 hidden —— 刚显示就隐藏等于没有 */
             this->CreateLockShowTip("Welcome", HomeColor::Green);
         }
         else
@@ -181,7 +179,7 @@ namespace ui
         auto& dektop = ui::Desktop::GetInstance();
         auto toptext =  dektop.GetTopText();
         lv_obj_delete(toptext);
-        return matched;                 /* 页面不在这儿删, 理由见上面的 @note */
+        return matched;                 /* 页面不在这儿删 */
     }
 
 }
