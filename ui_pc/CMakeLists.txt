@@ -25,7 +25,9 @@ file(GLOB_RECURSE UI_SRCS ${ROOT}/app/ui/*.cpp ${ROOT}/app/ui/*.c ${ROOT}/ui/*.c
 file(GLOB BUF_SRCS ${ROOT}/mini_tree/algorithm/buffer/*.c)
 # app/ui 下所有子目录都进 include: 新增页面目录不用回来改本文件
 # (GLOB 会把同层文件如 .clangd 也列进来 → 只保留目录)
-file(GLOB _APP_UI_DIRS_RAW ${ROOT}/app/ui/* ${ROOT}/app/ui/global/* ${ROOT}/app/ui/home/* ${ROOT}/app/secure/*)
+# 页面目录可以再往下一层(如 home/setting/xxx), 每深一层在这里补一条
+file(GLOB _APP_UI_DIRS_RAW ${ROOT}/app/ui/* ${ROOT}/app/ui/global/* ${ROOT}/app/ui/home/*
+                           ${ROOT}/app/ui/home/setting/* ${ROOT}/app/secure/*)
 set(_APP_UI_DIRS "")
 foreach(_d IN LISTS _APP_UI_DIRS_RAW)
     if(IS_DIRECTORY ${_d})
@@ -61,7 +63,7 @@ target_include_directories(ui_logic PUBLIC
     ${ROOT}/app/ui/indev
     ${_APP_UI_DIRS}
     ${ROOT}/app/button
-    ${ROOT}/app/button_base
+    ${ROOT}/app/button/button_base
     ${ROOT}/ui
     ${ROOT}/ui/display
     ${ROOT}/ui/lvgl

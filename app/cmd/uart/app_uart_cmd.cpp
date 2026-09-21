@@ -4,9 +4,9 @@
  * @brief 命令层实现: 命令注册 + UART 收包回调 → SystemCmd 分发
  * @author H-000-H
  * @note  分层方向是"业务依赖通信": UartCommunicate 不认识任何命令/业务类型,
- *        回调由本层通过 SetRxCallback() 挂上去。
- * @note  行协议: 命令以 '\n' 或 '\r' 结束(如 "OFF\n"); 串口可能把一行拆成多次
- *        回调送达(拆包), 也可能一次送达多行(粘包), 故按字节累积成帧后再分发。
+ *        回调由本层通过 set_rx_callback() 挂上去。
+ * @note  行协议: 命令以 '\n' 或 '\r' 结束(如 "OFF\n"); 串口可能把一行拆成多次回调送达
+ *        (拆包), 也可能一次送达多行(粘包), 故按字节累积成帧后再分发。
  */
 #include "app_uart_cmd.hpp"
 
@@ -20,24 +20,24 @@ namespace app
 namespace
 {
 
-constexpr const char* kTag     = "cmd"; /* 日志标签: 只有本文件用, 故不进头文件 */
-constexpr std::size_t kLineMax = CommunicateCore::kBufferSize;
+constexpr const char* k_tag      = "cmd"; /* 日志标签: 只有本文件用, 故不进头文件 */
+constexpr std::size_t k_line_max = CommunicateCore::k_buffer_size;
 
 /* 串口行命令 "cmdota <len>" 的前缀与长度 */
-constexpr const char* kOtaCmdPrefix    = "cmdota ";
-constexpr std::size_t kOtaCmdPrefixLen = 7u;
+constexpr const char* k_ota_cmd_prefix     = "cmdota ";
+constexpr std::size_t k_ota_cmd_prefix_len = 7u;
 
-char        line_buf[kLineMax];
+char        line_buf[k_line_max];
 std::size_t line_len = 0u;
 
 /**
- * @brief  十进制解析: 只收纯数字, 空串/非数字/溢出/零 一律失败
- * @param  s   待解析字符串起始 (不要求以 '\0' 结尾)
- * @param  n   参与解析的字符数
- * @param  out 解析成功时写入结果
- * @return 解析成功返回 true, 否则返回 false
+ * @brief 十进制解析: 只收纯数字
+ * @param[in]  s   const char* 待解析字符串起始 (不要求以 '\0' 结尾)
+ * @param[in]  n   std::size_t 参与解析的字符数
+ * @param[out] out uint32_t*   解析成功时写入结果
+ * @return bool 空串/非数字/溢出/零 一律返回 false
  */
-bool ParseDec(const char* s, std::size_t n, uint32_t* out)
+bool parse_dec(const char* s, std::size_t n, uint32_t* out)
 {
     if ((s == nullptr) || (out == nullptr) || (n == 0u))
         return false;
@@ -64,81 +64,76 @@ bool ParseDec(const char* s, std::size_t n, uint32_t* out)
 
 /**
  * @brief 分发 led.set 命令: 打包 LedArgs 后交给 SystemCmd 安全分发
- * @param mode LED 控制模式 (ON / OFF / AUTO)
+ * @param[in] mode LedMode LED 控制模式 (ON / OFF / AUTO)
  */
-void DispatchLedSet(LedMode mode)
+void dispatch_led_set(LedMode mode)
 {
     const LedArgs args{mode};
-    const int     ret  = SystemCmd::get_instance().dispatch_secure<LedArgs>(kLedSetCommand, args);
+    const int     ret = SystemCmd::get_instance().dispatch_secure<LedArgs>(k_led_set_command, args);
     if (ret != MINI_OK)
     {
-        MT_LOG_ERROR(kTag, "dispatch %s failed: %d", kLedSetCommand, ret);
+        MT_LOG_ERROR(k_tag, "dispatch %s failed: %d", k_led_set_command, ret);
     }
 }
 
 /**
  * @brief 分发 ota.start 命令: 打包 OtaArgs 后交给 SystemCmd 安全分发
- * @param len 固件镜像总字节数
+ * @param[in] len uint32_t 固件镜像总字节数
  */
-void DispatchOtaStart(uint32_t len)
+void dispatch_ota_start(uint32_t len)
 {
     const OtaArgs args{len};
-    const int     ret  = SystemCmd::get_instance().dispatch_secure<OtaArgs>(kOtaStartCommand, args);
+    const int     ret = SystemCmd::get_instance().dispatch_secure<OtaArgs>(k_ota_start_command, args);
     if (ret != MINI_OK)
     {
-        MT_LOG_ERROR(kTag, "dispatch %s failed: %d", kOtaStartCommand, ret);
+        MT_LOG_ERROR(k_tag, "dispatch %s failed: %d", k_ota_start_command, ret);
     }
 }
 
 /**
  * @brief 处理一行命令: 精确匹配 (不做 trim), 分发 LED 控制或 OTA 启动
- * @param line 行缓冲起始 (不含结束符)
- * @param len  行长度 (字节)
+ * @param[in] line const char* 行缓冲起始 (不含结束符)
+ * @param[in] len  std::size_t 行长度 (字节)
  */
-void HandleLine(const char* line, std::size_t len)
+void handle_line(const char* line, std::size_t len)
 {
     if (len == 0u)
         return;
 
     if ((len == 2u) && (memcmp(line, "ON", 2u) == 0))
     {
-        DispatchLedSet(LedMode::kOn);
+        dispatch_led_set(LedMode::ON);
     }
     else if ((len == 3u) && (memcmp(line, "OFF", 3u) == 0))
     {
-        DispatchLedSet(LedMode::kOff);
+        dispatch_led_set(LedMode::OFF);
     }
     else if ((len == 4u) && (memcmp(line, "AUTO", 4u) == 0))
     {
-        DispatchLedSet(LedMode::kAuto);
+        dispatch_led_set(LedMode::AUTO);
     }
     /* cmdota <len>: 启动 OTA 并告知镜像总长度 (设备据此定位镜像尾部 meta) */
-    else if ((len > kOtaCmdPrefixLen) && (memcmp(line, kOtaCmdPrefix, kOtaCmdPrefixLen) == 0))
+    else if ((len > k_ota_cmd_prefix_len) && (memcmp(line, k_ota_cmd_prefix, k_ota_cmd_prefix_len) == 0))
     {
         uint32_t fw_len = 0u;
-        if (ParseDec(&line[kOtaCmdPrefixLen], len - kOtaCmdPrefixLen, &fw_len))
+        if (parse_dec(&line[k_ota_cmd_prefix_len], len - k_ota_cmd_prefix_len, &fw_len))
         {
-            DispatchOtaStart(fw_len);
+            dispatch_ota_start(fw_len);
         }
         else
         {
-            MT_LOG_WARN(kTag, "cmdota: bad length (usage: cmdota <bytes>)");
+            MT_LOG_WARN(k_tag, "cmdota: bad length (usage: cmdota <bytes>)");
         }
     }
     else
     {
-        MT_LOG_WARN(kTag, "unknown cmd, len=%u", (unsigned)len);
+        MT_LOG_WARN(k_tag, "unknown cmd, len=%u", (unsigned)len);
     }
 }
 
 } // namespace
 
-/**
- * @brief UART 收包回调: 逐字节累积, 遇 '\n'/'\r' 成帧后分发 (可处理拆包/粘包)
- * @param data 收到的字节缓冲
- * @param len  字节数
- */
-void Cmd::OnUartRx(const uint8_t* data, size_t len)
+void Cmd::on_uart_rx(const uint8_t* data, size_t len)
 {
     if ((data == nullptr) || (len == 0u))
         return;
@@ -151,68 +146,64 @@ void Cmd::OnUartRx(const uint8_t* data, size_t len)
         {
             if (line_len > 0u)
             {
-                HandleLine(line_buf, line_len);
+                handle_line(line_buf, line_len);
                 line_len = 0u;
             }
             continue;
         }
 
-        if (line_len >= kLineMax) /* 行过长: 丢弃整行并复位, 免得状态卡死 */
+        if (line_len >= k_line_max) /* 行过长: 丢弃整行并复位, 免得状态卡死 */
         {
-            MT_LOG_WARN(kTag, "line too long, dropped");
+            MT_LOG_WARN(k_tag, "line too long, dropped");
             line_len = 0u;
         }
         line_buf[line_len++] = ch;
     }
 }
 
-/**
- * @brief 命令层初始化: 注册 led.set / ota.start 命令, 并把 UART 收包回调挂到实例
- */
-void Cmd::Init()
+void Cmd::init()
 {
     const int ret = SystemCmd::get_instance().register_cmd<LedArgs>(
-        kLedSetCommand,
-        /*param[in] 参数 param[in]上下文*/
+        k_led_set_command,
         [](const LedArgs& arg, void*) -> bool
         {
-            Led& led = Led::GetInstance();
+            Led& led = Led::get_instance();
             switch (arg.mode)
             {
-            case LedMode::kOn:
-                return led.TurnOn();
-            case LedMode::kAuto:
-                return led.ResumeBlink();
-            case LedMode::kOff:
+            case LedMode::ON:
+                return led.turn_on();
+            case LedMode::AUTO:
+                return led.resume_blink();
+            case LedMode::OFF:
             default:
-                return led.TurnOff();
+                return led.turn_off();
             }
         });
     if (ret != MINI_OK)
     {
-        MT_LOG_ERROR(kTag, "register %s failed: %d", kLedSetCommand, ret);
+        MT_LOG_ERROR(k_tag, "register %s failed: %d", k_led_set_command, ret);
     }
 
     const int ret_ota = SystemCmd::get_instance().register_cmd<OtaArgs>(
-        kOtaStartCommand,
+        k_ota_start_command,
         [](const OtaArgs& arg, void*) -> bool
         {
-            if (arg.len == 0u) /* 0 长度会让 OtaStep 直接返回, 提前拦掉免得白等 */
+            if (arg.len == 0u) /* 0 长度会让 ota_step 直接返回, 提前拦掉免得白等 */
             {
-                MT_LOG_WARN(kTag, "ota.start: zero length rejected");
+                MT_LOG_WARN(k_tag, "ota.start: zero length rejected");
                 return false;
             }
-            Ota::GetInstance().RequestOta(arg.len); /* 内部 SetFwLen + ota_open + ota_rollback_open + 置启动标志 */
-            MT_LOG_INFO(kTag, "ota requested, fw_len=%u, waiting for image on ota uart", (unsigned)arg.len);
+            Ota::get_instance().request_ota(arg.len);
+            MT_LOG_INFO(k_tag, "ota requested, fw_len=%u, waiting for image on ota uart", (unsigned)arg.len);
             return true;
         });
     if (ret_ota != MINI_OK)
     {
-        MT_LOG_ERROR(kTag, "register %s failed: %d", kOtaStartCommand, ret_ota);
+        MT_LOG_ERROR(k_tag, "register %s failed: %d", k_ota_start_command, ret_ota);
     }
 
-    UartCommunicate::GetInstance().SetRxCallback(OnUartRx);
-    MT_LOG_INFO(kTag, "cmd layer ready");
+    UartCommunicate::get_instance().set_rx_callback(on_uart_rx);
+    MT_LOG_INFO(k_tag, "cmd layer ready");
 }
 
 } // namespace app

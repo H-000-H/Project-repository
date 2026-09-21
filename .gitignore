@@ -3,6 +3,7 @@
 # ---------------------------------------------
 build/
 build-*/
+build_*/
 out/
 bin/
 CMakeFiles/
@@ -66,6 +67,7 @@ Thumbs.db
 # ---------------------------------------------
 .idea/
 .trae/
+.qoder/
 *.user
 *.workspace
 *.code-workspace
@@ -79,4 +81,7 @@ image_ota*.bin
 img2_*.bin
 diff_report.txt
 /_*
-./app/ui/image/home/dektop_320x240.png
+
+# 壁纸 PNG: 只留生成的 dektop_320x240.c, 图源不进版本库
+# (注意: 该文件已被跟踪, 规则要生效需先 git rm --cached)
+/app/ui/global/dektop/dektop_320x240.png

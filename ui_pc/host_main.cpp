@@ -3,7 +3,8 @@
  *   ui_host.exe                        开窗口跑, 按 ESC 或关窗退出
  *   ui_host.exe --hidden --ms 2000 --bmp pc_ui.bmp   跑 2 秒存图退出 (无人值守用)
  */
-#include "app_ui.hpp"
+#include "ui_task.hpp"
+#include "input_backend.hpp"
 #include "pc_display.h"
 #include "pc_input.h"
 
@@ -76,11 +77,14 @@ int main(int argc, char** argv)
     std::printf("[ui_host] panel %dx%d, run_ms=%u, bmp=%s\n", kPcPanelWidth, kPcPanelHeight, run_ms,
                 (bmp != nullptr) ? bmp : "(none)");
 
-    pc_display_set_first_frame_hook(pc_input_attach_lvgl);
     pc_display_open(hidden);
 
-    app::Ui ui("st7789", 10U);
-    if (!ui.ThreadRegister())
+    /* 输入后端: PC 侧是鼠标指针。indev 由 PointerInput 建, 它会显式绑到本屏 display 上,
+     * 所以不用再挂"首帧 hook"去偷偷建设备 (那种写法在多屏下只能动一块屏) */
+    ui::PointerInput input(pc_input_read_lvgl);
+
+    app::UiTask ui("st7789", 10U);
+    if (!ui.thread_register(input))
     {
         std::printf("[ui_host] ui thread register failed\n");
         return 1;

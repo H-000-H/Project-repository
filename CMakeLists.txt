@@ -219,12 +219,22 @@ if(NOT BOOT_BUILD AND UI_LVGL)
         "${CMAKE_CURRENT_SOURCE_DIR}/ui/*.h"
         "${CMAKE_CURRENT_SOURCE_DIR}/ui/*.hpp")
     target_sources(${CMAKE_PROJECT_NAME} PRIVATE ${UI_SRCS}
+        # app/ui/main/ui_task.cpp 在 cmake/stm32/CMakeLists.txt 的 STM32_APP_SRCS 里, 此处不重复列
+        app/ui/main/ui_app.cpp
         app/ui/global/dektop/dektop.cpp
-        app/ui/home/dektop_320x240.c
-        app/ui/global/top-bar/top-bar.cpp
-        app/ui/home/lock/lock.cpp
+        app/ui/global/dektop/dektop_320x240.c
+        app/ui/global/top-bar/top_bar.cpp
+        app/ui/home/lock/lock_screen.cpp
+        app/ui/home/setting/main/setting_main.cpp
         app/secure/lock-password/lock-password.cpp
-        app/ui/home/home.hpp)
+        app/ui/main/page.hpp
+        app/ui/main/ui_app.hpp
+        app/ui/indev/input_backend.hpp
+        app/ui/home/home.hpp
+        app/ui/global/dektop/dektop.hpp
+        app/ui/global/top-bar/top_bar.hpp
+        app/ui/home/lock/lock_screen.hpp
+        app/ui/home/setting/main/setting_main.hpp)
 
     # ui/ 本身 + 每个子目录都进 include 路径 (桥接头/port 头在代码里都是裸名 include),
     # 重写时新增子目录也不用改本文件。
@@ -234,8 +244,16 @@ if(NOT BOOT_BUILD AND UI_LVGL)
     # 否则文件会被当 -I 送进编译器 (cc1: warning: <path>: not a directory)。
     file(GLOB UI_INC_DIRS LIST_DIRECTORIES true CONFIGURE_DEPENDS
         "${CMAKE_CURRENT_SOURCE_DIR}/ui/*")
+    # app/ui 下页面子目录也进 include (home.hpp 等被跨目录裸名 include);
+    # 每深一层加一条 glob: ui_screen.hpp 引 setting_main.hpp, 而它在 home/setting/main/,
+    # 与 ui_pc/CMakeLists.txt 的 _APP_UI_DIRS_RAW 保持同一套发现规则
+    file(GLOB APP_UI_INC_DIRS LIST_DIRECTORIES true CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/app/ui/*"
+        "${CMAKE_CURRENT_SOURCE_DIR}/app/ui/global/*"
+        "${CMAKE_CURRENT_SOURCE_DIR}/app/ui/home/*"
+        "${CMAKE_CURRENT_SOURCE_DIR}/app/ui/home/setting/*")
     set(UI_INC_SUBDIRS "")
-    foreach(d ${UI_INC_DIRS})
+    foreach(d ${UI_INC_DIRS} ${APP_UI_INC_DIRS})
         if(IS_DIRECTORY "${d}")
             list(APPEND UI_INC_SUBDIRS "${d}")
         endif()

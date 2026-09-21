@@ -1,16 +1,10 @@
 /**
  * @copyright SPDX-License-Identifier: Apache-2.0
  * @file main_app.cpp
- * @brief STM32F407ZGT6 应用入口 (基址由链接脚本决定; 当前无 bootloader, 从 0x08000000 起)
+ * @brief STM32F407ZGT6 应用入口: 只做点火 + 任务注册, 业务逻辑与实现都在 app/ 各目录
  * @author H-000-H
- * @details 点火流程：VTOR → HAL_Init → SystemClock_Config → mini_tree 两段式
- *          OTA 的固件长度与启动由业务侧(命令/协议)按需调用, 此处只注册任务:
- *              app::Ota::GetInstance().RequestOta(fw_len);
- * @note  启动尾段按 OS 后端分支 (见 system_init.h 的启动时序):
- *          裸机: xscheduler_start → system_init_complete → super-loop
- *          OS  : system_init_complete → mini_scheduler_start(本人除非小资源不然不喜欢用裸机)
- *          main没有任何逻辑只有注册和ota 逻辑和实现在不同目录下面
- */      
+ * @note  启动尾段按 OS 后端分支 (见 system_init.h): 裸机走 super-loop, OS 走 mini_scheduler_start
+ */
 #include "main.h"
 
 #include "app_uart_cmd.hpp"
@@ -24,7 +18,8 @@
 #include "system_init.h"
 #include "system_log.h"
 #include "boot_redef.h"
-#include "app_ui.hpp"
+#include "input_backend.hpp"
+#include "ui_task.hpp"
 #if defined(CONFIG_OS_BARE)
 #include "xtask.h" /* 仅裸机后端存在 xtask 调度器接口 */
 #endif
@@ -33,11 +28,7 @@
 #endif
 #include "main_common.h"
 
-/**
- * @brief 本固件所在分区的基址
- * @note  由链接脚本导出: PROVIDE(__app_partition_base = ORIGIN(FLASH));
- *        本固件从该基址开始运行(复位后拿它设 VTOR), 要挪基址/恢复 OTA 只改链接脚本即可
- */
+/** @brief 本固件所在分区的基址 (链接脚本 PROVIDE 导出; 复位后拿它设 VTOR) */
 extern "C" const uint32_t __app_partition_base;
 
 /**
@@ -53,7 +44,7 @@ extern "C" __attribute__((used)) int stm32f407zgt6_node_main(void)
     /* 系统时钟：HSI + PLL → 96MHz */
     SystemClock_Config();
 
-    /* ===== 暂时关闭 OTA (先保证 app 能正常跑) =====
+    /* ===== 暂时关闭 OTA =====
      * 原因: app 用 image1.ld 从 0x08000000 起占满整片 1MB */
     // flash_stm32f4_init();
     // const bool ota_state_ok = (mini_boot_state_refresh() == ERR_OK);
@@ -69,37 +60,40 @@ extern "C" __attribute__((used)) int stm32f407zgt6_node_main(void)
 
     mini_tree_start_tasks();
 
-    if (!app::Led::GetInstance().ThreadRegister())
+    /* UI 输入后端: 按键。必须在按键任务之前备好 —— 它的两个钩子要在按键线程起来前挂上 */
+    static ui::KeypadInput s_input("button2");
+    app::Button::set_sample_hook(&ui::KeypadInput::open_thunk, &ui::KeypadInput::sample_thunk, &s_input);
+
+    if (!app::Led::get_instance().thread_register())
     {
         MT_LOG_ERROR("App", "led task register failed");
     }
-    if (!app::Button::ThreadRegister())
+    if (!app::Button::thread_register())
     {
         MT_LOG_ERROR("App", "button task register failed");
     }
     /* 恢复 OTA 时把这段打开 */
-    // if (!app::Ota::GetInstance().ThreadRegister())
+    // if (!app::Ota::get_instance().thread_register())
     // {
     //     MT_LOG_ERROR("App", "ota task register failed");
     // }
-    if (!app::UartCommunicate::GetInstance().ThreadRegister())
+    if (!app::UartCommunicate::get_instance().thread_register())
     {
         MT_LOG_ERROR("App", "uart task register failed");
     }
 
-    static app::Ui s_ui("st7789", 10U);
-    if (!s_ui.ThreadRegister())
+    static app::UiTask s_ui("st7789", 10U);
+    if (!s_ui.thread_register(s_input))
     {
         MT_LOG_ERROR("App", "ui task register failed");
     }
     /* 命令层上线: 注册 led.set + 把收包回调挂到 UART 实例上 */
-    app::Cmd::Init();
-
+    app::Cmd::init();
 
     system_init_complete();
 
-    /* 确认本分区镜像(清 pending + trial)：boot 已放行过本次试运行(trial=1)，确认后即"转正"；
-     * 不确认则下次复位被 boot 判为试运行超时 → 回滚到旧分区。*/
+    /* 确认本分区镜像(清 pending + trial): boot 已放行过本次试运行, 确认后即"转正";
+     * 不确认则下次复位被判试运行超时 → 回滚到旧分区 */
     // if (mini_boot_confirm_ota() != ERR_OK)
     // {
     //     MT_LOG_ERROR("Ota", "confirm failed: state backend not ready");
