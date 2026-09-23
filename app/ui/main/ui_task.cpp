@@ -9,7 +9,7 @@
 #include <cstdint>
 #include <lvgl/core/lv_timer.h>
 #include <lvgl/font/lv_symbol_def.h>
-
+# 
 namespace app
 {
     constexpr const char* k_ui_thread_name = "UiThread";
@@ -115,6 +115,7 @@ namespace app
 
         make_demo_timer(demo_wrong_password, 4000U, &self->lock_);
         make_demo_timer(demo_right_password, 8000U, &self->lock_);
+        auto& setting = self->setting_;
 
         for (;;)
         {

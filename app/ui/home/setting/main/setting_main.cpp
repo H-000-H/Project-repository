@@ -9,44 +9,62 @@
 #include "system_log.h"
 #include "ui_app.hpp"
 #include <etl/string_view.h>
+#include <lvgl/core/lv_area.h>
 #include <lvgl/core/lv_group.h>
 #include <lvgl/core/lv_obj.h>
 #include <lvgl/core/lv_obj_pos.h>
+#include <lvgl/core/lv_obj_scroll.h>
 #include <lvgl/core/lv_obj_style.h>
 #include <lvgl/core/lv_obj_style_gen.h>
 #include <lvgl/core/lv_style.h>
+#include <lvgl/core/lv_style_gen.h>
 #include <lvgl/core/lv_timer.h>
 #include <lvgl/draw/lv_color.h>
+#include <lvgl/layouts/lv_flex.h>
+#include <lvgl/layouts/lv_layout.h>
 #include <lvgl/widgets/lv_label.h>
 #include <lvgl/widgets/lv_textarea.h>
 namespace ui
 {
     constexpr const char* const k_tag = "setting_main";
 
-    /* Page 基类没有默认构造: 注册名 + 默认收场方式必须在这里给 (运行期可用 set_quit_mode 改) */
     SettingMain::SettingMain(App& app) : Page(PageQuit::HIDE, "setting"), app(app)
     {
+
     }
 
     SettingMain::~SettingMain()
     {
-        this->destroy_widgets();
+        this->destroy_root();
     }
 
+    /**
+     * @brief 拆树: 本页只有一棵树, 交给基类连登记一起清掉
+     * @note  只允许 exit 调用; 建树中途失败的回滚走 destroy_root, 不走这里
+     */
     void SettingMain::destroy_widgets()
     {
-        /* TODO(你自己写): 删树要走基类的 destroy_root(), 别直接 lv_obj_delete(panel) ——
-           基类那份 root 不清掉的话 has_widgets() 会说谎, 下次 enter 就去取消隐藏一块没了的内存 */
+        this->destroy_root();
+        this->scroll = nullptr; /* 树连子节点一起没了, 指针跟着清, 不留悬空 */
     }
 
+    /**
+     * @brief 进入页面: 已在屏上直接返回, 隐藏中的树亮出来复用, 都没有才新建
+     * @param[in] parent lv_obj_t* 挂载父对象
+     * @note  Page::enter 要求幂等, 否则每次进来都会多出一棵树
+     */
     void SettingMain::enter(lv_obj_t* parent)
     {
-        if (parent == nullptr)
+        if (this->has_widgets())
         {
-            return;
+            if (!this->reuse_root())
+            {
+                return; /* 本来就在屏上 (重复 enter) */
+            }
         }
-        if (!this->create_widgets(parent))
+        else if (!this->create_widgets(parent))
         {
+            MT_LOG_ERROR(k_tag, "create_widgets failed");
             return;
         }
     }
@@ -58,26 +76,6 @@ namespace ui
 
     bool SettingMain::create_widgets(lv_obj_t* parent)
     {
-        if (!parent)
-        {
-            MT_LOG_ERROR(k_tag, "create_widgets: parent is null");
-            return false;
-        }
-
-        this->panel = lv_obj_create(parent);
-        if (!this->panel)
-        {
-            MT_LOG_ERROR(k_tag, "create_widgets: panel is null");
-            return false;
-        }
-        lv_obj_t* root = lv_obj_create(this->panel);
-        if (!root)
-        {
-            return false;
-        }
-        this->set_root(root);
-        lv_obj_set_size(root, LV_PCT(k_page_default_width), LV_PCT(k_page_default_height));
-
-        return false;
+        return true;
     }
 }

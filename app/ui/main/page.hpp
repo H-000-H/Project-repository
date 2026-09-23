@@ -12,9 +12,9 @@
 namespace ui
 {
     /** @brief 一级页面默认宽度 (每个页面类可以自己调) */
-    constexpr std::int32_t k_page_default_width = 200;
+    constexpr std::int32_t k_page_default_width = 100;
     /** @brief 一级页面默认高度 (每个页面类可以自己调) */
-    constexpr std::int32_t k_page_default_height = 160;
+    constexpr std::int32_t k_page_default_height = 100;
 
     /** @brief 离开页面时怎么收控件树; 判据: 这次回来要不要重头开始 */
     enum class PageQuit : std::uint8_t

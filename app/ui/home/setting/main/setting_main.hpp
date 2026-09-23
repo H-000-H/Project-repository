@@ -5,7 +5,6 @@
 namespace ui
 {
     class App;
-
     /** @brief 设置页 (默认收场方式 HIDE, 注册名 "setting") */
     class SettingMain : public Page
     {
@@ -33,7 +32,7 @@ namespace ui
          */
         bool create_widgets(lv_obj_t* parent);
 
-        /** @brief 拆控件树 (TODO: 待实现) */
+        /** @brief 拆控件树 (仅 exit 调用; 建树中途失败的回滚走基类 destroy_root) */
         void destroy_widgets();
 
         /** @brief 把焦点入口加进焦点组并聚焦 */
@@ -43,8 +42,9 @@ namespace ui
 
         bool scroll_up();   /**< 向上滚动一屏 */
 
+        bool create_scroll(lv_obj_t* parent);/**<创建滚轮 */
         App&      app;
-        lv_obj_t* panel = nullptr; /**< 设置的主面板 */
+        lv_obj_t* scroll = nullptr; /**< 滚动轴 (父节点是 root) */
     };
 }
 #endif
