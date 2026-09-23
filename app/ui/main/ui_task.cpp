@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-/* UI 线程入口: 组合根(port + 外壳 + 页面) + 线程壳。
+/* UI 线程入口: 组合根(port + 外壳 + 页面) + 线程壳。不允许在这里写逻辑demo测试会写一些但是之后这里禁止 禁止 禁止 ！
  * 目录约定: global/ = 常驻外壳(桌面/顶栏), home/ = 页面(锁屏/设置), indev/ = 输入后端 */
 #include "ui_task.hpp"
 #include "mini_time.h"
@@ -9,7 +9,7 @@
 #include <cstdint>
 #include <lvgl/core/lv_timer.h>
 #include <lvgl/font/lv_symbol_def.h>
-# 
+#
 namespace app
 {
     constexpr const char* k_ui_thread_name = "UiThread";
