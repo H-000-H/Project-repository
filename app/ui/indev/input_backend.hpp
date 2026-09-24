@@ -10,7 +10,8 @@
  *        UI 线程 attach/detach/bind + LVGL read 回调 step() 读队列。绑定表 event_num[] 是
  *        "UI 线程写、按键线程读", 靠 release/acquire 发布条数, 先写数据再发布。
  */
-#pragma once
+#ifndef INPUT_BACKEND_HPP
+#define INPUT_BACKEND_HPP
 #include "app_button_base.hpp"
 #include "buffer.h"
 #include "compiler_compat.h"
@@ -470,3 +471,5 @@ namespace ui
         lv_indev_t* indev_   = nullptr; /**< pointer 输入设备 */
     };
 } // namespace ui
+
+#endif // INPUT_BACKEND_HPP

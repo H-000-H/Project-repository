@@ -225,6 +225,8 @@ if(NOT BOOT_BUILD AND UI_LVGL)
         app/ui/global/dektop/dektop_320x240.c
         app/ui/global/top-bar/top_bar.cpp
         app/ui/home/lock/lock_screen.cpp
+        app/ui/home/setting/base/setting_base.cpp
+        app/ui/home/setting/base/setting_base.hpp
         app/ui/home/setting/main/setting_main.cpp
         app/secure/lock-password/lock-password.cpp
         app/ui/main/page.hpp

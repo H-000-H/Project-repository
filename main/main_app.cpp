@@ -1,9 +1,9 @@
 /**
- * @copyright SPDX-License-Identifier: Apache-2.0
  * @file main_app.cpp
- * @brief STM32F407ZGT6 应用入口: 只做点火 + 任务注册, 业务逻辑与实现都在 app/ 各目录
  * @author H-000-H
+ * @brief STM32F407ZGT6 应用入口: 只做点火 + 任务注册, 业务逻辑与实现都在 app/ 各目录
  * @note  启动尾段按 OS 后端分支 (见 system_init.h): 裸机走 super-loop, OS 走 mini_scheduler_start
+ * @copyright SPDX-License-Identifier: Apache-2.0
  */
 #include "main.h"
 
@@ -27,17 +27,18 @@
 #include "mini_backend.h"
 #endif
 #include "main_common.h"
+#include <cstdint>
 
 /** @brief 本固件所在分区的基址 (链接脚本 PROVIDE 导出; 复位后拿它设 VTOR) */
-extern "C" const uint32_t __app_partition_base;
+extern "C" const std::uint32_t __app_partition_base;
 
 /**
  * @brief 应用入口
  */
 extern "C" __attribute__((used)) int stm32f407zgt6_node_main(void)
 {
-    /* 重定位向量表到本固件所在分区 */
-    mini_boot_set_vtor((uint32_t)&__app_partition_base);
+    // 重定位向量表到本固件所在分区
+    mini_boot_set_vtor(reinterpret_cast<std::uint32_t>(&__app_partition_base));
 
     HAL_Init();
 

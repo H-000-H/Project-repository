@@ -1,11 +1,13 @@
 /**
  * @file home.hpp
+ * @author H-000-H
  * @brief 常用数据定义 —— 颜色表
  * @copyright SPDX-License-Identifier: Apache-2.0
  */
 #ifndef HOME_HPP
 #define HOME_HPP
 #include <lvgl/lvgl.h>
+
 namespace ui
 {
     /**
@@ -43,4 +45,5 @@ namespace ui
         static constexpr lv_color_t k_amethyst      = LV_COLOR_MAKE(0x99, 0x66, 0xFF);
     };
 }
-#endif
+
+#endif // HOME_HPP

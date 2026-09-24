@@ -1,86 +1,96 @@
 /**
- * @copyright SPDX-License-Identifier: Apache-2.0
  * @file app_led.hpp
- * @brief 板载 LED: 周期翻转任务 + 手动控制接口
  * @author H-000-H
+ * @brief 板载 LED: 周期翻转任务 + 手动控制接口
  * @note  两个控制来源, 手动优先: 周期任务按 k_blink_period_ms 翻转; turn_on()/turn_off()
  *        接管后停止翻转, resume_blink() 交还控制权。
+ * @copyright SPDX-License-Identifier: Apache-2.0
  */
-#ifndef APP_LED_APP_LED_HPP_
-#define APP_LED_APP_LED_HPP_
-
+#ifndef APP_LED_HPP
+#define APP_LED_HPP
 #include <cstdint>
 
-struct device; /* 前向声明 C 结构体 */
+struct device; // 前向声明 C 结构体
 
 namespace app
 {
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+    // 板载 LED 控制器 (单例)
+    class Led
+    {
+    public:
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+        // 获取 LED 控制器单例
+        static Led& get_instance();
 
-/** @brief 板载 LED 控制器 (单例) */
-class Led
-{
-public:
-    /** @brief 获取 LED 控制器单例 */
-    static Led& get_instance();
+        Led(const Led&)            = delete;
+        Led& operator=(const Led&) = delete;
+        Led(Led&&)                 = delete;
+        Led& operator=(Led&&)      = delete;
 
-    Led(const Led&) = delete;            /**< 禁用拷贝构造 */
-    Led& operator=(const Led&) = delete; /**< 禁用拷贝赋值 */
-    Led(Led&&) = delete;                 /**< 禁用移动构造 */
-    Led& operator=(Led&&) = delete;      /**< 禁用移动赋值 */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+        /**
+         * @brief 点亮并停止周期翻转 (手动接管)
+         * @return bool 成功返回 true, 设备未绑定或设置失败返回 false
+         */
+        bool turn_on();
 
-    /**
-     * @brief 点亮并停止周期翻转 (手动接管)
-     * @return bool 成功返回 true, 设备未绑定或设置失败返回 false
-     */
-    bool turn_on();
+        /**
+         * @brief 熄灭并停止周期翻转 (手动接管)
+         * @return bool 成功返回 true, 设备未绑定或设置失败返回 false
+         */
+        bool turn_off();
 
-    /**
-     * @brief 熄灭并停止周期翻转 (手动接管)
-     * @return bool 成功返回 true, 设备未绑定或设置失败返回 false
-     */
-    bool turn_off();
+        /**
+         * @brief 交还控制权: 下一轮周期任务恢复翻转
+         * @return bool 设备已绑定返回 true, 未绑定返回 false
+         */
+        bool resume_blink();
 
-    /**
-     * @brief 交还控制权: 下一轮周期任务恢复翻转
-     * @return bool 设备已绑定返回 true, 未绑定返回 false
-     */
-    bool resume_blink();
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+        /**
+         * @brief 周期翻转任务体: 死循环, 每 k_blink_period_ms 翻转一次
+         * @param[in] param void* 线程参数 (未使用)
+         */
+        void thread(void* param);
 
-    /**
-     * @brief 周期翻转任务体: 死循环, 每 k_blink_period_ms 翻转一次
-     * @param[in] param void* 线程参数 (未使用)
-     */
-    void thread(void* param);
+        /**
+         * @brief 注册本任务到调度器
+         * @return bool 创建成功返回 true, 失败返回 false
+         */
+        bool thread_register();
 
-    /**
-     * @brief 注册本任务到调度器
-     * @return bool 创建成功返回 true, 失败返回 false
-     */
-    bool thread_register();
+    private:
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+        // 构造: 按标签查找并打开 led 设备, 失败则保持未绑定
+        Led();
 
-private:
-    Led(); /**< 构造: 按标签查找并打开 led 设备, 失败则保持未绑定 */
+        /**
+         * @brief 设置输出电平
+         * @param[in] lit bool true 点亮, false 熄灭
+         * @return bool 设置成功返回 true, 设备未绑定或 ioctl 失败返回 false
+         */
+        bool apply_lit(bool lit);
 
-    /**
-     * @brief 设置输出电平
-     * @param[in] lit bool true 点亮, false 熄灭
-     * @return bool 设置成功返回 true, 设备未绑定或 ioctl 失败返回 false
-     */
-    bool apply_lit(bool lit);
+        // 翻转一次: 周期任务的单步动作
+        void blink_step();
 
-    /** @brief 翻转一次: 周期任务的单步动作 */
-    void blink_step();
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+        ::device* m_dev         = nullptr;
+        bool      m_manual_hold = false; // 手动接管期间不翻转, 避免覆盖 turn_on/turn_off 的结果
 
-    ::device* m_dev         = nullptr;
-    bool      m_manual_hold = false; /**< 手动接管期间不翻转, 避免覆盖 turn_on/turn_off 的结果 */
+        static constexpr unsigned int  k_blink_period_ms = 500;  // 心跳翻转周期 (ms)
+        static constexpr unsigned int  k_task_priority   = 12;   // mini-os: 数值越小越优先
+        static constexpr std::uint32_t k_task_stack      = 2048; // mini-os 线程栈 (字节)
+        static constexpr const char*   k_task_name       = "Led_Task";
+        static constexpr const char*   k_tag             = "Led";
+    };
+}
 
-    static constexpr unsigned int  k_blink_period_ms = 500;  /**< 心跳翻转周期 (ms) */
-    static constexpr unsigned int  k_task_priority   = 12;   /**< mini-os: 数值越小越优先 */
-    static constexpr std::uint32_t k_task_stack      = 2048; /**< mini-os 线程栈 (字节) */
-    static constexpr const char*   k_task_name       = "Led_Task";
-    static constexpr const char*   k_tag             = "Led";
-};
-
-} // namespace app
-
-#endif // APP_LED_APP_LED_HPP_
+#endif // APP_LED_HPP

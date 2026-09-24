@@ -1,4 +1,10 @@
-/* Win32 窗口后端: 离屏 DIB 收 UI 刷屏, WM_PAINT 贴到窗口; 顺带能存 BMP 截图 */
+/**
+ * @file pc_display.cpp
+ * @author H-000-H
+ * @brief Win32 窗口后端: 离屏 DIB 收 UI 刷屏, WM_PAINT 贴到窗口; 顺带能存 BMP 截图
+ * @note  接口说明见 pc_display.h, 本文件只留实现要点。
+ * @copyright SPDX-License-Identifier: Apache-2.0
+ */
 #include "pc_display.h"
 
 #define UNICODE
@@ -13,18 +19,23 @@
 
 namespace
 {
-    const wchar_t* const kClassName = L"PcUiPanelWindow";
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+    const wchar_t* const k_class_name = L"PcUiPanelWindow";
 
-    HWND      g_hwnd    = nullptr;
-    HDC       g_mem_dc  = nullptr;
-    HBITMAP   g_bitmap  = nullptr;
-    uint32_t* g_pixels  = nullptr; /**< 32bpp, 每像素 0x00RRGGBB */
-    bool      g_quit    = false;
+    HWND           g_hwnd    = nullptr;
+    HDC            g_mem_dc  = nullptr;
+    HBITMAP        g_bitmap  = nullptr;
+    std::uint32_t* g_pixels  = nullptr; // 32bpp, 每像素 0x00RRGGBB
+    bool           g_quit    = false;
 
-    bool          g_mouse_down  = false;
-    void (*g_frame_hook)(void)  = nullptr;
-    bool          g_hook_called = false;
+    bool         g_mouse_down  = false;
+    void (*g_frame_hook)(void) = nullptr;
+    bool         g_hook_called = false;
 
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+    // 窗口消息: 鼠标事件转成 LVGL 采样源状态; ESC / 关窗置退出标志
     LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     {
         switch (msg)
@@ -38,13 +49,13 @@ namespace
             return 0;
         }
         case WM_MOUSEMOVE:
-            /* 客户区左上角 = 屏 (0,0), 坐标正好 1:1 给 LVGL */
+            // 客户区左上角 = 屏 (0,0), 坐标正好 1:1 给 LVGL
             pc_input_mouse_update(static_cast<int>(static_cast<short>(LOWORD(lp))),
                                   static_cast<int>(static_cast<short>(HIWORD(lp))), g_mouse_down);
             return 0;
         case WM_LBUTTONDOWN:
             g_mouse_down = true;
-            SetCapture(hwnd); /* 拖到窗口外也能收到松开 */
+            SetCapture(hwnd); // 拖到窗口外也能收到松开
             pc_input_mouse_update(static_cast<int>(static_cast<short>(LOWORD(lp))),
                                   static_cast<int>(static_cast<short>(HIWORD(lp))), true);
             std::printf("[pc_display] mouse down at %d,%d\n", static_cast<int>(static_cast<short>(LOWORD(lp))),
@@ -75,6 +86,11 @@ namespace
         return DefWindowProcW(hwnd, msg, wp, lp);
     }
 
+    /**
+     * @brief 把当前离屏位图存成 32bpp BMP
+     * @param[in] path const char* 目标文件路径
+     * @note  BMP 行序自底向上, 故按行倒着写
+     */
     void store_bmp(const char* path)
     {
         std::FILE* fp = std::fopen(path, "wb");
@@ -89,11 +105,11 @@ namespace
         BITMAPINFOHEADER    info_hdr{};
         info_hdr.biSize        = sizeof(BITMAPINFOHEADER);
         info_hdr.biWidth       = kPcPanelWidth;
-        info_hdr.biHeight      = kPcPanelHeight; /* 正数 = 自底向上, 下面按行倒着写 */
+        info_hdr.biHeight      = kPcPanelHeight; // 正数 = 自底向上, 下面按行倒着写
         info_hdr.biPlanes      = 1U;
         info_hdr.biBitCount    = 32U;
         info_hdr.biCompression = BI_RGB;
-        file_hdr.bfType        = 0x4D42U; /* "BM" */
+        file_hdr.bfType        = 0x4D42U; // "BM"
         file_hdr.bfOffBits     = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER);
         file_hdr.bfSize        = file_hdr.bfOffBits + img_bytes;
 
@@ -109,6 +125,8 @@ namespace
     }
 } // namespace
 
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
 void pc_display_set_first_frame_hook(void (*hook)(void))
 {
     g_frame_hook = hook;
@@ -124,14 +142,14 @@ void pc_display_open(bool hidden)
     WNDCLASSW wc{};
     wc.lpfnWndProc   = wnd_proc;
     wc.hInstance     = GetModuleHandleW(nullptr);
-    wc.lpszClassName = kClassName;
+    wc.lpszClassName = k_class_name;
     wc.hCursor       = LoadCursorW(nullptr, IDC_ARROW);
     RegisterClassW(&wc);
 
-    /* 让客户区正好是面板尺寸 */
+    // 让客户区正好是面板尺寸
     RECT rect{0, 0, kPcPanelWidth, kPcPanelHeight};
     AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW, FALSE);
-    g_hwnd = CreateWindowExW(0, kClassName, L"ui_logic (PC)", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT,
+    g_hwnd = CreateWindowExW(0, k_class_name, L"ui_logic (PC)", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT,
                              rect.right - rect.left, rect.bottom - rect.top, nullptr, nullptr,
                              GetModuleHandleW(nullptr), nullptr);
     if (g_hwnd == nullptr)
@@ -140,7 +158,7 @@ void pc_display_open(bool hidden)
         return;
     }
 
-    /* 离屏位图: 顶向下 32bpp, 直接往 g_pixels 写 */
+    // 离屏位图: 顶向下 32bpp, 直接往 g_pixels 写
     BITMAPINFO bi{};
     bi.bmiHeader.biSize        = sizeof(BITMAPINFOHEADER);
     bi.bmiHeader.biWidth       = kPcPanelWidth;
@@ -170,7 +188,8 @@ void pc_display_open(bool hidden)
                 static_cast<void*>(g_hwnd), hidden ? " (隐藏)" : "");
 }
 
-void pc_display_blit(int x, int y, int w, int h, const uint16_t* px, bool byte_swapped)
+// 刷一块 RGB565 像素进窗口; byte_swapped = LVGL RGB565_SWAPPED 的字节序
+void pc_display_blit(int x, int y, int w, int h, const std::uint16_t* px, bool byte_swapped)
 {
     if ((g_pixels == nullptr) || (px == nullptr) || (w <= 0) || (h <= 0))
     {
@@ -194,9 +213,9 @@ void pc_display_blit(int x, int y, int w, int h, const uint16_t* px, bool byte_s
 
             const std::uint8_t b0 = reinterpret_cast<const std::uint8_t*>(px)[(static_cast<std::size_t>(row) * w + col) * 2U];
             const std::uint8_t b1 = reinterpret_cast<const std::uint8_t*>(px)[(static_cast<std::size_t>(row) * w + col) * 2U + 1U];
-            /* RGB565_SWAPPED: 面板要高字节在前, 这里按大端还原成 RGB565 数值 */
-            const std::uint16_t v = byte_swapped ? static_cast<std::uint16_t>((b0 << 8) | b1)
-                                                 : static_cast<std::uint16_t>((b1 << 8) | b0);
+            // RGB565_SWAPPED: 面板要高字节在前, 这里按大端还原成 RGB565 数值
+            const std::uint16_t v  = byte_swapped ? static_cast<std::uint16_t>((b0 << 8) | b1)
+                                                  : static_cast<std::uint16_t>((b1 << 8) | b0);
             const std::uint32_t r5 = (v >> 11) & 0x1FU;
             const std::uint32_t g6 = (v >> 5) & 0x3FU;
             const std::uint32_t b5 = v & 0x1FU;
@@ -211,7 +230,7 @@ void pc_display_blit(int x, int y, int w, int h, const uint16_t* px, bool byte_s
     if (!g_hook_called && (g_frame_hook != nullptr))
     {
         g_hook_called = true;
-        g_frame_hook(); /* 跑在 UI 线程: 在这儿建 LVGL 输入设备 */
+        g_frame_hook(); // 跑在 UI 线程: 在这儿建 LVGL 输入设备
     }
 
     if (!g_quit)
@@ -221,7 +240,8 @@ void pc_display_blit(int x, int y, int w, int h, const uint16_t* px, bool byte_s
     }
 }
 
-void pc_display_pump(uint32_t run_ms, const char* bmp_path)
+// 跑消息循环; run_ms>0 则跑够时长自动退出; bmp_path 非空则退出前存一张 BMP
+void pc_display_pump(std::uint32_t run_ms, const char* bmp_path)
 {
     const DWORD start = GetTickCount();
 
@@ -255,6 +275,7 @@ void pc_display_pump(uint32_t run_ms, const char* bmp_path)
     }
 }
 
+// 关窗口、释放资源
 void pc_display_close(void)
 {
     if (g_bitmap != nullptr)

@@ -8,7 +8,8 @@
  *        LVGL 正在派发的那个对象 —— 崩溃。所以三个换页接口只写 pending, 到 tick 才动手。
  * @copyright SPDX-License-Identifier: Apache-2.0
  */
-#pragma once
+#ifndef UI_APP_HPP
+#define UI_APP_HPP
 #include "dektop.hpp"
 #include "page.hpp"
 #include "top_bar.hpp"
@@ -19,15 +20,18 @@
 
 namespace ui
 {
-    /** @brief 输入后端(按键/指针): 这里只存指针, 定义见 indev/input_backend.hpp */
+    // 输入后端(按键/指针): 这里只存指针, 定义见 indev/input_backend.hpp
     class InputBackend;
 
+    // 一块屏的 UI 会话
     class App
     {
     public:
-        static constexpr std::size_t k_page_slot_max   = 8U; /**< 页表槽数上限 (静态内存) */
-        static constexpr std::size_t k_stack_depth     = 4U; /**< 返回栈最多几层 (含栈底) */
-        static constexpr std::size_t k_route_chain_max = 4U; /**< 一次 tick 最多连着换几页 */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+        static constexpr std::size_t k_page_slot_max   = 8U; // 页表槽数上限 (静态内存)
+        static constexpr std::size_t k_stack_depth     = 4U; // 返回栈最多几层 (含栈底)
+        static constexpr std::size_t k_route_chain_max = 4U; // 一次 tick 最多连着换几页
 
         App()  = default;
         ~App() = default;
@@ -37,6 +41,8 @@ namespace ui
         App(App&&)                 = delete;
         App& operator=(App&&)      = delete;
 
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
         /**
          * @brief 装输入后端 + 建桌面 + 建顶栏 (必须在 LVGL 初始化、display 建好之后调)
          * @param[in] disp  lv_display_t* 本会话服务的 display (不能为空)
@@ -52,6 +58,8 @@ namespace ui
          */
         bool set_input(InputBackend& input);
 
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
         /**
          * @brief 注册一个页面到页表 (名字取 page.name())
          * @param[in] page Page& 页面对象 (须长生命周期, 本类只存指针)
@@ -79,27 +87,31 @@ namespace ui
          */
         bool reset_to(const char* name);
 
-        /** @brief 每帧: 先执行攒下的换页请求, 再驱动当前页并收尾"已办完"的页 */
+        // 每帧: 先执行攒下的换页请求, 再驱动当前页并收尾"已办完"的页
         void tick();
 
-        /** @brief 当前页注册名; 只剩外壳时为 "(none)" */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+        // 当前页注册名; 只剩外壳时为 "(none)"
         const char* current_page_name() const { return (this->current != nullptr) ? this->current->name() : "(none)"; }
 
-        /** @brief 返回栈里现在几层(含当前页); 0 = 只剩外壳 */
+        // 返回栈里现在几层(含当前页); 0 = 只剩外壳
         std::size_t stack_depth() const { return this->stack.size(); }
 
-        /** @brief 桌面外壳 (页面挂控件树 / 改提示文字用) */
+        // 桌面外壳 (页面挂控件树 / 改提示文字用)
         Desktop& get_desktop() { return this->desktop; }
 
-        /** @brief 顶栏外壳 (页面改状态栏项用) */
+        // 顶栏外壳 (页面改状态栏项用)
         TopBar& get_top_bar() { return this->top_bar; }
 
-        /** @brief 本会话的 display */
+        // 本会话的 display
         lv_display_t* display() const { return this->disp; }
 
-        /** @brief 输入后端 (换模式/查状态用), 未装时为 nullptr */
+        // 输入后端 (换模式/查状态用), 未装时为 nullptr
         InputBackend* get_input() const { return this->input; }
 
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
         /**
          * @brief 焦点组: 页面 enter 时把自己的输入控件加进来
          * @return lv_group_t* 焦点组; 指针后端返回 nullptr, 调用方必须容忍
@@ -114,7 +126,9 @@ namespace ui
         void bind_back_key(lv_obj_t* obj);
 
     private:
-        /** @brief 换页动作: 只在 App::tick 里被执行 */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+        // 换页动作: 只在 App::tick 里被执行
         enum class RouteOp : std::uint8_t
         {
             NONE = 0U,
@@ -123,13 +137,15 @@ namespace ui
             RESET
         };
 
-        /** @brief 一条换页请求 (只有一个槽位: 后到的覆盖先到的, 覆盖时打日志) */
+        // 一条换页请求 (只有一个槽位: 后到的覆盖先到的, 覆盖时打日志)
         struct RouteRequest
         {
             RouteOp op     = RouteOp::NONE;
             Page*   target = nullptr;
         };
 
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
         /**
          * @brief 按注册名查页表
          * @param[in] name const char* 注册名
@@ -153,10 +169,10 @@ namespace ui
          */
         bool apply_route(RouteOp op, Page* target);
 
-        /** @brief 把攒下的请求按链执行掉, 最多 k_route_chain_max 跳 */
+        // 把攒下的请求按链执行掉, 最多 k_route_chain_max 跳
         void flush_route();
 
-        /** @brief 收当前页: 按它自己的 quit_mode 决定隐藏还是拆树 (先摘 current 再收场) */
+        // 收当前页: 按它自己的 quit_mode 决定隐藏还是拆树 (先摘 current 再收场)
         void close_current();
 
         /**
@@ -179,14 +195,18 @@ namespace ui
          */
         static void back_key_cb(lv_event_t* e);
 
-        Desktop       desktop;         /**< 常驻: 壁纸 + 场景根 + 提示文字 */
-        TopBar        top_bar;         /**< 常驻: 顶部状态栏 */
-        lv_display_t* disp  = nullptr; /**< 本会话的 display */
-        InputBackend* input = nullptr; /**< 输入后端 (非拥有指针) */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+        Desktop       desktop;         // 常驻: 壁纸 + 场景根 + 提示文字
+        TopBar        top_bar;         // 常驻: 顶部状态栏
+        lv_display_t* disp  = nullptr; // 本会话的 display
+        InputBackend* input = nullptr; // 输入后端 (非拥有指针)
 
-        etl::array<Page*, k_page_slot_max> table{};           /**< 页表: 存指针, 名字问 page->name() */
-        etl::vector<Page*, k_stack_depth>  stack{};           /**< 返回栈: 栈底是首页 */
-        Page*                              current = nullptr; /**< 当前页 (非拥有指针) */
-        RouteRequest                       pending{};         /**< 攒着待执行的换页请求 */
+        etl::array<Page*, k_page_slot_max> table{};           // 页表: 存指针, 名字问 page->name()
+        etl::vector<Page*, k_stack_depth>  stack{};           // 返回栈: 栈底是首页
+        Page*                              current = nullptr; // 当前页 (非拥有指针)
+        RouteRequest                       pending{};         // 攒着待执行的换页请求
     };
 }
+
+#endif // UI_APP_HPP

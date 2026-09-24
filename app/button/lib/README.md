@@ -18,15 +18,6 @@ A generic C++ button library for embedded systems. Supports debounce, single/dou
 ```cpp
 #include "button.hpp"
 
-// Provide the system tick (must be defined exactly once in your project)
-namespace button
-{
-    inline int get_tick()
-    {
-        return your_hal_get_tick_ms();
-    }
-}
-
 // Create button objects (auto-registered)
 static button::Button btn1;
 static button::Button btn2;
@@ -58,6 +49,12 @@ int main()
     }
 }
 ```
+
+### Time Base
+
+`button::get_tick()` is **already implemented in the library** — it returns `mini_os_get_tick()`. You do not need to define it yourself; defining it again in the same translation unit is a redefinition error.
+
+If your project must source the tick elsewhere, edit the definition at the bottom of `button.hpp` instead of adding a second one.
 
 ### ETL Delegate Mode
 
@@ -116,7 +113,7 @@ All timing parameters are also settable per-instance at runtime via public membe
 |---|---|
 | `Button::scan()` | Drive all button state machines; returns active count |
 | `read_num()` | Number of allocated buttons |
-| `get_tick()` | **User must provide**: returns system ms tick |
+| `get_tick()` | Returns system ms tick; already implemented, see *Time Base* |
 
 ### Button class
 

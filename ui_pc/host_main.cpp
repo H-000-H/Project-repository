@@ -1,7 +1,11 @@
-/*
- * PC 宿主: 开窗口 + 起 UI 线程, 让 app/ui 那层在 PC 上真跑起来。
- *   ui_host.exe                        开窗口跑, 按 ESC 或关窗退出
- *   ui_host.exe --hidden --ms 2000 --bmp pc_ui.bmp   跑 2 秒存图退出 (无人值守用)
+/**
+ * @file host_main.cpp
+ * @author H-000-H
+ * @brief PC 宿主: 开窗口 + 起 UI 线程, 让 app/ui 那层在 PC 上真跑起来
+ * @note  用法:
+ *        - ui_host.exe                                    开窗口跑, 按 ESC 或关窗退出
+ *        - ui_host.exe --hidden --ms 2000 --bmp pc.bmp    跑 2 秒存图退出 (无人值守用)
+ * @copyright SPDX-License-Identifier: Apache-2.0
  */
 #include "ui_task.hpp"
 #include "input_backend.hpp"
@@ -17,7 +21,9 @@
 
 namespace
 {
-    /* 崩溃现场: 打印异常地址与调用栈, 全部换算成 DLL 偏移 —— 事后用 nm 就能查符号 */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+    // 崩溃现场: 打印异常地址与调用栈, 全部换算成 DLL 偏移 —— 事后用 nm 就能查符号
     LONG WINAPI crash_filter(EXCEPTION_POINTERS* info)
     {
         const char* dll_base = reinterpret_cast<const char*>(GetModuleHandleA("libui_logic.dll"));
@@ -36,10 +42,10 @@ namespace
         std::fflush(stdout);
         return EXCEPTION_EXECUTE_HANDLER;
     }
-} // namespace
 
-namespace
-{
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+    // 取 "--key value" 形式的选项值; 没给返回 nullptr
     const char* opt(int argc, char** argv, const char* key)
     {
         for (int i = 1; i < (argc - 1); ++i)
@@ -52,6 +58,7 @@ namespace
         return nullptr;
     }
 
+    // 命令行里有没有这个开关
     bool has_flag(int argc, char** argv, const char* key)
     {
         for (int i = 1; i < argc; ++i)
@@ -65,12 +72,16 @@ namespace
     }
 } // namespace
 
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
 int main(int argc, char** argv)
 {
-    const bool        hidden = has_flag(argc, argv, "--hidden");
-    const char*       ms_str = opt(argc, argv, "--ms");
-    const char*       bmp    = opt(argc, argv, "--bmp");
-    const std::uint32_t run_ms = (ms_str != nullptr) ? static_cast<std::uint32_t>(std::strtoul(ms_str, nullptr, 10)) : 0U;
+    const bool          hidden = has_flag(argc, argv, "--hidden");
+    const char*         ms_str = opt(argc, argv, "--ms");
+    const char*         bmp    = opt(argc, argv, "--bmp");
+    const std::uint32_t run_ms = (ms_str != nullptr)
+                                     ? static_cast<std::uint32_t>(std::strtoul(ms_str, nullptr, 10))
+                                     : 0U;
 
     SetUnhandledExceptionFilter(crash_filter);
 
@@ -79,8 +90,8 @@ int main(int argc, char** argv)
 
     pc_display_open(hidden);
 
-    /* 输入后端: PC 侧是鼠标指针。indev 由 PointerInput 建, 它会显式绑到本屏 display 上,
-     * 所以不用再挂"首帧 hook"去偷偷建设备 (那种写法在多屏下只能动一块屏) */
+    // 输入后端: PC 侧是鼠标指针。indev 由 PointerInput 建, 它会显式绑到本屏 display 上,
+    // 所以不用再挂"首帧 hook"去偷偷建设备 (那种写法在多屏下只能动一块屏)
     ui::PointerInput input(pc_input_read_lvgl);
 
     app::UiTask ui("st7789", 10U);
@@ -92,7 +103,7 @@ int main(int argc, char** argv)
 
     pc_display_pump(run_ms, bmp);
 
-    /* LVGL 内存池水位: max_used 是峰值, 也就是这一屏内容要过的最大一块 */
+    // LVGL 内存池水位: max_used 是峰值, 也就是这一屏内容要过的最大一块
     {
         lv_mem_monitor_t mon{};
         lv_mem_monitor(&mon);

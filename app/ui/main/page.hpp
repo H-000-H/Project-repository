@@ -5,24 +5,30 @@
  * @note  页面自己管自己的控件树生死; 页面之间互不认识: 想说"去哪"只能写注册名字符串。
  * @copyright SPDX-License-Identifier: Apache-2.0
  */
-#pragma once
+#ifndef PAGE_HPP
+#define PAGE_HPP
 #include "lvgl/lvgl.h"
 #include <cstdint>
 
 namespace ui
 {
-    /** @brief 一级页面默认宽度 (每个页面类可以自己调) */
-    constexpr std::int32_t k_page_default_width = 100;
-    /** @brief 一级页面默认高度 (每个页面类可以自己调) */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+    // 一级页面默认宽度 (每个页面类可以自己调)
+    constexpr std::int32_t k_page_default_width  = 100;
+    // 一级页面默认高度 (每个页面类可以自己调)
     constexpr std::int32_t k_page_default_height = 100;
 
-    /** @brief 离开页面时怎么收控件树; 判据: 这次回来要不要重头开始 */
+    // 离开页面时怎么收控件树; 判据: 这次回来要不要重头开始
     enum class PageQuit : std::uint8_t
     {
-        DESTROY, /**< 拆树: 一次性流程页(锁屏/向导), 再进来是全新一次 */
-        HIDE     /**< 只隐藏: 留住界面状态(输入草稿/滚动位置/选中的项) */
+        DESTROY, // 拆树: 一次性流程页(锁屏/向导), 再进来是全新一次
+        HIDE     // 只隐藏: 留住界面状态(输入草稿/滚动位置/选中的项)
     };
 
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+    // 页面基类
     class Page
     {
     public:
@@ -46,10 +52,10 @@ namespace ui
          */
         virtual void enter(lv_obj_t* parent) = 0;
 
-        /** @brief 每帧驱动 (没有周期动作的页面不用重写) */
+        // 每帧驱动 (没有周期动作的页面不用重写)
         virtual void tick() {}
 
-        /** @brief 退出页面: 拆控件树 + 复原外壳 (拆完还能再次 enter) */
+        // 退出页面: 拆控件树 + 复原外壳 (拆完还能再次 enter)
         virtual void exit() = 0;
 
         /**
@@ -59,10 +65,10 @@ namespace ui
          */
         virtual bool is_finished() const = 0;
 
-        /** @brief 注册名 (日志和查表都用它) */
+        // 注册名 (日志和查表都用它)
         const char* name() const { return this->page_name; }
 
-        /** @brief 离开时的收场方式 */
+        // 离开时的收场方式
         PageQuit quit_mode() const { return this->quit_on_exit; }
 
         /**
@@ -99,7 +105,7 @@ namespace ui
             }
         }
 
-        /** @brief 控件树还在不在(隐藏着也算在) */
+        // 控件树还在不在(隐藏着也算在)
         bool has_widgets() const { return this->root != nullptr; }
 
     protected:
@@ -109,7 +115,7 @@ namespace ui
          */
         void set_root(lv_obj_t* root) { this->root = root; }
 
-        /** @brief 根对象; 没建时 nullptr */
+        // 根对象; 没建时 nullptr
         lv_obj_t* get_root() const { return this->root; }
 
         /**
@@ -126,7 +132,7 @@ namespace ui
             return true;
         }
 
-        /** @brief 拆掉根对象并清登记 (派生类删树只能走这里, 直接 lv_obj_delete 会让 root 悬空) */
+        // 拆掉根对象并清登记 (派生类删树只能走这里, 直接 lv_obj_delete 会让 root 悬空)
         void destroy_root()
         {
             if (this->root != nullptr)
@@ -137,8 +143,12 @@ namespace ui
         }
 
     private:
-        PageQuit    quit_on_exit;   /**< 收场方式, 运行期可改 (set_quit_mode) */
-        const char* page_name;      /**< 注册名 (字符串字面量, 常驻) */
-        lv_obj_t*   root = nullptr; /**< 本页控件树根 */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+        PageQuit    quit_on_exit;   // 收场方式, 运行期可改 (set_quit_mode)
+        const char* page_name;      // 注册名 (字符串字面量, 常驻)
+        lv_obj_t*   root = nullptr; // 本页控件树根
     };
 }
+
+#endif // PAGE_HPP
