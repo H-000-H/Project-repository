@@ -2,7 +2,7 @@
  * @file ui_task.cpp
  * @author H-000-H
  * @brief UI 线程入口: 组合根(port + 外壳 + 页面) + 线程壳
- * @note  不允许在这里写逻辑, demo 测试会写一些但之后这里禁止 禁止 禁止 !
+ * @note  不允许在这里写逻辑: 换页与业务都写在各自页面里, 这里只做组合与驱动
  *        目录约定: global/ = 常驻外壳(桌面/顶栏), home/ = 页面(锁屏/设置), indev/ = 输入后端
  * @copyright SPDX-License-Identifier: Apache-2.0
  */
@@ -21,49 +21,9 @@ namespace app
 /* ------------------------------------------------------------------------------------------------------------------------------------------------ */
     // 线程名 (日志用)
     constexpr const char* k_ui_thread_name = "UiThread";
-
 /* ------------------------------------------------------------------------------------------------------------------------------------------------ */
 /* ------------------------------------------------------------------------------------------------------------------------------------------------ */
-    namespace
-    {
-        /**
-         * @brief 起一个一次性定时器 (repeat_count=1, 到期 LVGL 自删)
-         * @param[in] cb        lv_timer_cb_t 到期回调
-         * @param[in] delay_ms  std::uint32_t 延时 (ms)
-         * @param[in] user_data void*         透传给回调的上下文
-         */
-        void make_demo_timer(lv_timer_cb_t cb, std::uint32_t delay_ms, void* user_data)
-        {
-            lv_timer_t* timer = lv_timer_create(cb, delay_ms, user_data);
-            if (timer != nullptr)
-            {
-                lv_timer_set_repeat_count(timer, 1);
-            }
-        }
-
-        // 演示: 4s 输错 / 8s 输对, 走的是和键盘 ENTER 完全相同的 on_submit 路径
-        void demo_wrong_password(lv_timer_t* t)
-        {
-            auto* lock = static_cast<ui::LockScreen*>(lv_timer_get_user_data(t));
-            if (lock != nullptr)
-            {
-                lock->on_submit("123456");
-            }
-        }
-
-        void demo_right_password(lv_timer_t* t)
-        {
-            auto* lock = static_cast<ui::LockScreen*>(lv_timer_get_user_data(t));
-            if (lock != nullptr)
-            {
-                lock->on_submit("1234567");
-            }
-        }
-    } // namespace
-
-/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
-/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
-    UiTask::UiTask(const char* panel_label, std::uint16_t panel_occupy)
+    UiTask::UiTask(const char* panel_label, std::uint16_t panel_occupy) 
         : port_(PanelPort::get_instance(panel_label, panel_occupy))
     {
     }
@@ -102,6 +62,9 @@ namespace app
             MT_LOG_ERROR(k_ui_thread_name, "bind page setting failed");
         }
 
+        /* 桌面图标: 名字与页名都是常驻字符串, 点击由 Desktop 排队换页 */
+        this->app_.get_desktop().add_app_bar(LV_SYMBOL_SETTINGS, "Setting", "setting");
+
         /* 首页: 锁屏。reset_to 只排队, 真正建控件树发生在下一轮 App::tick */
         this->app_.reset_to("lock");
         MT_LOG_INFO(k_ui_thread_name, "screen ready (%ux%u)", static_cast<unsigned>(this->port_.Width()),
@@ -120,7 +83,7 @@ namespace app
             return;
         }
 
-        /* 常驻业务数据(跨页面共用): 只初始化一次, 不归任何一屏 */
+        /* 锁屏密码*/
         app::LockPassword::get_instance().set("1234567");
 
         if (!self->prepare())
@@ -129,17 +92,11 @@ namespace app
             return;
         }
 
-        make_demo_timer(demo_wrong_password, 4000U, &self->lock_);
-        make_demo_timer(demo_right_password, 8000U, &self->lock_);
-        auto& setting = self->setting_;
-
         for (;;)
         {
-            /* 先换页/驱动页面, 再刷屏: 反了会给"这一帧刚建的控件"多留一帧空窗 */
+            /* 先换页/驱动页面, 再刷屏 */
             self->app_.tick();
 
-            /* 全程序唯一驱动点: 这一个 handler 把 display 的刷新和所有 indev 的读取都跑掉。
-             * 别在别的线程再调一次 —— LVGL 会因 already_running 直接顶掉, 界面就不刷了 */
             if (self->port_.disp != nullptr)
             {
                 lv_timer_handler();

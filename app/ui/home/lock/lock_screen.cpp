@@ -25,6 +25,8 @@ namespace ui
     constexpr const char* const k_tag         = "lock_screen";
     // 页表注册名
     constexpr const char* const k_page_name   = "lock";
+    // 解锁后去哪: 页表里的名字, 由 SettingMain 自己注册
+    constexpr const char* const k_next_page_name = "setting";
     constexpr const char* const k_unlock_hint = "Unlock with any operation";
     constexpr const char* const k_tip_ok      = "Welcome";
     constexpr const char* const k_tip_fail    = "password error please rewrite";
@@ -35,13 +37,11 @@ namespace ui
 /* ------------------------------------------------------------------------------------------------------------------------------------------------ */
     LockScreen::LockScreen(App& app) : Page(PageQuit::DESTROY, k_page_name), app(app)
     {
-        /* lv_style_init 只做 memzero, 不依赖 lv_init, 静态构造期调用安全 */
         lv_style_init(&this->style_glass);
     }
 
     LockScreen::~LockScreen()
     {
-        /* 只拆自己的控件树, 不去碰外壳: 静态析构期 LVGL 运行时可能已经先没了 */
         this->destroy_widgets();
         lv_style_reset(&this->style_glass);
     }
@@ -50,8 +50,6 @@ namespace ui
 /* ------------------------------------------------------------------------------------------------------------------------------------------------ */
     void LockScreen::enter(lv_obj_t* parent)
     {
-        /* 收场方式运行期可改, 所以"树还在"有两种含义: 本来就在屏上(幂等直接回),
-           或上次按 HIDE 收的场(亮出来复用, 但上次的输入不能留) */
         if (this->has_widgets())
         {
             if (!this->reuse_root())
@@ -85,7 +83,6 @@ namespace ui
 /* ------------------------------------------------------------------------------------------------------------------------------------------------ */
     void LockScreen::on_submit(const char* input)
     {
-        /* 非 LOCKED(提示还在屏上 / 已解锁)时忽略重复提交, 防连按打乱状态机 */
         if ((input == nullptr) || (this->state != LockState::LOCKED))
         {
             return;
@@ -115,11 +112,11 @@ namespace ui
     void LockScreen::on_tip_timeout()
     {
         this->clear_tip();
-        /* 只有成功路径的提示到期才推进到 UNLOCKED; 先 clear_tip 再改状态:
-           is_finished() 为 true 时提示必然已经不在屏上 */
+
         if (this->state == LockState::UNLOCKING)
         {
             this->state = LockState::UNLOCKED;
+            this->app.show_page(k_next_page_name);
         }
     }
 
@@ -142,8 +139,6 @@ namespace ui
         lv_obj_set_size(root, LV_PCT(60), LV_PCT(8));
         lv_obj_align(root, LV_ALIGN_TOP_MID, 0, 40);
         lv_obj_set_style_pad_all(root, 8, LV_PART_MAIN);
-
-        /* 玻璃卡片样式: set 系列会 lv_malloc, 必须在 lv_init 之后跑 (enter 在 init 之后调用) */
         lv_style_set_bg_color(&this->style_glass, lv_color_white());
         lv_style_set_bg_opa(&this->style_glass, LV_OPA_40);
         lv_style_set_blur_radius(&this->style_glass, 4);
@@ -159,11 +154,11 @@ namespace ui
         this->textarea = lv_textarea_create(root);
         if (this->textarea == nullptr)
         {
-            this->destroy_root(); /* 半棵树不能留在屏上: 基类登记跟着清掉 */
+            this->destroy_root(); 
             return false;
         }
         lv_obj_set_size(this->textarea, LV_PCT(100), LV_PCT(100));
-        lv_obj_align(this->textarea, LV_ALIGN_TOP_MID, 0, 0);
+        lv_obj_align(this->textarea, LV_ALIGN_TOP_MID, 0, -LV_PCT(10));
         lv_textarea_set_password_mode(this->textarea, true);
         lv_textarea_set_one_line(this->textarea, true);
         /* user_data 传 this: 回调里拿回页面对象 */
@@ -179,8 +174,6 @@ namespace ui
             lv_timer_delete(this->tip_timer);
             this->tip_timer = nullptr;
         }
-        /* 删根对象走基类: 它同时清掉自己的登记; textarea / tip_label 是根的子节点跟着走,
-           LVGL 在 lv_obj_destruct 里会把子对象从焦点组摘掉 */
         this->destroy_root();
         this->textarea  = nullptr;
         this->tip_label = nullptr;

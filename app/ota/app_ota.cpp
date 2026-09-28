@@ -96,7 +96,7 @@ namespace app
      * @param[out] out_len int*           实际读到的字节数 (成功时写入)
      * @return int ERR_OK 成功, ERR_TRANSMIT 读失败或超时
      * @note  本回调第一次被调用 == download_stream 已完成 flash 擦除、开始索要数据。此刻才通知
-     *        上位机开灌: 擦除要 1~3 秒, 期间若上位机已在发会灌进 12~35KB, 远超 RX ring 容量。
+     *        上位机开灌: 擦除要 1~3 秒, 期间若上位机已在发会灌进 12~35KB, 远超 RX ring 容量会爆掉。
      */
     static int ota_download_source(void* param, std::uint8_t* buf, std::uint32_t want, int* out_len)
     {
@@ -105,11 +105,10 @@ namespace app
         if (!s_ready_sent)
         {
             s_ready_sent = true;
-            // 就绪握手走 OTA 信道本身: 上位机在同一条连接上等这个字节,
-            // 走日志口等于拿诊断面当控制面, 且会与"人看日志"互斥
+            /** 手动发送 READY 字节, 避免被 download_stream 的超时判死重来且路不和正常串口一条路*/
             static const std::uint8_t k_ready_byte = 'R';
             (void)device_write(dev, &k_ready_byte, 1u, 100u);
-            MT_LOG_INFO("Ota", "OTA_READY"); // 留作人读诊断, 不当控制信号
+            MT_LOG_INFO("Ota", "OTA_READY"); // 读诊断, 看是否成功
         }
 
         const int got = device_read(dev, buf, want, k_read_timeout_ms);

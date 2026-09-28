@@ -12,7 +12,7 @@ namespace ui
     {
         constexpr lv_color_t SettingDefaultColor = HomeColor::k_white;
         constexpr uint8_t    SettingDefaultTextSize = 32;
-        /* 图片/箭头边长(占父对象高度百分比) */
+        /* 图片/箭头边长(占行高百分比; 行高给 LV_PCT 时先按父对象内容高换算成像素) */
         constexpr uint8_t    SettingIconHeightPct = 80;
         constexpr const lv_font_t* SettingFontSmall   = &lv_font_montserrat_12;
         constexpr const lv_font_t* SettingFontNormal  = &lv_font_montserrat_16;
@@ -29,8 +29,8 @@ namespace ui
          * @brief 创建选项
          * @param[in] parent lv_obj_t* 父对象
          * @param[in] text 选项文本(第1个孩子)
-         * @param[in] width int 宽度
-         * @param[in] height int 高度
+         * @param[in] width int 宽度(像素或 LV_PCT)
+         * @param[in] height int 高度(像素或 LV_PCT; 图标边长按它等比缩放)
          * @param[out] option_obj lv_obj_t** 选项对象
          * @param[out] text_obj lv_obj_t** 文本对象
          * @param[out] image_obj lv_obj_t** 图片对象(第2个孩子, 无图源时仅占位)
@@ -62,20 +62,24 @@ namespace ui
 /* --------------------------------------------------------------------------------------------------------------------------------------------------------- */
 /* --------------------------------------------------------------------------------------------------------------------------------------------------------- */
         /**
-         * @brief 创建滚轮对象每个setting page 自己 调用去创建一个
-         * @param[in] parent lv_obj_t* 挂载父对象 (page)
-         * @return lv_obj_t* 滚动容器对象
+         * @brief 创建内容视口(撑满外壳, 自带列排布与滚动条), 每个 setting page 自己调用创建一个
+         * @param[in] parent lv_obj_t* 挂载父对象 (页面外壳)
+         * @return lv_obj_t* 视口对象; 分配失败返回 nullptr
+         * @note
+         *  - 排布: FLEX + FLEX_FLOW_COLUMN, 选项挂它下面
+         *  - 滚动条: 粗细/贴边由 LV_PART_SCROLLBAR 的 width / pad_right 决定
          */
         lv_obj_t* create_scroll(lv_obj_t* parent);
 
         /**
-         * @brief : 设置滑轮的位置
-         * @param[in] parent lv_obj_t* 滚动容器对象
+         * @brief : 设置滚动容器的位置
+         * @param[in] scroll lv_obj_t* 滚动容器对象
          * @param[in] x lv_coord_t 水平位置
          * @param[in] y lv_coord_t 垂直位置
          * @return bool 是否设置成功
+         * @note 父对象为 flex/grid 布局时坐标会被布局覆盖, 仅适用于普通父对象
          */
-        bool set_scroll_postion(lv_obj_t* parent, lv_coord_t x, lv_coord_t y);
+        bool set_scroll_position(lv_obj_t* scroll, lv_coord_t x, lv_coord_t y);
 
         bool set_scroll_color(lv_obj_t* scroll, lv_color_t color);
 /* ------------------------------------------------------------------------------------------------------------------------------------------------ */
@@ -104,9 +108,10 @@ namespace ui
 /* ------------------------------------------------------------------------------------------------------------------------------------------------ */
 /* ------------------------------------------------------------------------------------------------------------------------------------------------ */
         /**
-         * @brief 创建setting 的 页面 页面都一个鸟样所以也直接到基类了
+         * @brief 创建 setting 页面外壳(占满父对象 + 铺底色, 不负责排布)
          * @param[in] parent lv_obj_t* 父对象
-         * @return lv_obj_t* 页面对象
+         * @return lv_obj_t* 页面对象; 分配失败返回 nullptr
+         * @note 内容的排布/滚动交给 create_scroll 建的视口
          */
         lv_obj_t* create_page(lv_obj_t* parent);
 
@@ -115,8 +120,8 @@ namespace ui
         /**
          * @brief 创建开关行
          * @param[in] parent lv_obj_t* 父对象
-         * @param[in] width int32_t 行宽
-         * @param[in] height int32_t 行高
+         * @param[in] width int32_t 行宽(像素或 LV_PCT)
+         * @param[in] height int32_t 行高(像素或 LV_PCT; 图标/开关尺寸按它等比缩放)
          * @param[in] text 开关文本(第1个孩子)
          * @param[out] switch_obj lv_obj_t** 开关控件(第3个孩子)
          * @param[out] text_obj lv_obj_t** 文本对象
@@ -232,6 +237,20 @@ namespace ui
          *  - switch 行没有箭头, 第3个孩子是开关本身, 调用返回 false
          */
         bool set_icon_color(lv_obj_t* obj, lv_color_t color);
+
+        /**
+         * @brief 隐藏页面
+         * @param[in] page lv_obj_t* 页面对象
+         * @return bool 是否成功
+         */
+        bool hide_page(lv_obj_t* page);
+
+        /**
+         * @brief 销毁页面
+         * @param[in] page lv_obj_t* 页面对象
+         * @return bool 是否成功
+         */
+        bool destroy_page(lv_obj_t* page);
     }
 
 }

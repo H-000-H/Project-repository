@@ -66,7 +66,10 @@ namespace ui
             {
                 return false;
             }
-            lv_coord_t icon_side = (height * SettingIconHeightPct) / 100;
+            /* height 可能是 LV_PCT 编码值(带标志位), 先按父对象内容高换成像素再算比例 */
+            lv_obj_update_layout(parent);
+            lv_coord_t row_h     = lv_pct_to_px(height, lv_obj_get_content_height(parent));
+            lv_coord_t icon_side = (row_h * SettingIconHeightPct) / 100;
             *option_obj          = create_row_container(parent, width, height);
             if (*option_obj == nullptr)
             {
@@ -151,23 +154,36 @@ namespace ui
             {
                 return nullptr;
             }
-            lv_obj_set_scrollable(scroll, true);
-            lv_obj_set_style_bg_color(scroll, SettingDefaultColor, LV_PART_SCROLLBAR);
-            lv_obj_align(scroll, LV_ALIGN_RIGHT_MID, 0, 0);
-            lv_obj_set_style_radius(scroll, 6, LV_PART_SCROLLBAR);
+            /* 内容视口: 撑满外壳, 透明底, 选项按列排布 */
+            lv_obj_set_size(scroll, LV_PCT(100), LV_PCT(100));
+            lv_obj_set_layout(scroll, LV_LAYOUT_FLEX);
+            lv_obj_set_flex_flow(scroll, LV_FLEX_FLOW_COLUMN);
+            lv_obj_set_flex_align(scroll, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+            lv_obj_set_style_pad_all(scroll, LV_PCT(5), LV_PART_MAIN);
+            lv_obj_set_style_pad_row(scroll, LV_PCT(5), LV_PART_MAIN);
+            lv_obj_set_style_bg_opa(scroll, LV_OPA_TRANSP, LV_PART_MAIN);
+            lv_obj_set_style_radius(scroll, 0, LV_PART_MAIN);
+            lv_obj_set_style_border_width(scroll, 0, LV_PART_MAIN);
+
+            /* 滚动条: 宽 5px, 离右边缘 2px, 圆形端头 */
+            lv_obj_set_style_width(scroll, 5, LV_PART_SCROLLBAR);
+            lv_obj_set_style_pad_right(scroll, 2, LV_PART_SCROLLBAR);
+            lv_obj_set_style_bg_color(scroll, HomeColor::k_gray, LV_PART_SCROLLBAR);
+            lv_obj_set_style_radius(scroll, LV_RADIUS_CIRCLE, LV_PART_SCROLLBAR);
             lv_obj_set_style_bg_opa(scroll, LV_OPA_20, LV_PART_SCROLLBAR);
             lv_obj_set_scrollbar_mode(scroll, LV_SCROLLBAR_MODE_AUTO);
             lv_obj_set_scroll_dir(scroll, LV_DIR_VER);
             return scroll;
         }
 
-        bool set_scroll_postion(lv_obj_t* parent, lv_coord_t x, lv_coord_t y)
+        bool set_scroll_position(lv_obj_t* scroll, lv_coord_t x, lv_coord_t y)
         {
-            if (parent == nullptr)
+            if (scroll == nullptr)
             {
                 return false;
             }
-            lv_obj_set_pos(parent, x, y);
+            /* 父对象为 flex/grid 布局时坐标会被布局覆盖, 该接口只适用于普通父对象 */
+            lv_obj_set_pos(scroll, x, y);
             return true;
         }
 
@@ -237,14 +253,13 @@ namespace ui
             {
                 return nullptr;
             }
+            /* 外壳: 只占满父对象并铺底色; 排布/滚动是内容视口(create_scroll)的职责 */
             lv_obj_set_size(page, LV_PCT(100), LV_PCT(100));
             lv_obj_set_style_bg_color(page, SettingDefaultColor, LV_PART_MAIN);
-            lv_obj_set_layout(page, LV_LAYOUT_FLEX);
-            lv_obj_set_flex_flow(page, LV_FLEX_FLOW_COLUMN);
-            // 设置选项块的间距(选项是组件每个同类型的选项占一个选项块)
-            lv_obj_set_style_pad_row(page, LV_PCT(5), LV_PART_MAIN);
-            lv_obj_set_style_pad_all(page, LV_PCT(5), LV_PART_MAIN);
-            lv_obj_set_flex_align(page, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+            lv_obj_set_style_pad_all(page, 0, LV_PART_MAIN);
+            lv_obj_set_style_radius(page, 0, LV_PART_MAIN);
+            lv_obj_set_style_border_width(page, 0, LV_PART_MAIN);
+            lv_obj_set_scrollbar_mode(page, LV_SCROLLBAR_MODE_OFF);
             return page;
         }
 
@@ -263,7 +278,10 @@ namespace ui
             {
                 return nullptr;
             }
-            lv_coord_t icon_side = (height * SettingIconHeightPct) / 100;
+            /* height 可能是 LV_PCT 编码值(带标志位), 先按父对象内容高换成像素再算比例 */
+            lv_obj_update_layout(parent);
+            lv_coord_t row_h     = lv_pct_to_px(height, lv_obj_get_content_height(parent));
+            lv_coord_t icon_side = (row_h * SettingIconHeightPct) / 100;
 
             lv_obj_t* row = create_row_container(parent, width, height);
             if (row == nullptr)
@@ -481,6 +499,30 @@ namespace ui
                 return false;
             }
             lv_obj_set_style_text_color(label, color, LV_PART_MAIN);
+            return true;
+        }
+
+        bool hide_page(lv_obj_t* page)
+        {
+            if(!page)
+                return false;
+            lv_obj_set_hidden(page, true);
+            return true;
+        }
+
+        bool show_page(lv_obj_t* page)
+        {
+            if(!page)
+
+            lv_obj_set_hidden(page, false);
+            return true;
+        }
+
+        bool destroy_page(lv_obj_t* page)
+        {
+            if(!page)
+                return false;
+            lv_obj_delete(page);
             return true;
         }
     } // namespace setting_base

@@ -23,7 +23,7 @@ namespace ui
     {
         LOCKED,    // 等待输入
         UNLOCKING, // 密码正确, Welcome 提示显示中
-        UNLOCKED   // 提示已收走, 页面可撤
+        UNLOCKED   // 提示已收走, 已请求跳去设置页
     };
 
 /* ------------------------------------------------------------------------------------------------------------------------------------------------ */
@@ -50,7 +50,9 @@ namespace ui
 /* ------------------------------------------------------------------------------------------------------------------------------------------------ */
         void enter(lv_obj_t* parent) override;
         void exit() override;
-        bool is_finished() const override { return this->state == LockState::UNLOCKED; }
+        /* 跳页由本页自己在 on_tip_timeout 里发起, 这里恒 false:
+           否则 App::tick 会再替本页 back() 一次, 两个换页请求只有一个槽位, 会互相顶掉 */
+        bool is_finished() const override { return false; }
 
         /**
          * @brief 提交一次密码 (输入框 ENTER 事件与外部模拟输入都走这里)

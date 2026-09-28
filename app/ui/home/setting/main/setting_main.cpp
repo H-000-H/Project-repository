@@ -5,26 +5,9 @@
  * @copyright SPDX-License-Identifier: Apache-2.0
  */
 #include "setting_main.hpp"
-#include "home.hpp"
+#include "lvgl.h"
 #include "system_log.h"
-#include "ui_app.hpp"
-#include <etl/string_view.h>
-#include <lvgl/core/lv_area.h>
-#include <lvgl/core/lv_group.h>
-#include <lvgl/core/lv_obj.h>
-#include <lvgl/core/lv_obj_pos.h>
-#include <lvgl/core/lv_obj_scroll.h>
-#include <lvgl/core/lv_obj_style.h>
-#include <lvgl/core/lv_obj_style_gen.h>
-#include <lvgl/core/lv_style.h>
-#include <lvgl/core/lv_style_gen.h>
-#include <lvgl/core/lv_timer.h>
-#include <lvgl/draw/lv_color.h>
-#include <lvgl/layouts/lv_flex.h>
-#include <lvgl/layouts/lv_layout.h>
-#include <lvgl/widgets/lv_label.h>
-#include <lvgl/widgets/lv_textarea.h>
-
+#include "../base/setting_base.hpp"
 namespace ui
 {
 /* ------------------------------------------------------------------------------------------------------------------------------------------------ */
@@ -52,13 +35,22 @@ namespace ui
         {
             if (!this->reuse_root())
             {
-                return; /* 本来就在屏上 (重复 enter) */
+                return; 
             }
         }
-        else if (!this->create_widgets(parent))
+        else
         {
-            MT_LOG_ERROR(k_tag, "create_widgets failed");
-            return;
+            lv_obj_t* root = setting_base::create_page(parent);
+            if (root == nullptr)
+            {
+                MT_LOG_ERROR(k_tag, "create_page failed");
+                return;
+            }
+            this->set_root(root);
+            create_scroll();
+            create_option_blue();
+            create_option_net();
+            create_option_power();
         }
     }
 
@@ -67,16 +59,62 @@ namespace ui
         this->destroy_widgets();
     }
 
-/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
-/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
-    bool SettingMain::create_widgets(lv_obj_t* parent)
+    bool SettingMain::create_scroll()
     {
+        if (this->scroll != nullptr)
+        {
+            MT_LOG_ERROR(k_tag, "create_scroll: scroll has been created");
+            return true;
+        }
+        this->scroll = setting_base::create_scroll(get_root());
+        if (this->scroll == nullptr)
+        {
+            MT_LOG_ERROR(k_tag, "create_scroll failed");
+            return false;
+        }
         return true;
     }
 
     void SettingMain::destroy_widgets()
     {
-        this->destroy_root();
-        this->scroll = nullptr; /* 树连子节点一起没了, 指针跟着清, 不留悬空 */
+        destroy_root();
+        /* 子控件lvgl自己释放 */
+        this->scroll = nullptr;
+        this->option_blue = nullptr;
+        this->option_blue_text = nullptr;
+        this->option_net = nullptr;
+        this->option_net_text = nullptr;
+        this->option_power = nullptr;
+        this->option_power_text = nullptr;
+    }
+
+    bool SettingMain::create_option_blue()
+    {
+        if (this->scroll == nullptr)
+        {
+            return false;
+        }
+        return setting_base::create_option(this->scroll, "blue or other link", LV_PCT(90), LV_PCT(15),
+                                           &this->option_blue, &this->option_blue_text);
+    }
+
+    bool SettingMain::create_option_net()
+    {
+        if (this->scroll == nullptr)
+        {
+            return false;
+        }
+        return setting_base::create_option(this->scroll, "net", LV_PCT(90), LV_PCT(15),
+                                           &this->option_net, &this->option_net_text);
+    }
+
+    bool SettingMain::create_option_power()
+    {
+        if (this->scroll == nullptr)
+        {
+            return false;
+        }
+        return setting_base::create_option(this->scroll, "power", LV_PCT(90), LV_PCT(15),
+                                           &this->option_power, &this->option_power_text);
     }
 }

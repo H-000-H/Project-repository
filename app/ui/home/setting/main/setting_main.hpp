@@ -59,12 +59,26 @@ namespace ui
         bool scroll_up();
 
         // 创建滚轮
-        bool create_scroll(lv_obj_t* parent);
+        bool create_scroll();
 
+        // 创建网络选项
+        bool create_option_net();
+
+        //电源选项
+        bool create_option_power();
+
+        //蓝牙选项
+        bool create_option_blue();
 /* ------------------------------------------------------------------------------------------------------------------------------------------------ */
 /* ------------------------------------------------------------------------------------------------------------------------------------------------ */
         App&      app;              /**< 组合根引用 */
         lv_obj_t* scroll = nullptr; /**< 滚动轴 (父节点是 root) */
+        lv_obj_t* option_net = nullptr; /**< 网络选项 */
+        lv_obj_t* option_net_text = nullptr; /**< 网络选项文字 */
+        lv_obj_t* option_power = nullptr; /**< 电源选项 */
+        lv_obj_t* option_power_text = nullptr; /**< 电源选项文字 */
+        lv_obj_t* option_blue = nullptr; /**< 蓝牙选项 */
+        lv_obj_t* option_blue_text = nullptr; /**< 蓝牙选项文字 */
     };
 }
 

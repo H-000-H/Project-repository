@@ -41,6 +41,8 @@ namespace ui
             MT_LOG_ERROR(k_tag, "desktop create failed");
             return false;
         }
+        /* 桌面图标点击要跳页: Desktop 是 App 的成员, 构造期拿不到 App, 这里事后注入 */
+        this->desktop.bind_router(*this);
         if (!this->top_bar.create(disp))
         {
             MT_LOG_ERROR(k_tag, "top bar create failed");

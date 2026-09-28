@@ -51,9 +51,10 @@
 	st7789: st7789@0 {
 		compatible = "mt-st7789";
 		reg = <0>;
-		width = <240>;              /* 屏宽 px */
-		height = <320>;             /* 屏高 px (驱动上限 320) */
-		madctl = <0>;               /* 旋转/镜像: 0 = 不旋转 */
+		/* 横屏 madctl 的 MV 位交换行列 竖屏就是 madctl = <0x0> 然后 width/height 互换;*/
+		width = <320>;              /* 屏宽 px: 旋转后的列数 (芯片 GRAM 原生是 240x320) */
+		height = <240>;             /* 屏高 px: 旋转后的行数 */
+		madctl = <0x60>;            /* MX|MV: 交换行列 + 水平镜像; 方向/镜像不对就换 0xA0(MY|MV) */
 		invert = <0>;               /* 颜色反转: 部分模块需要置 1 */
 		bl-active-high = <0>;       /* 背光极性 */
 		bl-channel = <1>;           /* 背光 PWM 通道 1..4 (对应 TIM 的 CH1..CH4), 须与 tim.dtsi 的 active-chn-mask 一致 */
