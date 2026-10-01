@@ -13,10 +13,10 @@
 
 | 分支名称 | 平台 / 架构 | 项目描述 | 状态 |
 | :--- | :--- | :--- | :--- |
-| `Host-Device-Architecture-stm32f407zgt6-node` | STM32  | stm32f407各种应用层开发| 进行中 |
-| `Host-Device-Architecture-stm32f103c8t6-node` | STM32  | stm32f103各种应用层开发| 进行中 |
-| `Host-Device-Architecture-ch307-node`|CH32|ch32v307各种应用层开发|进行中|
-| `Host-Device-Architecture-esp32s3-node`|ESP-IDF|esp32各种应用层开发|进行中|
+| `stm32f407zgt6-node(cpp)` | STM32  | stm32f407各种应用层开发| 进行中 |
+| `stm32f103c8t6-node(cpp)` | STM32  | stm32f103各种应用层开发| 进行中 |
+| `ch307-node(cpp)`|CH32|ch32v307各种应用层开发|进行中|
+| `esp32s3-node(rust)`|ESP-IDF|esp32各种应用层开发|进行中|
 
 ---
 
