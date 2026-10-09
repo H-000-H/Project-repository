@@ -1,0 +1,54 @@
+// SPDX-License-Identifier: Apache-2.0
+/*
+ * STM32F103C8T6 I2C 板级片段 — I2C1 (PB6 SCL / PB7 SDA)
+ *
+ * 用法: board/dts/board.dts 中 #include "stm32f103c8t6-i2c.dtsi"
+ *
+ * 厂商宏经 VENDOR_INC_DIRS / VENDOR_DEFINES / dtc-lite 预处理展开。
+ * - SCL/SDA 用 GPIO_MODE_AF_OD (开漏复用) + GPIO_PULLUP (上拉), F1 I2C 标准配置。
+ * - scl-pin/sda-pin 用 HAL 位掩码 GPIO_PIN_x (放得进 uint16_t)。
+ * - dma-tx-cfg / dma-rx-cfg 全 0 表示不用 DMA。
+ */
+#include <stm32f1xx_ll_bus.h>
+#include <stm32f1xx_hal_gpio.h>
+#include <stm32f1xx.h>
+
+/ {
+	i2c0: i2c@0 {
+		compatible = "i2c-master";
+		reg = <0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		i2c-base = <I2C1_BASE>;
+		i2c-clk  = <LL_APB1_GRP1_PERIPH_I2C1>;
+		scl-port = <GPIOB_BASE>;
+		scl-pin  = <GPIO_PIN_6>;
+		scl-clk  = <LL_APB2_GRP1_PERIPH_GPIOB>;
+		scl-af   = <0>;
+		scl-mode = <GPIO_MODE_AF_OD>;
+		scl-speed = <GPIO_SPEED_FREQ_HIGH>;
+		scl-pull  = <GPIO_PULLUP>;
+		sda-port = <GPIOB_BASE>;
+		sda-pin  = <GPIO_PIN_7>;
+		sda-clk  = <LL_APB2_GRP1_PERIPH_GPIOB>;
+		sda-af   = <0>;
+		sda-mode = <GPIO_MODE_AF_OD>;
+		sda-speed = <GPIO_SPEED_FREQ_HIGH>;
+		sda-pull  = <GPIO_PULLUP>;
+		irqn = <0>;
+		irq-priority = <0>;
+		it-enable = <0>;
+		i2c-mode = <0>;
+		max-transfer-buffer = <512>;
+		status = "disabled";
+
+		i2c0_client: i2c-master-client@50 {
+			compatible = "heterogeneous,i2c-master-client";
+			reg = <0x50>;
+			i2c-address = <0x50>;
+			ack-enable = <1>;
+			clock-frequency = <100000>;
+			status = "disabled";
+		};
+	};
+};

@@ -1,0 +1,34 @@
+// SPDX-License-Identifier: Apache-2.0
+/*
+ * STM32F103C8T6 TIM 板级片段 — TIM2 (时基模式)
+ *
+ * 用法: board/dts/board.dts 中 #include "stm32f103c8t6-tim.dtsi"
+ *
+ * 厂商宏经 VENDOR_INC_DIRS / VENDOR_DEFINES / dtc-lite 预处理展开。
+ * - hw-instance 填 TIM 基址, clk-periph 填时钟使能位。
+ * - tim-mode 填 HAL_TIM_MODE_* (来自 dt-bindings/tim/tim-parameter.h)。
+ * - counter-mode 填 LL_TIM_COUNTERMODE_UP 等。
+ */
+#include <stm32f1xx_ll_bus.h>
+#include <stm32f1xx_ll_tim.h>
+#include <stm32f1xx.h>
+#include <dt-bindings/tim/tim-parameter.h>
+
+/ {
+	tim0: tim@0 {
+		compatible = "tim";
+		reg = <0>;
+		tim-mode = <HAL_TIM_MODE_BASE>;
+		prescaler = <71>;              /* 72MHz / (71+1) = 1MHz tick */
+		counter-mode = <LL_TIM_COUNTERMODE_UP>;
+		autoreload = <999>;            /* 1MHz / 1000 = 1kHz 周期 (1ms) */
+		clock-division = <0>;
+		repetition-counter = <0>;
+		active-chn-mask = <0>;
+		hw-instance = <TIM2_BASE>;
+		clk-periph = <LL_APB1_GRP1_PERIPH_TIM2>;
+		irqn = <0>;
+		interrupt-mask = <0>;
+		status = "disabled";
+	};
+};

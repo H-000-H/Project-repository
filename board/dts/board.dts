@@ -1,0 +1,22 @@
+/*SPDX-License-Identifier: Apache-2.0*/
+/*板级stm32工程使用*/
+/dts-v1/;
+#include "stm32f103c8t6-cpu.dtsi"
+#include "stm32f103c8t6-gpio.dtsi"
+#include "stm32f103c8t6-uart.dtsi"
+#include "stm32f103c8t6-i2c.dtsi"
+#include "stm32f103c8t6-spi.dtsi"
+#include "stm32f103c8t6-tim.dtsi"
+/ {
+    compatible = "st,stm32f103c8t6-board";
+    #address-cells = <1>;
+    #size-cells = <0>;
+}
+&cpu0 {
+    clock-frequency = <72000000>;
+    status = "okay";
+}
+
+&gpio-led0{
+    status = "okay";
+}
