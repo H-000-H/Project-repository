@@ -1,0 +1,135 @@
+// SPDX-License-Identifier: Apache-2.0
+/*
+ * STM32F407ZGT6 最小板级骨架 DTS — 业务节点后续在此补充。
+ *
+ * 仅提供 dtc-lite 生成板级宏所需的最小结构:
+ *   /chosen        → CHOSEN_SCHEDULER_TIM / DTC_GEN_TICK_RATE_HZ / DTC_GEN_HEAP_SIZE
+ *   soc            → 外设片段挂接点（&soc）
+ *
+ * 外设片段见 board/dtsi/*.dtsi（tim.dtsi / gpio.dtsi / usb.dtsi）。
+ */
+/dts-v1/;
+
+#include "tim.dtsi"
+#include "gpio.dtsi"
+#include "uart.dtsi"
+#include "spi.dtsi"
+#include "st7789.dtsi"
+
+#include <stm32f4xx_ll_gpio.h>
+#include <stm32f4xx_ll_bus.h>
+
+/chosen {
+	tick-rate = <1000>;
+	heap-size = <32768>;
+};
+
+/ {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	model = "STMicro STM32F407ZGT6";
+	compatible = "st,stm32f407zgt6", "st,stm32f407";
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-m4";
+			reg = <0>;
+			clock-frequency = <96000000>;
+			status = "disabled";
+		};
+	};
+
+	soc: soc {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <0>;
+	};
+};
+
+/* -------------------------------------------------------------------------- */
+/* 外设使能收口: dtsi 只提供 disabled 模板, 全部状态开关统一在本文件控制            */
+/* -------------------------------------------------------------------------- */
+
+/* 调度 tick: TIM7 */
+&tim7 {
+	status = "okay";
+};
+
+/* 板载 LED: GPIOC.13 (低电平亮) */
+&led {
+	gpio-port = <GPIOC_BASE>;
+	gpio-pin = <LL_GPIO_PIN_13>;
+	gpio-clk = <LL_AHB1_GRP1_PERIPH_GPIOC>;
+	status = "okay";
+};
+
+/* 按键1: PA6 — 内部上拉, 按下为低电平 (与 app_button.cpp 的 pressed_level=0 配套)
+ * 按键2: PA7 — 内部上拉, 按下为低电平 (pressed_level=0)
+ * @note 引脚按实际硬件改; 换引脚只需改这里 + app_button.cpp 两处实例的有效电平 */
+&button1 {
+	gpio-port = <GPIOA_BASE>;
+	gpio-pin = <LL_GPIO_PIN_6>;
+	gpio-clk = <LL_AHB1_GRP1_PERIPH_GPIOA>;
+	status = "okay";
+};
+
+&button2 {
+	gpio-port = <GPIOA_BASE>;
+	gpio-pin = <LL_GPIO_PIN_7>;
+	gpio-clk = <LL_AHB1_GRP1_PERIPH_GPIOA>;
+	status = "okay";
+};
+
+/* console 日志口: USART2 (PA2=TX/PA3=RX, Renode 9090 终端接 sysbus.usart2) */
+&console_uart {
+	status = "okay";
+};
+
+&console {
+	status = "okay";
+};
+
+/* OTA 固件流口: USART3 (PB10=TX / PB11=RX, 115200) — 独立于 console 日志口
+ * controller 与 client 必须都打开: 只开 controller 时 open 拿不到 fops */
+&ota_uart {
+	status = "okay";
+};
+
+&ota {
+	status = "okay";
+};
+
+/* 业务通信口: USART1 (PA9=TX / PA10=RX, 115200) — communicate 任务收发 */
+&communicate_uart {
+	status = "okay";
+};
+
+&communicate {
+	status = "okay";
+};
+
+&display{
+	status = "okay";
+};
+
+&panel_rst{
+	status = "okay";
+};
+
+&panel_dc{
+	status = "okay";
+};
+
+&st7789{
+	status = "okay";
+};
+
+/* ST7789 背光 PWM: TIM9_CH1 (PE5, AF3, 20kHz) 要么一起开要么一起关 st7789和pwm */
+&st7789_pwm {
+	status = "okay";
+};

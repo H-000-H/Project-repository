@@ -1,0 +1,33 @@
+{
+    "version": 3,
+    "configurePresets": [
+        {
+            "name": "pc-ui-default",
+            "hidden": true,
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "environment": {
+                "PATH": "C:/msys64/ucrt64/bin;$penv{PATH}"
+            },
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "gcc",
+                "CMAKE_CXX_COMPILER": "g++"
+            }
+        },
+        {
+            "name": "Debug-PcUi",
+            "displayName": "PC 端 UI DLL (宿主编译器, 含 LVGL)",
+            "description": "只编 app/ui 与 ui 两层, 产出 libui_logic.dll",
+            "inherits": "pc-ui-default",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "Debug-PcUi",
+            "configurePreset": "Debug-PcUi"
+        }
+    ]
+}

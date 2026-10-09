@@ -1,0 +1,17 @@
+---
+# PC 端工程本体 (pc_port/pc_display/pc_input/host_main): 用本工程自己的编译数据库 + 宿主工具链
+CompileFlags:
+  CompilationDatabase: D:/device_platform/STM32F407ZG76/ui_pc/build/Debug-PcUi
+  Compiler: 'C:/msys64/ucrt64/bin/g++.exe'
+  Remove:
+    - '-IC:/Program Files (x86)/Arm GNU Toolchain*'
+    - -D__WCHAR_MIN__=0U
+  Add:
+    - -target
+    - x86_64-w64-windows-gnu
+---
+# .c 用宿主 gcc
+If:
+  PathMatch: .*\.c$
+CompileFlags:
+  Compiler: 'C:/msys64/ucrt64/bin/gcc.exe'

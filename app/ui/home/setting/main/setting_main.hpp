@@ -1,0 +1,85 @@
+#ifndef SETTING_MAIN_HPP
+#define SETTING_MAIN_HPP
+/*设置页 (默认收场方式 HIDE, 注册名 "setting")*/
+#include "lvgl.h"
+#include "page.hpp"
+
+namespace ui
+{
+    class App;
+
+    // 设置页
+    class SettingMain : public Page
+    {
+    public:
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+        /**
+         * @brief 构造
+         * @param[in] app App& 组合根引用
+         */
+        explicit SettingMain(App& app);
+        ~SettingMain() override;
+        SettingMain(const SettingMain&)            = delete;
+        SettingMain& operator=(const SettingMain&) = delete;
+        SettingMain(SettingMain&&)                 = delete;
+        SettingMain& operator=(SettingMain&&)      = delete;
+
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+        // 进入页面
+        void enter(lv_obj_t* parent) override;
+
+        // 退出页面
+        void exit() override;
+
+        // 是否已完成
+        bool is_finished() const override { return false; }
+
+    private:
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+        /**
+         * @brief 建设置页控件树
+         * @param[in] parent lv_obj_t* 挂载父对象
+         * @return bool 建成功返回 true
+         */
+        bool create_widgets(lv_obj_t* parent);
+
+        // 拆控件树: 仅 exit 调用, 建树中途失败的回滚走基类 destroy_root
+        void destroy_widgets();
+
+        // 把焦点入口加进焦点组并聚焦
+        void grab_focus();
+
+        // 向下滚动一屏
+        bool scroll_down();
+
+        // 向上滚动一屏
+        bool scroll_up();
+
+        // 创建滚轮
+        bool create_scroll();
+
+        // 创建网络选项
+        bool create_option_net();
+
+        //电源选项
+        bool create_option_power();
+
+        //蓝牙选项
+        bool create_option_blue();
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------------------------------------------------------ */
+        App&      app;              /**< 组合根引用 */
+        lv_obj_t* scroll = nullptr; /**< 滚动轴 (父节点是 root) */
+        lv_obj_t* option_net = nullptr; /**< 网络选项 */
+        lv_obj_t* option_net_text = nullptr; /**< 网络选项文字 */
+        lv_obj_t* option_power = nullptr; /**< 电源选项 */
+        lv_obj_t* option_power_text = nullptr; /**< 电源选项文字 */
+        lv_obj_t* option_blue = nullptr; /**< 蓝牙选项 */
+        lv_obj_t* option_blue_text = nullptr; /**< 蓝牙选项文字 */
+    };
+}
+
+#endif // SETTING_MAIN_HPP

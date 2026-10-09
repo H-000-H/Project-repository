@@ -1,0 +1,22 @@
+# 仅压制/修正 HAL 头文件被当作独立 TU 时的循环包含误报；.c 仍走 compile_commands
+If:
+  PathMatch: .*\.h$
+CompileFlags:
+  CompilationDatabase: None
+  Add:
+    - --target=arm-none-eabi
+    - -mcpu=cortex-m4
+    - -std=gnu17
+    - -x
+    - c-header
+    - -DSTM32F407xx
+    - -I/home/ning/project/Heterogeneous-Multicore/platform/STMicroelectronics/stm32f407zgt6/Core/Inc
+    - -I/home/ning/project/Heterogeneous-Multicore/platform/STMicroelectronics/stm32f407zgt6/Drivers/STM32F4xx_HAL_Driver/Inc
+    - -I/home/ning/project/Heterogeneous-Multicore/platform/STMicroelectronics/stm32f407zgt6/Drivers/STM32F4xx_HAL_Driver/Inc/Legacy
+    - -I/home/ning/project/Heterogeneous-Multicore/platform/STMicroelectronics/stm32f407zgt6/Drivers/CMSIS/Device/ST/STM32F4xx/Include
+    - -I/home/ning/project/Heterogeneous-Multicore/platform/STMicroelectronics/stm32f407zgt6/Drivers/CMSIS/Include
+  Remove:
+    - -DUSE_HAL_DRIVER
+    - -DUSE_FULL_LL_DRIVER
+Diagnostics:
+  Suppress: '*'
