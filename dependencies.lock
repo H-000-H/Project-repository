@@ -1,0 +1,21 @@
+dependencies:
+  h-000-h/mini-tree:
+    component_hash: cf9a63a1277de9c34fd172857a702405c9da1e988b052728878d502a6b396f5f
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.4'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.4.5
+  idf:
+    source:
+      type: idf
+    version: 5.5.2
+direct_dependencies:
+- h-000-h/mini-tree
+- idf
+manifest_hash: 641a0e8d7407b0058f413fb3d440e877f248907a6a1ba1de8ecf5bc0f6158524
+target: esp32c3
+version: 2.0.0
