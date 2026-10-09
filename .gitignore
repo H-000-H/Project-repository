@@ -85,3 +85,12 @@ diff_report.txt
 # 壁纸 PNG: 只留生成的 dektop_320x240.c, 图源不进版本库
 # (注意: 该文件已被跟踪, 规则要生效需先 git rm --cached)
 /app/ui/global/dektop/dektop_320x240.png
+
+# ---------------------------------------------
+# Visual Studio 工程文件 (CMake -G "Visual Studio" 生成)
+# ---------------------------------------------
+*.vcxproj
+*.vcxproj.filters
+*.sln
+*.props
+*.targets
