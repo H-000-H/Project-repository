@@ -1,0 +1,26 @@
+{
+  "cmake.cmakePath": "/usr/bin/cmake",
+  "cmake.useCMakePresets": "always",
+  "cmake.configureOnOpen": true,
+  "cmake.preferredGenerators": ["Ninja"],
+  "clangd.path": "/usr/bin/clangd",
+  "clangd.arguments": [
+    "--query-driver=/opt/wch-toolchain/bin/*,**/riscv-wch-elf-*,**/riscv*",
+    "--compile-commands-dir=${workspaceFolder}/build/Debug",
+    "--header-insertion=never",
+    "--background-index",
+    "--clang-tidy=false"
+  ],
+  "clangd.checkUpdates": false,
+  "clangd.onConfigChanged": "restart",
+  "C_Cpp.intelliSenseEngine": "disabled",
+  "files.associations": {
+    "*.dts": "c",
+    "*.dtsi": "c",
+    "*.overlay": "c",
+    "*.dtso": "c"
+  },
+  "[c]": {
+    "editor.defaultFormatter": null
+  }
+}

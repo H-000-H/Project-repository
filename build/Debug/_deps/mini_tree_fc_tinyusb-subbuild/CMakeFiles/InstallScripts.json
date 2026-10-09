@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"C:/device_platform/CH32V307/Host-Device-Architecture-CH32V307-node/build/Debug/_deps/mini_tree_fc_tinyusb-subbuild/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

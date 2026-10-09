@@ -1,0 +1,80 @@
+# CH32V307 板级 clangd（信任 compile_commands，只修工具链）
+#
+# 要点：
+# - 勿用 Remove: -m*（会剥掉 -march/-mabi，clang 退回 x86 并报缺 __riscv_xlen）
+# - --target 仅给 clang 用；query-driver 抽头失败时可忽略（已显式 -isystem）
+# - 项目 -I 由 build/Debug/compile_commands.json 提供
+CompileFlags:
+  CompilationDatabase: build/Debug
+  Remove:
+    - -fdata-sections
+    - -ffunction-sections
+    - -msmall-data-limit=*
+    - -mno-save-restore
+    - -specs=*
+    - -Werror*
+  Add:
+    - --target=riscv32-unknown-elf
+    - -march=rv32imac_zicsr
+    - -mabi=ilp32
+    - -mcmodel=medany
+    # C++ 头（libstdc++）
+    - -isystem
+    - /opt/wch-toolchain/riscv-wch-elf/include/c++/12.2.0
+    - -isystem
+    - /opt/wch-toolchain/riscv-wch-elf/include/c++/12.2.0/riscv-wch-elf
+    - -isystem
+    - /opt/wch-toolchain/riscv-wch-elf/include/c++/12.2.0/backward
+    # C 头（gcc 内置 + newlib）
+    - -isystem
+    - /opt/wch-toolchain/lib/gcc/riscv-wch-elf/12.2.0/include
+    - -isystem
+    - /opt/wch-toolchain/lib/gcc/riscv-wch-elf/12.2.0/include-fixed
+    - -isystem
+    - /opt/wch-toolchain/riscv-wch-elf/include
+    - -Wno-ignored-attributes
+    - -Wno-unused-command-line-argument
+    - -ferror-limit=0
+
+Diagnostics:
+  UnusedIncludes: None
+  MissingIncludes: None
+
+---
+If:
+  PathMatch: .*\.(cpp|cc|cxx|hpp|hh|hxx)$
+CompileFlags:
+  Add:
+    - -std=gnu++17
+    - -DETL_NO_STL
+
+---
+If:
+  PathMatch: .*[/\\]app[/\\].*\.(c|cpp|S)$
+CompileFlags:
+  CompilationDatabase: build/Debug
+  Add:
+    - -I/home/ning/project/Heterogeneous-Multicore/platform/WCH/ch32v307/app/inc
+    - -I/home/ning/project/Heterogeneous-Multicore/platform/WCH/ch32v307/mini_tree/ide/stubs
+
+---
+# DTS/DTSI：按 C 解析以便 #include / 宏跳转；DT 语法噪声全部压制
+If:
+  PathMatch: .*(board|mini_tree[/\\]board)[/\\].*\.(dts|dtsi)$
+CompileFlags:
+  CompilationDatabase: None
+  Add:
+    - --target=riscv32-unknown-elf
+    - -std=gnu17
+    - -x
+    - c
+    - -DCONFIG_OSAL_FREERTOS
+    - -I/home/ning/project/Heterogeneous-Multicore/platform/WCH/ch32v307/board
+    - -I/home/ning/project/Heterogeneous-Multicore/platform/WCH/ch32v307/board/dtsi
+    - -I/home/ning/project/Heterogeneous-Multicore/platform/WCH/ch32v307/board/dt-bindings
+    - -I/home/ning/project/Heterogeneous-Multicore/platform/WCH/ch32v307/mini_tree/board
+    - -I/home/ning/project/Heterogeneous-Multicore/platform/WCH/ch32v307/mini_tree/board/dt-bindings
+    - -I/home/ning/project/Heterogeneous-Multicore/platform/WCH/ch32v307/SRC/Peripheral/inc
+    - -I/home/ning/project/Heterogeneous-Multicore/platform/WCH/ch32v307/SRC/Core
+Diagnostics:
+  Suppress: '*'

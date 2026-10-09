@@ -1,0 +1,8 @@
+// SPDX-License-Identifier: Apache-2.0
+/dts-v1/;
+
+/ {
+	compatible = "wch,ch32v307-node";
+	#address-cells = <1>;
+	#size-cells = <0>;
+};

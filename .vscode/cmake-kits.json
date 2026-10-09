@@ -1,0 +1,10 @@
+[
+    {
+        "name": "riscv-wch-elf-gcc 12.2",
+        "toolchainFile": "${workspaceFolder}/cmake/riscv32-wch-elf-ch32v307.cmake",
+        "preferredGenerator": {
+            "name": "Ninja"
+        },
+        "isTrusted": true
+    }
+]
