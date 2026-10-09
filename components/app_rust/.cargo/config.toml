@@ -1,0 +1,7 @@
+[build]
+# ESP32-S3 = Xtensa LX7，用乐鑫 fork 的裸机 no_std target
+target = "xtensa-esp32s3-none-elf"
+
+[unstable]
+# esp fork 未预编译 core，用 build-std 从 rust-src 现编
+build-std = ["core"]

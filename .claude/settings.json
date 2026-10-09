@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git rm *)",
+      "Bash(xargs sed -i 's#https://github.com/H-000-H/Heterogeneous-Multicore#https://github.com/H-000-H/device-platform#g')",
+      "Bash(xargs sed -i 's/Heterogeneous-Multicore/device-platform/g')"
+    ]
+  }
+}
